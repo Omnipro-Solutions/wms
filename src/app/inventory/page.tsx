@@ -11,19 +11,8 @@ import {
 } from "lucide-react";
 import { useWmsStore } from "@/store/wms-store";
 import { availableStock, abcByProduct } from "@/store/selectors";
-
-function SortIcon({
-  field,
-  active,
-  dir,
-}: {
-  field: string;
-  active: string;
-  dir: "asc" | "desc";
-}) {
-  if (active !== field) return <ArrowUpDown className="ml-1 inline size-3 opacity-40" />;
-  return dir === "asc" ? <ChevronUp className="ml-1 inline size-3" /> : <ChevronDown className="ml-1 inline size-3" />;
-}
+import { useStoreHelpers } from "@/hooks/use-store-helpers";
+import { useDialogState } from "@/hooks/use-dialog-state";
 import { PageHeader } from "@/components/shared/page-header";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { Badge } from "@/components/ui/badge";
@@ -59,7 +48,8 @@ type SortField = "product" | "location" | "onHand" | "available" | "status";
 type SortDir = "asc" | "desc";
 
 type ActionType = "hold" | "release" | "adjust";
-interface ActionDialog {
+
+interface ActionDialogData {
   type: ActionType;
   itemId: string;
   productName: string;
@@ -67,21 +57,40 @@ interface ActionDialog {
   currentHold: number;
 }
 
+const DIALOG_TITLES: Record<ActionType, string> = {
+  hold: "Poner en espera (hold)",
+  release: "Liberar del hold",
+  adjust: "Ajuste de inventario",
+};
+
+function SortIcon({
+  field,
+  active,
+  dir,
+}: {
+  field: string;
+  active: string;
+  dir: SortDir;
+}) {
+  if (active !== field) return <ArrowUpDown className="ml-1 inline size-3 opacity-40" />;
+  return dir === "asc"
+    ? <ChevronUp className="ml-1 inline size-3" />
+    : <ChevronDown className="ml-1 inline size-3" />;
+}
+
 export default function InventoryPage() {
   const state = useWmsStore();
   const { holdInventory, releaseInventory, adjustInventory } = useWmsStore();
+  const { productName, locationCode } = useStoreHelpers();
 
   const abc = abcByProduct(state);
 
   const [sortField, setSortField] = useState<SortField>("product");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
-  const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [dialog, setDialog] = useState<ActionDialog | null>(null);
+  const [statusFilter, setStatusFilter] = useState("all");
   const [qty, setQty] = useState("");
-  const [error, setError] = useState("");
 
-  const productName = (id: string) => state.products.find((p) => p.id === id)?.name ?? id;
-  const locationCode = (id: string) => state.locations.find((l) => l.id === id)?.code ?? id;
+  const actionDialog = useDialogState<ActionDialogData>();
 
   const filtered = state.inventoryItems.filter((i) => {
     if (statusFilter !== "all" && i.status !== statusFilter) return false;
@@ -97,13 +106,13 @@ export default function InventoryPage() {
     return a.status.localeCompare(b.status) * dir;
   });
 
-  function toggleSort(field: SortField) {
+  const toggleSort = (field: SortField) => {
     if (sortField === field) setSortDir(sortDir === "asc" ? "desc" : "asc");
     else { setSortField(field); setSortDir("asc"); }
-  }
+  };
 
-  function openDialog(type: ActionType, item: typeof filtered[0]) {
-    setDialog({
+  const openActionDialog = (type: ActionType, item: typeof filtered[0]) => {
+    actionDialog.open({
       type,
       itemId: item.id,
       productName: productName(item.productId),
@@ -111,29 +120,21 @@ export default function InventoryPage() {
       currentHold: item.holdQuantity,
     });
     setQty(type === "adjust" ? String(item.onHandQuantity) : "");
-    setError("");
-  }
+  };
 
-  function handleSubmit() {
-    if (!dialog) return;
+  const handleSubmit = () => {
+    if (!actionDialog.data) return;
     const n = parseInt(qty, 10);
-    if (isNaN(n) || n < 0) { setError("Ingresa una cantidad válida."); return; }
+    if (isNaN(n) || n < 0) { actionDialog.setError("Ingresa una cantidad válida."); return; }
     try {
-      if (dialog.type === "hold") holdInventory(dialog.itemId, n, "Operador");
-      else if (dialog.type === "release") releaseInventory(dialog.itemId, n, "Operador");
-      else adjustInventory(dialog.itemId, n, "Operador");
-      setDialog(null);
+      if (actionDialog.data.type === "hold") holdInventory(actionDialog.data.itemId, n, "Operador");
+      else if (actionDialog.data.type === "release") releaseInventory(actionDialog.data.itemId, n, "Operador");
+      else adjustInventory(actionDialog.data.itemId, n, "Operador");
+      actionDialog.close();
       setQty("");
-      setError("");
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Error en la operación");
+      actionDialog.setError(e instanceof Error ? e.message : "Error en la operación");
     }
-  }
-
-  const dialogTitles: Record<ActionType, string> = {
-    hold: "Poner en espera (hold)",
-    release: "Liberar del hold",
-    adjust: "Ajuste de inventario",
   };
 
   const totalOnHand = filtered.reduce((s, i) => s + i.onHandQuantity, 0);
@@ -147,7 +148,6 @@ export default function InventoryPage() {
         description="Stock en tiempo real. Fuente única de verdad calculada desde el store central."
       />
 
-      {/* Summary KPIs */}
       <div className="grid gap-4 sm:grid-cols-3">
         <Card>
           <CardContent className="pt-6">
@@ -227,9 +227,7 @@ export default function InventoryPage() {
                     <TableCell className="font-medium">{productName(item.productId)}</TableCell>
                     <TableCell className="font-mono text-xs">{locationCode(item.locationId)}</TableCell>
                     <TableCell>
-                      <Badge
-                        variant={abcClass === "A" ? "default" : abcClass === "B" ? "secondary" : "outline"}
-                      >
+                      <Badge variant={abcClass === "A" ? "default" : abcClass === "B" ? "secondary" : "outline"}>
                         {abcClass}
                       </Badge>
                     </TableCell>
@@ -246,16 +244,16 @@ export default function InventoryPage() {
                     <TableCell>
                       <div className="flex gap-1">
                         {item.status !== "on_hold" && (
-                          <Button size="sm" variant="outline" onClick={() => openDialog("hold", item)}>
+                          <Button size="sm" variant="outline" onClick={() => openActionDialog("hold", item)}>
                             Hold
                           </Button>
                         )}
                         {item.holdQuantity > 0 && (
-                          <Button size="sm" variant="outline" onClick={() => openDialog("release", item)}>
+                          <Button size="sm" variant="outline" onClick={() => openActionDialog("release", item)}>
                             Liberar
                           </Button>
                         )}
-                        <Button size="sm" variant="ghost" onClick={() => openDialog("adjust", item)}>
+                        <Button size="sm" variant="ghost" onClick={() => openActionDialog("adjust", item)}>
                           Ajustar
                         </Button>
                       </div>
@@ -268,30 +266,34 @@ export default function InventoryPage() {
         </CardContent>
       </Card>
 
-      {/* Action Dialog */}
-      <Dialog open={!!dialog} onOpenChange={(o) => { if (!o) { setDialog(null); setError(""); } }}>
+      <Dialog open={!!actionDialog.data} onOpenChange={(o) => { if (!o) actionDialog.close(); }}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{dialog ? dialogTitles[dialog.type] : ""}</DialogTitle>
+            <DialogTitle>
+              {actionDialog.data ? DIALOG_TITLES[actionDialog.data.type] : ""}
+            </DialogTitle>
           </DialogHeader>
-          {dialog && (
+          {actionDialog.data && (
             <div className="space-y-4 py-2">
               <p className="text-sm text-muted-foreground">
-                Producto: <span className="font-medium text-foreground">{dialog.productName}</span>
+                Producto:{" "}
+                <span className="font-medium text-foreground">{actionDialog.data.productName}</span>
               </p>
-              {dialog.type === "adjust" && (
+              {actionDialog.data.type === "adjust" && (
                 <p className="text-sm text-muted-foreground">
-                  Stock actual en mano: <span className="font-medium text-foreground">{dialog.currentOnHand}</span>
+                  Stock actual en mano:{" "}
+                  <span className="font-medium text-foreground">{actionDialog.data.currentOnHand}</span>
                 </p>
               )}
-              {dialog.type === "release" && (
+              {actionDialog.data.type === "release" && (
                 <p className="text-sm text-muted-foreground">
-                  Cantidad en hold: <span className="font-medium text-foreground">{dialog.currentHold}</span>
+                  Cantidad en hold:{" "}
+                  <span className="font-medium text-foreground">{actionDialog.data.currentHold}</span>
                 </p>
               )}
               <div className="space-y-1">
                 <Label htmlFor="inv-qty">
-                  {dialog.type === "adjust" ? "Nueva cantidad en mano" : "Cantidad"}
+                  {actionDialog.data.type === "adjust" ? "Nueva cantidad en mano" : "Cantidad"}
                 </Label>
                 <Input
                   id="inv-qty"
@@ -301,15 +303,15 @@ export default function InventoryPage() {
                   onChange={(e) => setQty(e.target.value)}
                 />
               </div>
-              {error && (
+              {actionDialog.error && (
                 <p className="flex items-center gap-1 text-sm text-destructive">
-                  <TriangleAlert className="size-3" /> {error}
+                  <TriangleAlert className="size-3" /> {actionDialog.error}
                 </p>
               )}
             </div>
           )}
           <DialogFooter>
-            <Button variant="outline" onClick={() => { setDialog(null); setError(""); }}>Cancelar</Button>
+            <Button variant="outline" onClick={actionDialog.close}>Cancelar</Button>
             <Button onClick={handleSubmit}>Confirmar</Button>
           </DialogFooter>
         </DialogContent>

@@ -16,6 +16,8 @@ import {
   abcByProduct,
   misplacedAClassItems,
 } from "@/store/selectors";
+import { useStoreHelpers } from "@/hooks/use-store-helpers";
+import { useDialogState } from "@/hooks/use-dialog-state";
 import { classifyXyz } from "@/lib/rules/slotting";
 import { PageHeader } from "@/components/shared/page-header";
 import { Badge } from "@/components/ui/badge";
@@ -38,62 +40,63 @@ import {
 } from "@/components/ui/table";
 import { formatNumber } from "@/lib/formatters";
 
+interface RelocateDialogData {
+  itemId: string;
+  toLocationId: string;
+  productName: string;
+  fromCode: string;
+  toCode: string;
+}
+
 export default function SlottingPage() {
   const state = useWmsStore();
   const { relocateInventory } = useWmsStore();
+  const { productName, locationCode } = useStoreHelpers();
 
   const abc = abcByProduct(state);
   const recommendations = selectSlottingRecommendations(state);
   const misplaced = misplacedAClassItems(state);
 
-  const [confirmDialog, setConfirmDialog] = useState<{
-    itemId: string;
-    toLocationId: string;
-    productName: string;
-    fromCode: string;
-    toCode: string;
-  } | null>(null);
-  const [error, setError] = useState("");
+  const relocateDialog = useDialogState<RelocateDialogData>();
   const [relocated, setRelocated] = useState<Set<string>>(new Set());
 
-  const productName = (id: string) => state.products.find((p) => p.id === id)?.name ?? id;
-  const locationCode = (id: string) => state.locations.find((l) => l.id === id)?.code ?? id;
-
-  function xyzClass(productId: string) {
+  const xyzClass = (productId: string) => {
     const d = state.demandStats.find((s) => s.productId === productId);
     if (!d) return "Z";
     return classifyXyz(d.demandSamples, state.settings.xyzCvX, state.settings.xyzCvY);
-  }
+  };
 
-  function openConfirm(rec: ReturnType<typeof selectSlottingRecommendations>[0]) {
-    const item = state.inventoryItems.find((i) => i.productId === rec.productId && i.locationId === rec.currentLocationId);
+  const openRelocateDialog = (rec: ReturnType<typeof selectSlottingRecommendations>[0]) => {
+    const item = state.inventoryItems.find(
+      (i) => i.productId === rec.productId && i.locationId === rec.currentLocationId
+    );
     if (!item) return;
-    setConfirmDialog({
+    relocateDialog.open({
       itemId: item.id,
       toLocationId: rec.suggestedLocationId,
       productName: productName(rec.productId),
       fromCode: locationCode(rec.currentLocationId),
       toCode: locationCode(rec.suggestedLocationId),
     });
-    setError("");
-  }
+  };
 
-  function handleRelocate() {
-    if (!confirmDialog) return;
+  const handleRelocate = () => {
+    if (!relocateDialog.data) return;
     try {
-      relocateInventory(confirmDialog.itemId, confirmDialog.toLocationId, "Operador Slotting");
-      setRelocated((prev) => new Set([...prev, confirmDialog.itemId]));
-      setConfirmDialog(null);
-      setError("");
+      relocateInventory(relocateDialog.data.itemId, relocateDialog.data.toLocationId, "Operador Slotting");
+      setRelocated((prev) => new Set([...prev, relocateDialog.data!.itemId]));
+      relocateDialog.close();
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Error al reubicar");
+      relocateDialog.setError(e instanceof Error ? e.message : "Error al reubicar");
     }
-  }
+  };
 
-  // Only show recommendations not yet relocated this session
-  const activeRecs = recommendations.filter(
-    (r) => !relocated.has(state.inventoryItems.find((i) => i.productId === r.productId && i.locationId === r.currentLocationId)?.id ?? "")
-  );
+  const activeRecs = recommendations.filter((r) => {
+    const item = state.inventoryItems.find(
+      (i) => i.productId === r.productId && i.locationId === r.currentLocationId
+    );
+    return item && !relocated.has(item.id);
+  });
 
   return (
     <>
@@ -102,7 +105,6 @@ export default function SlottingPage() {
         description="Clasificación ABC/XYZ calculada en vivo desde la demanda. Recomendaciones de reubicación con impacto estimado."
       />
 
-      {/* Summary cards */}
       <div className="grid gap-4 sm:grid-cols-3">
         <Card className="border-amber-200 bg-amber-50">
           <CardContent className="pt-6">
@@ -154,7 +156,7 @@ export default function SlottingPage() {
                 .map((d) => {
                   const product = state.products.find((p) => p.id === d.productId);
                   const abcClass = abc[d.productId] ?? "C";
-                  const xyzC = xyzClass(d.productId);
+                  const xyz = xyzClass(d.productId);
                   const item = state.inventoryItems.find((i) => i.productId === d.productId);
                   const loc = item ? state.locations.find((l) => l.id === item.locationId) : null;
                   return (
@@ -171,21 +173,19 @@ export default function SlottingPage() {
                       </TableCell>
                       <TableCell>
                         <Badge
-                          variant={xyzC === "X" ? "default" : xyzC === "Y" ? "secondary" : "outline"}
-                          className={xyzC === "X" ? "bg-blue-600" : xyzC === "Y" ? "" : "text-muted-foreground"}
+                          variant={xyz === "X" ? "default" : xyz === "Y" ? "secondary" : "outline"}
+                          className={xyz === "X" ? "bg-blue-600" : xyz !== "Y" ? "text-muted-foreground" : ""}
                         >
-                          {xyzC}
+                          {xyz}
                         </Badge>
                       </TableCell>
                       <TableCell className="text-right tabular-nums">{formatNumber(d.unitsSold)}</TableCell>
                       <TableCell className="text-right tabular-nums">{formatNumber(d.pickingFrequency)}</TableCell>
                       <TableCell className="font-mono text-xs">{loc?.code ?? "—"}</TableCell>
                       <TableCell>
-                        {loc?.golden ? (
-                          <CheckCircle2 className="size-4 text-green-600" />
-                        ) : (
-                          <TriangleAlert className="size-4 text-amber-500" />
-                        )}
+                        {loc?.golden
+                          ? <CheckCircle2 className="size-4 text-green-600" />
+                          : <TriangleAlert className="size-4 text-amber-500" />}
                       </TableCell>
                     </TableRow>
                   );
@@ -255,15 +255,11 @@ export default function SlottingPage() {
                         </div>
                       </TableCell>
                       <TableCell className="text-right tabular-nums">
-                        <span
-                          className={
-                            rec.score >= 60
-                              ? "font-bold text-green-700"
-                              : rec.score >= 30
-                              ? "text-amber-600"
-                              : "text-muted-foreground"
-                          }
-                        >
+                        <span className={
+                          rec.score >= 60 ? "font-bold text-green-700"
+                            : rec.score >= 30 ? "text-amber-600"
+                            : "text-muted-foreground"
+                        }>
                           {rec.score}
                         </span>
                       </TableCell>
@@ -274,7 +270,7 @@ export default function SlottingPage() {
                         {formatNumber(rec.estimatedTimeSavedSeconds)} s
                       </TableCell>
                       <TableCell>
-                        <Button size="sm" onClick={() => openConfirm(rec)}>
+                        <Button size="sm" onClick={() => openRelocateDialog(rec)}>
                           <MoveRight className="mr-1 size-3" /> Reubicar
                         </Button>
                       </TableCell>
@@ -288,39 +284,41 @@ export default function SlottingPage() {
       </Card>
 
       {/* Confirm relocation dialog */}
-      <Dialog open={!!confirmDialog} onOpenChange={(o) => { if (!o) { setConfirmDialog(null); setError(""); } }}>
+      <Dialog open={!!relocateDialog.data} onOpenChange={(o) => { if (!o) relocateDialog.close(); }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Confirmar reubicación</DialogTitle>
           </DialogHeader>
-          {confirmDialog && (
+          {relocateDialog.data && (
             <div className="space-y-4 py-2">
               <p className="text-sm text-muted-foreground">
-                Producto: <span className="font-medium text-foreground">{confirmDialog.productName}</span>
+                Producto:{" "}
+                <span className="font-medium text-foreground">{relocateDialog.data.productName}</span>
               </p>
               <div className="flex items-center gap-3 rounded-md border p-4">
                 <div className="text-center">
                   <p className="text-xs text-muted-foreground">Actual</p>
-                  <p className="font-mono font-semibold">{confirmDialog.fromCode}</p>
+                  <p className="font-mono font-semibold">{relocateDialog.data.fromCode}</p>
                 </div>
                 <ArrowRight className="size-5 text-muted-foreground" />
                 <div className="text-center">
                   <p className="text-xs text-muted-foreground">Destino</p>
-                  <p className="font-mono font-semibold text-green-700">{confirmDialog.toCode}</p>
+                  <p className="font-mono font-semibold text-green-700">{relocateDialog.data.toCode}</p>
                 </div>
               </div>
               <p className="text-sm text-muted-foreground">
-                Esta acción moverá todo el stock a la nueva ubicación y registrará un movimiento de tipo <strong>putaway</strong> en el log de auditoría.
+                Esta acción moverá todo el stock a la nueva ubicación y registrará un movimiento de
+                tipo <strong>putaway</strong> en el log de auditoría.
               </p>
-              {error && (
+              {relocateDialog.error && (
                 <p className="flex items-center gap-1 text-sm text-destructive">
-                  <TriangleAlert className="size-3" /> {error}
+                  <TriangleAlert className="size-3" /> {relocateDialog.error}
                 </p>
               )}
             </div>
           )}
           <DialogFooter>
-            <Button variant="outline" onClick={() => { setConfirmDialog(null); setError(""); }}>Cancelar</Button>
+            <Button variant="outline" onClick={relocateDialog.close}>Cancelar</Button>
             <Button onClick={handleRelocate}>
               <CheckCircle2 className="mr-1 size-4" /> Confirmar reubicación
             </Button>

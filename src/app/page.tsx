@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { useWmsStore } from "@/store/wms-store";
 import { selectDashboardKpis, selectSlottingRecommendations } from "@/store/selectors";
+import { useStoreHelpers } from "@/hooks/use-store-helpers";
 import { KpiCard } from "@/components/shared/kpi-card";
 import { PageHeader } from "@/components/shared/page-header";
 import { StatusBadge } from "@/components/shared/status-badge";
@@ -31,15 +32,12 @@ import { formatNumber, formatPercent } from "@/lib/formatters";
 
 export default function DashboardPage() {
   const state = useWmsStore();
+  const { productName, locationCode } = useStoreHelpers();
   const kpis = selectDashboardKpis(state);
   const recommendations = selectSlottingRecommendations(state).slice(0, 4);
   const recentOrders = [...state.commerceOrders]
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
     .slice(0, 5);
-  const productName = (id: string) =>
-    state.products.find((p) => p.id === id)?.name ?? id;
-  const locationCode = (id: string) =>
-    state.locations.find((l) => l.id === id)?.code ?? id;
 
   return (
     <>

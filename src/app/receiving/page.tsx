@@ -11,19 +11,8 @@ import {
 } from "lucide-react";
 import { useWmsStore } from "@/store/wms-store";
 import { selectSlottingRecommendations, abcByProduct } from "@/store/selectors";
-
-function SortIcon({
-  field,
-  active,
-  dir,
-}: {
-  field: string;
-  active: string;
-  dir: "asc" | "desc";
-}) {
-  if (active !== field) return null;
-  return dir === "asc" ? <ChevronUp className="ml-1 inline size-3" /> : <ChevronDown className="ml-1 inline size-3" />;
-}
+import { useStoreHelpers } from "@/hooks/use-store-helpers";
+import { useDialogState } from "@/hooks/use-dialog-state";
 import { PageHeader } from "@/components/shared/page-header";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { Badge } from "@/components/ui/badge";
@@ -58,20 +47,47 @@ import { formatNumber } from "@/lib/formatters";
 type SortField = "code" | "appointmentDate" | "status";
 type SortDir = "asc" | "desc";
 
+interface ReceiveDialogData {
+  asnId: string;
+  max: number;
+}
+
+interface PutawayDialogData {
+  asnId: string;
+  suggestedLocationId: string | null;
+}
+
+// Module-level pure component — no hooks, no closures over component state.
+function SortIcon({
+  field,
+  active,
+  dir,
+}: {
+  field: string;
+  active: string;
+  dir: SortDir;
+}) {
+  if (active !== field) return null;
+  return dir === "asc"
+    ? <ChevronUp className="ml-1 inline size-3" />
+    : <ChevronDown className="ml-1 inline size-3" />;
+}
+
 export default function ReceivingPage() {
   const state = useWmsStore();
   const { receiveAsn, putawayItem } = useWmsStore();
+  const { productName, locationCode } = useStoreHelpers();
 
   const abc = abcByProduct(state);
   const recommendations = selectSlottingRecommendations(state);
 
   const [sortField, setSortField] = useState<SortField>("appointmentDate");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
-  const [receiveDialog, setReceiveDialog] = useState<{ asnId: string; max: number } | null>(null);
-  const [putawayDialog, setPutawayDialog] = useState<{ asnId: string } | null>(null);
   const [receivedQty, setReceivedQty] = useState("");
   const [selectedLocation, setSelectedLocation] = useState("");
-  const [error, setError] = useState("");
+
+  const receiveDialog = useDialogState<ReceiveDialogData>();
+  const putawayDialog = useDialogState<PutawayDialogData>();
 
   const sorted = [...state.asnRecords].sort((a, b) => {
     const dir = sortDir === "asc" ? 1 : -1;
@@ -80,49 +96,61 @@ export default function ReceivingPage() {
     return a.status.localeCompare(b.status) * dir;
   });
 
-  function toggleSort(field: SortField) {
+  const pickLocations = state.locations.filter(
+    (l) => l.type === "pick" || l.type === "staging" || l.type === "quality_control"
+  );
+
+  const toggleSort = (field: SortField) => {
     if (sortField === field) setSortDir(sortDir === "asc" ? "desc" : "asc");
     else { setSortField(field); setSortDir("asc"); }
-  }
+  };
 
-  const productName = (id: string) => state.products.find((p) => p.id === id)?.name ?? id;
-  const pickLocations = state.locations.filter((l) => l.type === "pick" || l.type === "staging" || l.type === "quality_control");
-
-  // Putaway location suggestion from slotting
-  function suggestedLocation(asnId: string) {
+  const suggestedLocationId = (asnId: string): string | null => {
     const asn = state.asnRecords.find((a) => a.id === asnId);
     if (!asn) return null;
     const rec = recommendations.find((r) => r.productId === asn.productId);
-    if (rec) return rec.suggestedLocationId;
-    return asn.suggestedPutawayLocationId ?? null;
-  }
+    return rec?.suggestedLocationId ?? asn.suggestedPutawayLocationId ?? null;
+  };
 
-  function handleReceiveSubmit() {
-    if (!receiveDialog) return;
+  const openReceiveDialog = (asnId: string, max: number) => {
+    receiveDialog.open({ asnId, max });
+    setReceivedQty(String(max));
+  };
+
+  const openPutawayDialog = (asnId: string) => {
+    const sug = suggestedLocationId(asnId);
+    putawayDialog.open({ asnId, suggestedLocationId: sug });
+    setSelectedLocation(sug ?? "");
+  };
+
+  const handleReceiveSubmit = () => {
+    if (!receiveDialog.data) return;
     const qty = parseInt(receivedQty, 10);
-    if (!qty || qty <= 0) { setError("Ingresa una cantidad válida."); return; }
-    if (qty > receiveDialog.max) { setError(`Máximo pendiente: ${receiveDialog.max}`); return; }
+    if (!qty || qty <= 0) { receiveDialog.setError("Ingresa una cantidad válida."); return; }
+    if (qty > receiveDialog.data.max) {
+      receiveDialog.setError(`Máximo pendiente: ${receiveDialog.data.max}`);
+      return;
+    }
     try {
-      receiveAsn(receiveDialog.asnId, qty, "Operador");
-      setReceiveDialog(null);
+      receiveAsn(receiveDialog.data.asnId, qty, "Operador");
+      receiveDialog.close();
       setReceivedQty("");
-      setError("");
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Error al recibir");
+      receiveDialog.setError(e instanceof Error ? e.message : "Error al recibir");
     }
-  }
+  };
 
-  function handlePutawaySubmit() {
-    if (!putawayDialog || !selectedLocation) { setError("Selecciona una ubicación."); return; }
+  const handlePutawaySubmit = () => {
+    if (!putawayDialog.data) return;
+    if (!selectedLocation) { putawayDialog.setError("Selecciona una ubicación."); return; }
     try {
-      putawayItem(putawayDialog.asnId, selectedLocation, "Operador");
-      setPutawayDialog(null);
+      putawayItem(putawayDialog.data.asnId, selectedLocation, "Operador");
+      putawayDialog.close();
       setSelectedLocation("");
-      setError("");
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Error al hacer putaway");
+      putawayDialog.setError(e instanceof Error ? e.message : "Error al hacer putaway");
     }
-  }
+  };
 
   return (
     <>
@@ -141,27 +169,18 @@ export default function ReceivingPage() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead
-                  className="cursor-pointer select-none"
-                  onClick={() => toggleSort("code")}
-                >
+                <TableHead className="cursor-pointer select-none" onClick={() => toggleSort("code")}>
                   Código <SortIcon field="code" active={sortField} dir={sortDir} />
                 </TableHead>
                 <TableHead>Proveedor</TableHead>
                 <TableHead>Producto</TableHead>
                 <TableHead>Clase ABC</TableHead>
-                <TableHead
-                  className="cursor-pointer select-none"
-                  onClick={() => toggleSort("appointmentDate")}
-                >
+                <TableHead className="cursor-pointer select-none" onClick={() => toggleSort("appointmentDate")}>
                   Cita <SortIcon field="appointmentDate" active={sortField} dir={sortDir} />
                 </TableHead>
                 <TableHead className="text-right">Esperado</TableHead>
                 <TableHead className="text-right">Recibido</TableHead>
-                <TableHead
-                  className="cursor-pointer select-none"
-                  onClick={() => toggleSort("status")}
-                >
+                <TableHead className="cursor-pointer select-none" onClick={() => toggleSort("status")}>
                   Estado <SortIcon field="status" active={sortField} dir={sortDir} />
                 </TableHead>
                 <TableHead>Flags</TableHead>
@@ -178,9 +197,7 @@ export default function ReceivingPage() {
                     <TableCell>{asn.supplierName}</TableCell>
                     <TableCell>{productName(asn.productId)}</TableCell>
                     <TableCell>
-                      <Badge
-                        variant={abcClass === "A" ? "default" : abcClass === "B" ? "secondary" : "outline"}
-                      >
+                      <Badge variant={abcClass === "A" ? "default" : abcClass === "B" ? "secondary" : "outline"}>
                         {abcClass}
                       </Badge>
                     </TableCell>
@@ -201,28 +218,12 @@ export default function ReceivingPage() {
                     <TableCell>
                       <div className="flex gap-2">
                         {(asn.status === "pending" || asn.status === "partial") && (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => {
-                              setReceiveDialog({ asnId: asn.id, max: pending });
-                              setReceivedQty(String(pending));
-                              setError("");
-                            }}
-                          >
+                          <Button size="sm" variant="outline" onClick={() => openReceiveDialog(asn.id, pending)}>
                             Recibir
                           </Button>
                         )}
                         {(asn.status === "partial" || asn.status === "completed") && (
-                          <Button
-                            size="sm"
-                            onClick={() => {
-                              const sug = suggestedLocation(asn.id);
-                              setSelectedLocation(sug ?? "");
-                              setPutawayDialog({ asnId: asn.id });
-                              setError("");
-                            }}
-                          >
+                          <Button size="sm" onClick={() => openPutawayDialog(asn.id)}>
                             <MapPin className="mr-1 size-3" /> Putaway
                           </Button>
                         )}
@@ -237,31 +238,31 @@ export default function ReceivingPage() {
       </Card>
 
       {/* Receive Dialog */}
-      <Dialog open={!!receiveDialog} onOpenChange={(o) => { if (!o) { setReceiveDialog(null); setError(""); } }}>
+      <Dialog open={!!receiveDialog.data} onOpenChange={(o) => { if (!o) receiveDialog.close(); }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Registrar recepción</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="space-y-1">
-              <Label htmlFor="rcv-qty">Cantidad recibida (máx: {receiveDialog?.max})</Label>
+              <Label htmlFor="rcv-qty">Cantidad recibida (máx: {receiveDialog.data?.max})</Label>
               <Input
                 id="rcv-qty"
                 type="number"
                 min={1}
-                max={receiveDialog?.max}
+                max={receiveDialog.data?.max}
                 value={receivedQty}
                 onChange={(e) => setReceivedQty(e.target.value)}
               />
             </div>
-            {error && (
+            {receiveDialog.error && (
               <p className="flex items-center gap-1 text-sm text-destructive">
-                <TriangleAlert className="size-3" /> {error}
+                <TriangleAlert className="size-3" /> {receiveDialog.error}
               </p>
             )}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => { setReceiveDialog(null); setError(""); }}>Cancelar</Button>
+            <Button variant="outline" onClick={receiveDialog.close}>Cancelar</Button>
             <Button onClick={handleReceiveSubmit}>
               <CheckCircle2 className="mr-1 size-4" /> Confirmar recepción
             </Button>
@@ -270,7 +271,7 @@ export default function ReceivingPage() {
       </Dialog>
 
       {/* Putaway Dialog */}
-      <Dialog open={!!putawayDialog} onOpenChange={(o) => { if (!o) { setPutawayDialog(null); setError(""); } }}>
+      <Dialog open={!!putawayDialog.data} onOpenChange={(o) => { if (!o) putawayDialog.close(); }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -278,19 +279,19 @@ export default function ReceivingPage() {
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
-            {putawayDialog && (() => {
-              const sug = suggestedLocation(putawayDialog.asnId);
-              const asn = state.asnRecords.find((a) => a.id === putawayDialog.asnId);
-              const abcClass = asn ? abc[asn.productId] : "C";
-              return sug ? (
+            {putawayDialog.data?.suggestedLocationId && (() => {
+              const asn = state.asnRecords.find((a) => a.id === putawayDialog.data?.asnId);
+              const abcClass = asn ? (abc[asn.productId] ?? "C") : "C";
+              return (
                 <div className="rounded-md border border-blue-200 bg-blue-50 p-3 text-sm">
                   <p className="font-medium text-blue-800">Sugerencia de slotting (Clase {abcClass})</p>
                   <p className="text-blue-700">
-                    Ubicar en <strong>{state.locations.find((l) => l.id === sug)?.code}</strong> para
-                    optimizar distancia de picking.
+                    Ubicar en{" "}
+                    <strong>{locationCode(putawayDialog.data.suggestedLocationId)}</strong>{" "}
+                    para optimizar distancia de picking.
                   </p>
                 </div>
-              ) : null;
+              );
             })()}
             <div className="space-y-1">
               <Label htmlFor="pa-loc">Ubicación de destino</Label>
@@ -300,7 +301,7 @@ export default function ReceivingPage() {
                 </SelectTrigger>
                 <SelectContent>
                   {pickLocations.map((l) => {
-                    const isSuggested = putawayDialog && l.id === suggestedLocation(putawayDialog.asnId);
+                    const isSuggested = l.id === putawayDialog.data?.suggestedLocationId;
                     return (
                       <SelectItem key={l.id} value={l.id}>
                         {l.code} — {l.zone}
@@ -312,14 +313,14 @@ export default function ReceivingPage() {
                 </SelectContent>
               </Select>
             </div>
-            {error && (
+            {putawayDialog.error && (
               <p className="flex items-center gap-1 text-sm text-destructive">
-                <TriangleAlert className="size-3" /> {error}
+                <TriangleAlert className="size-3" /> {putawayDialog.error}
               </p>
             )}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => { setPutawayDialog(null); setError(""); }}>Cancelar</Button>
+            <Button variant="outline" onClick={putawayDialog.close}>Cancelar</Button>
             <Button onClick={handlePutawaySubmit}>
               <CheckCircle2 className="mr-1 size-4" /> Confirmar putaway
             </Button>

@@ -35,10 +35,11 @@ import type {
 } from "@/types/wms";
 
 let movementCounter = seed.stockMovements.length;
-function nextMovementId(): string {
+
+const nextMovementId = (): string => {
   movementCounter += 1;
   return `mv-${movementCounter}`;
-}
+};
 
 export interface WmsState {
   warehouses: Warehouse[];
@@ -76,16 +77,13 @@ export interface WmsState {
   relocateInventory: (itemId: string, toLocationId: string, operatorName: string) => void;
 }
 
-function recordMovement(
-  state: WmsState,
+const recordMovement = (
   partial: Omit<StockMovement, "id" | "createdAt">
-): StockMovement {
-  return {
-    ...partial,
-    id: nextMovementId(),
-    createdAt: seed.seedTimestamp,
-  };
-}
+): StockMovement => ({
+  ...partial,
+  id: nextMovementId(),
+  createdAt: seed.seedTimestamp,
+});
 
 export const useWmsStore = create<WmsState>((set, get) => ({
   warehouses: seed.warehouses,
@@ -129,7 +127,7 @@ export const useWmsStore = create<WmsState>((set, get) => ({
       const reserved = applyReserve(items[idx], line.requestedQuantity);
       items[idx] = { ...items[idx], ...reserved };
       movements.push(
-        recordMovement(state, {
+        recordMovement({
           productId: line.productId,
           warehouseId: items[idx].warehouseId,
           type: "transfer",
@@ -161,7 +159,7 @@ export const useWmsStore = create<WmsState>((set, get) => ({
       ),
       stockMovements: [
         ...state.stockMovements,
-        recordMovement(state, {
+        recordMovement({
           productId: item.productId,
           warehouseId: item.warehouseId,
           fromLocationId: item.locationId,
@@ -188,7 +186,7 @@ export const useWmsStore = create<WmsState>((set, get) => ({
       ),
       stockMovements: [
         ...state.stockMovements,
-        recordMovement(state, {
+        recordMovement({
           productId: item.productId,
           warehouseId: item.warehouseId,
           fromLocationId: item.locationId,
@@ -206,9 +204,11 @@ export const useWmsStore = create<WmsState>((set, get) => ({
     const state = get();
     const asn = state.asnRecords.find((a) => a.id === asnId);
     if (!asn) throw new Error("ASN not found");
-    if (!canTransition(asnTransitions, asn.status, "in_progress") && asn.status !== "in_progress" && asn.status !== "partial") {
-      throw new Error(`No se puede recibir desde el estado ${asn.status}`);
-    }
+    const canReceive =
+      asn.status === "in_progress" ||
+      asn.status === "partial" ||
+      canTransition(asnTransitions, asn.status, "in_progress");
+    if (!canReceive) throw new Error(`No se puede recibir desde el estado ${asn.status}`);
     if (receivedQty <= 0) throw new Error("quantity must be positive");
 
     // Find or create inventory item in staging/QC location
@@ -244,7 +244,7 @@ export const useWmsStore = create<WmsState>((set, get) => ({
       ];
     }
 
-    const movement = recordMovement(state, {
+    const movement = recordMovement({
       productId: asn.productId,
       warehouseId: "wh-bog",
       toLocationId: targetLocationId,
@@ -311,7 +311,7 @@ export const useWmsStore = create<WmsState>((set, get) => ({
       ];
     }
 
-    const movement = recordMovement(state, {
+    const movement = recordMovement({
       productId: asn.productId,
       warehouseId: "wh-bog",
       fromLocationId: stagingLocationId,
@@ -341,7 +341,7 @@ export const useWmsStore = create<WmsState>((set, get) => ({
       ),
       stockMovements: [
         ...state.stockMovements,
-        recordMovement(state, {
+        recordMovement({
           productId: item.productId,
           warehouseId: item.warehouseId,
           fromLocationId: item.locationId,
@@ -379,7 +379,7 @@ export const useWmsStore = create<WmsState>((set, get) => ({
       updatedItems = updatedItems.filter((i) => i.id !== itemId);
     }
 
-    const movement = recordMovement(state, {
+    const movement = recordMovement({
       productId: item.productId,
       warehouseId: item.warehouseId,
       fromLocationId: item.locationId,
