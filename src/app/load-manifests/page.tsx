@@ -85,9 +85,9 @@ export default function LoadManifestsPage() {
                 const route = state.sapRoutes.find((r) => r.id === m.sapRouteId);
                 return (
                   <TableRow key={m.id}>
-                    <TableCell className="font-medium">{m.code}</TableCell>
+                    <TableCell className="font-mono font-medium">{m.code}</TableCell>
                     <TableCell className="text-sm">{m.manifestDate}</TableCell>
-                    <TableCell className="text-sm text-muted-foreground">
+                    <TableCell className="font-mono text-sm text-muted-foreground">
                       {route ? route.code : "—"}
                     </TableCell>
                     <TableCell>{m.carrierName}</TableCell>
