@@ -8,7 +8,15 @@ import {
   applyReserve,
   availableStock,
 } from "@/lib/rules/inventory";
-import { canTransition, asnTransitions, commerceTransitions } from "@/lib/state-machines";
+import {
+  canTransition,
+  asnTransitions,
+  commerceTransitions,
+  pickingTaskTransitions,
+  waveTransitions,
+  transferTransitions,
+  returnTransitions,
+} from "@/lib/state-machines";
 import type {
   Asn,
   Carrier,
@@ -75,6 +83,25 @@ export interface WmsState {
   // Inventory
   adjustInventory: (itemId: string, countedQty: number, operatorName: string) => void;
   relocateInventory: (itemId: string, toLocationId: string, operatorName: string) => void;
+  // Picking
+  startPicking: (taskId: string, operatorName: string) => PickingTask;
+  completePick: (taskId: string, pickedQty: number, reasonId?: string) => PickingTask;
+  approvePart: (taskId: string) => PickingTask;
+  rejectPart: (taskId: string) => PickingTask;
+  // Waves
+  releaseWave: (waveId: string) => PickingWave;
+  // Packing
+  completePacking: (packingOrderId: string, scannedItems: number) => PackingOrder;
+  generateLabel: (packingOrderId: string) => PackingOrder;
+  // Shipping
+  shipOrder: (shipmentId: string, operatorName: string) => Shipment;
+  // Transfers
+  advanceTransfer: (transferId: string, operatorName: string) => TransferOrder;
+  // Returns
+  advanceReturn: (returnId: string, operatorName: string) => ReturnOrder;
+  // Replenishment
+  startReplenishment: (taskId: string, operatorName: string) => ReplenishmentTask;
+  completeReplenishment: (taskId: string) => ReplenishmentTask;
 }
 
 const recordMovement = (
@@ -395,5 +422,328 @@ export const useWmsStore = create<WmsState>((set, get) => ({
       inventoryItems: updatedItems,
       stockMovements: [...state.stockMovements, movement],
     });
+  },
+
+  // ─── Picking ──────────────────────────────────────────────────────────────
+
+  startPicking: (taskId, operatorName) => {
+    const state = get();
+    const task = state.pickingTasks.find((t) => t.id === taskId);
+    if (!task) throw new Error("picking task not found");
+    const canAssign = canTransition(pickingTaskTransitions, task.status, "assigned");
+    const canStart = canTransition(pickingTaskTransitions, task.status, "in_progress");
+    if (!canAssign && !canStart) {
+      throw new Error(`No se puede iniciar tarea desde el estado ${task.status}`);
+    }
+    const nextStatus = task.status === "assigned" ? "in_progress" : "assigned";
+    const updated: PickingTask = { ...task, status: nextStatus, operatorName };
+    set({ pickingTasks: state.pickingTasks.map((t) => (t.id === taskId ? updated : t)) });
+    return updated;
+  },
+
+  completePick: (taskId, pickedQty, reasonId) => {
+    const state = get();
+    const task = state.pickingTasks.find((t) => t.id === taskId);
+    if (!task) throw new Error("picking task not found");
+    if (!canTransition(pickingTaskTransitions, task.status, "completed") &&
+        !canTransition(pickingTaskTransitions, task.status, "partially_picked")) {
+      throw new Error(`No se puede completar tarea desde el estado ${task.status}`);
+    }
+
+    const clamped = Math.min(pickedQty, task.requestedQuantity);
+    const isPartial = clamped < task.requestedQuantity;
+    const nextStatus: PickingTask["status"] = isPartial
+      ? (clamped === 0 ? "partial_with_shortage" : "partially_picked")
+      : "completed";
+
+    const updated: PickingTask = {
+      ...task,
+      pickedQuantity: clamped,
+      pendingQuantity: task.requestedQuantity - clamped,
+      status: nextStatus,
+      ...(isPartial && reasonId ? { partialReasonId: reasonId } : {}),
+    };
+
+    // Deduct reserved inventory when picking completes
+    const inventoryItem = state.inventoryItems.find(
+      (i) => i.productId === task.productId && i.locationId === task.locationId
+    );
+    const updatedItems = inventoryItem
+      ? state.inventoryItems.map((i) =>
+          i.id === inventoryItem.id
+            ? { ...i, onHandQuantity: Math.max(0, i.onHandQuantity - clamped), reservedQuantity: Math.max(0, i.reservedQuantity - clamped) }
+            : i
+        )
+      : state.inventoryItems;
+
+    const movement = recordMovement({
+      productId: task.productId,
+      warehouseId: "wh-bog",
+      fromLocationId: task.locationId,
+      type: "pick",
+      quantity: clamped,
+      referenceType: "commerce_order",
+      referenceId: task.orderId,
+      operatorName: task.operatorName ?? "Operador",
+    });
+
+    set({
+      pickingTasks: state.pickingTasks.map((t) => (t.id === taskId ? updated : t)),
+      inventoryItems: updatedItems,
+      stockMovements: [...state.stockMovements, movement],
+    });
+    return updated;
+  },
+
+  approvePart: (taskId) => {
+    const state = get();
+    const task = state.pickingTasks.find((t) => t.id === taskId);
+    if (!task) throw new Error("picking task not found");
+    if (!canTransition(pickingTaskTransitions, task.status, "partial_approved")) {
+      throw new Error(`No se puede aprobar parcial desde el estado ${task.status}`);
+    }
+    const updated: PickingTask = { ...task, status: "partial_approved" };
+    set({ pickingTasks: state.pickingTasks.map((t) => (t.id === taskId ? updated : t)) });
+    return updated;
+  },
+
+  rejectPart: (taskId) => {
+    const state = get();
+    const task = state.pickingTasks.find((t) => t.id === taskId);
+    if (!task) throw new Error("picking task not found");
+    if (!canTransition(pickingTaskTransitions, task.status, "partial_rejected")) {
+      throw new Error(`No se puede rechazar parcial desde el estado ${task.status}`);
+    }
+    const updated: PickingTask = { ...task, status: "partial_rejected" };
+    set({ pickingTasks: state.pickingTasks.map((t) => (t.id === taskId ? updated : t)) });
+    return updated;
+  },
+
+  // ─── Waves ────────────────────────────────────────────────────────────────
+
+  releaseWave: (waveId) => {
+    const state = get();
+    const wave = state.pickingWaves.find((w) => w.id === waveId);
+    if (!wave) throw new Error("picking wave not found");
+    if (!canTransition(waveTransitions, wave.status, "in_progress")) {
+      throw new Error(`No se puede liberar oleada desde el estado ${wave.status}`);
+    }
+    const updated: PickingWave = { ...wave, status: "in_progress" };
+    set({ pickingWaves: state.pickingWaves.map((w) => (w.id === waveId ? updated : w)) });
+    return updated;
+  },
+
+  // ─── Packing ──────────────────────────────────────────────────────────────
+
+  completePacking: (packingOrderId, scannedItems) => {
+    const state = get();
+    const order = state.packingOrders.find((p) => p.id === packingOrderId);
+    if (!order) throw new Error("packing order not found");
+    const verificationStatus = scannedItems === order.expectedItems ? "verified" : "mismatch";
+    const updated: PackingOrder = { ...order, scannedItems, verificationStatus };
+    set({ packingOrders: state.packingOrders.map((p) => (p.id === packingOrderId ? updated : p)) });
+    return updated;
+  },
+
+  generateLabel: (packingOrderId) => {
+    const state = get();
+    const order = state.packingOrders.find((p) => p.id === packingOrderId);
+    if (!order) throw new Error("packing order not found");
+    const updated: PackingOrder = { ...order, labelGenerated: true };
+    set({ packingOrders: state.packingOrders.map((p) => (p.id === packingOrderId ? updated : p)) });
+    return updated;
+  },
+
+  // ─── Shipping ─────────────────────────────────────────────────────────────
+
+  shipOrder: (shipmentId) => {
+    const state = get();
+    const shipment = state.shipments.find((s) => s.id === shipmentId);
+    if (!shipment) throw new Error("shipment not found");
+    const updated: Shipment = {
+      ...shipment,
+      status: "in_transit",
+      shippedAt: seed.seedTimestamp,
+      trackingNumber: shipment.trackingNumber ?? `TRK-${shipmentId.toUpperCase()}`,
+    };
+    set({ shipments: state.shipments.map((s) => (s.id === shipmentId ? updated : s)) });
+    return updated;
+  },
+
+  // ─── Transfers ────────────────────────────────────────────────────────────
+
+  advanceTransfer: (transferId, operatorName) => {
+    const state = get();
+    const transfer = state.transfers.find((t) => t.id === transferId);
+    if (!transfer) throw new Error("transfer not found");
+
+    // Determine next logical status along the happy path
+    const NEXT: Partial<Record<string, string>> = {
+      draft: "pending",
+      pending: "in_progress",
+      in_progress: "in_transit",
+      in_transit: "completed",
+      partial: "completed",
+    };
+    const next = NEXT[transfer.status] as typeof transfer.status | undefined;
+    if (!next || !canTransition(transferTransitions, transfer.status, next)) {
+      throw new Error(`No se puede avanzar traslado desde el estado ${transfer.status}`);
+    }
+
+    const updated: TransferOrder = { ...transfer, status: next };
+    const movements: StockMovement[] = [];
+
+    if (next === "completed") {
+      for (const line of transfer.items) {
+        movements.push(
+          recordMovement({
+            productId: line.productId,
+            warehouseId: transfer.originId,
+            type: "transfer",
+            quantity: line.requestedQuantity,
+            referenceType: "transfer",
+            referenceId: transferId,
+            operatorName,
+          })
+        );
+      }
+    }
+
+    set({
+      transfers: state.transfers.map((t) => (t.id === transferId ? updated : t)),
+      stockMovements: [...state.stockMovements, ...movements],
+    });
+    return updated;
+  },
+
+  // ─── Returns ──────────────────────────────────────────────────────────────
+
+  advanceReturn: (returnId, operatorName) => {
+    const state = get();
+    const ret = state.returnOrders.find((r) => r.id === returnId);
+    if (!ret) throw new Error("return order not found");
+
+    const NEXT: Partial<Record<string, string>> = {
+      requested: "received_at_store",
+      received_at_store: "in_transit_to_dc",
+      in_transit_to_dc: "received_at_dc",
+      received_at_dc: "under_validation",
+      under_validation: ret.disposition === "restock" ? "reentered"
+        : ret.disposition === "scrap" ? "sent_to_scrap"
+        : ret.disposition === "repair" ? "sent_to_repair"
+        : "sent_to_quality_control",
+      sent_to_quality_control: ret.disposition === "restock" ? "reentered" : "sent_to_scrap",
+      sent_to_repair: "reentered",
+      reentered: "closed",
+      sent_to_scrap: "closed",
+      rejected: "closed",
+    };
+    const next = NEXT[ret.status] as typeof ret.status | undefined;
+    if (!next || !canTransition(returnTransitions, ret.status, next)) {
+      throw new Error(`No se puede avanzar devolución desde el estado ${ret.status}`);
+    }
+
+    const updated: ReturnOrder = { ...ret, status: next };
+    const movements: StockMovement[] = [];
+
+    if (next === "reentered") {
+      for (const line of ret.items) {
+        movements.push(
+          recordMovement({
+            productId: line.productId,
+            warehouseId: ret.destinationId,
+            toLocationId: "loc-returns",
+            type: "return",
+            quantity: line.requestedQuantity,
+            referenceType: "return",
+            referenceId: returnId,
+            operatorName,
+          })
+        );
+      }
+    }
+
+    set({
+      returnOrders: state.returnOrders.map((r) => (r.id === returnId ? updated : r)),
+      stockMovements: [...state.stockMovements, ...movements],
+    });
+    return updated;
+  },
+
+  // ─── Replenishment ────────────────────────────────────────────────────────
+
+  startReplenishment: (taskId, operatorName) => {
+    const state = get();
+    const task = state.replenishmentTasks.find((t) => t.id === taskId);
+    if (!task) throw new Error("replenishment task not found");
+    if (task.status !== "pending") throw new Error(`No se puede iniciar desde el estado ${task.status}`);
+    const updated: ReplenishmentTask = { ...task, status: "assigned", operatorName };
+    set({ replenishmentTasks: state.replenishmentTasks.map((t) => (t.id === taskId ? updated : t)) });
+    return updated;
+  },
+
+  completeReplenishment: (taskId) => {
+    const state = get();
+    const task = state.replenishmentTasks.find((t) => t.id === taskId);
+    if (!task) throw new Error("replenishment task not found");
+    if (task.status !== "assigned") throw new Error(`No se puede completar desde el estado ${task.status}`);
+
+    // Move suggestedQuantity from origin to destination location
+    const originIdx = state.inventoryItems.findIndex(
+      (i) => i.productId === task.productId && i.locationId === task.originLocationId
+    );
+    if (originIdx === -1) throw new Error("No hay stock en la ubicación origen");
+
+    const origin = state.inventoryItems[originIdx];
+    const qty = Math.min(task.suggestedQuantity, origin.onHandQuantity);
+    if (qty <= 0) throw new Error("Sin stock disponible para reponer");
+
+    let updatedItems = state.inventoryItems.map((i, idx) =>
+      idx === originIdx ? { ...i, onHandQuantity: i.onHandQuantity - qty } : i
+    );
+
+    const destIdx = updatedItems.findIndex(
+      (i) => i.productId === task.productId && i.locationId === task.destinationLocationId
+    );
+    if (destIdx >= 0) {
+      updatedItems[destIdx] = {
+        ...updatedItems[destIdx],
+        onHandQuantity: updatedItems[destIdx].onHandQuantity + qty,
+      };
+    } else {
+      updatedItems = [
+        ...updatedItems,
+        {
+          id: `inv-rp-${taskId}`,
+          productId: task.productId,
+          warehouseId: "wh-bog",
+          locationId: task.destinationLocationId,
+          onHandQuantity: qty,
+          reservedQuantity: 0,
+          holdQuantity: 0,
+          status: "available",
+        },
+      ];
+    }
+
+    const updated: ReplenishmentTask = { ...task, status: "completed", currentStock: task.currentStock + qty };
+    const movement = recordMovement({
+      productId: task.productId,
+      warehouseId: "wh-bog",
+      fromLocationId: task.originLocationId,
+      toLocationId: task.destinationLocationId,
+      type: "putaway",
+      quantity: qty,
+      referenceType: "replenishment",
+      referenceId: taskId,
+      operatorName: task.operatorName ?? "Operador",
+    });
+
+    set({
+      replenishmentTasks: state.replenishmentTasks.map((t) => (t.id === taskId ? updated : t)),
+      inventoryItems: updatedItems,
+      stockMovements: [...state.stockMovements, movement],
+    });
+    return updated;
   },
 }));
