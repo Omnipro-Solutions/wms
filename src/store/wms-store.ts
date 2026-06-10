@@ -1,12 +1,14 @@
 import { create } from "zustand";
 import * as seed from "@/data/seed";
 import {
+  applyAdjustment,
   applyHold,
+  applyReceipt,
   applyRelease,
   applyReserve,
   availableStock,
 } from "@/lib/rules/inventory";
-import { canTransition, commerceTransitions } from "@/lib/state-machines";
+import { canTransition, asnTransitions, commerceTransitions } from "@/lib/state-machines";
 import type {
   Asn,
   Carrier,
@@ -66,6 +68,12 @@ export interface WmsState {
   reserveInventory: (orderId: string) => CommerceOrder;
   holdInventory: (itemId: string, qty: number, operatorName: string) => void;
   releaseInventory: (itemId: string, qty: number, operatorName: string) => void;
+  // Receiving
+  receiveAsn: (asnId: string, receivedQty: number, operatorName: string) => Asn;
+  putawayItem: (asnId: string, locationId: string, operatorName: string) => void;
+  // Inventory
+  adjustInventory: (itemId: string, countedQty: number, operatorName: string) => void;
+  relocateInventory: (itemId: string, toLocationId: string, operatorName: string) => void;
 }
 
 function recordMovement(
@@ -191,6 +199,201 @@ export const useWmsStore = create<WmsState>((set, get) => ({
           operatorName,
         }),
       ],
+    });
+  },
+
+  receiveAsn: (asnId, receivedQty, operatorName) => {
+    const state = get();
+    const asn = state.asnRecords.find((a) => a.id === asnId);
+    if (!asn) throw new Error("ASN not found");
+    if (!canTransition(asnTransitions, asn.status, "in_progress") && asn.status !== "in_progress" && asn.status !== "partial") {
+      throw new Error(`No se puede recibir desde el estado ${asn.status}`);
+    }
+    if (receivedQty <= 0) throw new Error("quantity must be positive");
+
+    // Find or create inventory item in staging/QC location
+    const targetLocationId = asn.requiresQualityControl ? "loc-qc" : "loc-stageout";
+    const existingItemIdx = state.inventoryItems.findIndex(
+      (i) => i.productId === asn.productId && i.warehouseId === "wh-bog" && i.locationId === targetLocationId
+    );
+
+    const newTotal = asn.receivedQuantity + receivedQty;
+    const finalStatus = newTotal >= asn.expectedQuantity ? "completed" : "partial";
+    const updatedAsn: Asn = { ...asn, receivedQuantity: newTotal, status: finalStatus };
+
+    let updatedItems = [...state.inventoryItems];
+    if (existingItemIdx >= 0) {
+      const existing = updatedItems[existingItemIdx];
+      updatedItems[existingItemIdx] = {
+        ...existing,
+        ...applyReceipt(existing, receivedQty),
+      };
+    } else {
+      updatedItems = [
+        ...updatedItems,
+        {
+          id: `inv-new-${asnId}`,
+          productId: asn.productId,
+          warehouseId: "wh-bog",
+          locationId: targetLocationId,
+          onHandQuantity: receivedQty,
+          reservedQuantity: 0,
+          holdQuantity: 0,
+          status: asn.requiresQualityControl ? ("on_hold" as const) : ("available" as const),
+        },
+      ];
+    }
+
+    const movement = recordMovement(state, {
+      productId: asn.productId,
+      warehouseId: "wh-bog",
+      toLocationId: targetLocationId,
+      type: "receipt",
+      quantity: receivedQty,
+      referenceType: "asn",
+      referenceId: asnId,
+      operatorName,
+    });
+
+    set({
+      asnRecords: state.asnRecords.map((a) => (a.id === asnId ? updatedAsn : a)),
+      inventoryItems: updatedItems,
+      stockMovements: [...state.stockMovements, movement],
+    });
+    return updatedAsn;
+  },
+
+  putawayItem: (asnId, locationId, operatorName) => {
+    const state = get();
+    const asn = state.asnRecords.find((a) => a.id === asnId);
+    if (!asn) throw new Error("ASN not found");
+
+    // Find inventory in staging/QC for this ASN's product
+    const stagingLocationId = asn.requiresQualityControl ? "loc-qc" : "loc-stageout";
+    const stagingItemIdx = state.inventoryItems.findIndex(
+      (i) =>
+        i.productId === asn.productId &&
+        i.warehouseId === "wh-bog" &&
+        i.locationId === stagingLocationId
+    );
+    if (stagingItemIdx === -1) throw new Error("No hay stock en staging/QC para este ASN");
+
+    const stagingItem = state.inventoryItems[stagingItemIdx];
+    const qtyToMove = stagingItem.onHandQuantity;
+
+    // Move from staging to destination
+    let updatedItems = [...state.inventoryItems];
+    updatedItems[stagingItemIdx] = { ...stagingItem, onHandQuantity: 0 };
+
+    // Merge or create at destination
+    const destIdx = updatedItems.findIndex(
+      (i) => i.productId === asn.productId && i.warehouseId === "wh-bog" && i.locationId === locationId
+    );
+    if (destIdx >= 0) {
+      updatedItems[destIdx] = {
+        ...updatedItems[destIdx],
+        ...applyReceipt(updatedItems[destIdx], qtyToMove),
+        status: "available",
+      };
+    } else {
+      updatedItems = [
+        ...updatedItems,
+        {
+          id: `inv-pa-${asnId}`,
+          productId: asn.productId,
+          warehouseId: "wh-bog",
+          locationId,
+          onHandQuantity: qtyToMove,
+          reservedQuantity: 0,
+          holdQuantity: 0,
+          status: "available",
+        },
+      ];
+    }
+
+    const movement = recordMovement(state, {
+      productId: asn.productId,
+      warehouseId: "wh-bog",
+      fromLocationId: stagingLocationId,
+      toLocationId: locationId,
+      type: "putaway",
+      quantity: qtyToMove,
+      referenceType: "asn",
+      referenceId: asnId,
+      operatorName,
+    });
+
+    set({
+      inventoryItems: updatedItems,
+      stockMovements: [...state.stockMovements, movement],
+    });
+  },
+
+  adjustInventory: (itemId, countedQty, operatorName) => {
+    const state = get();
+    const item = state.inventoryItems.find((i) => i.id === itemId);
+    if (!item) throw new Error("inventory item not found");
+    const delta = countedQty - item.onHandQuantity;
+    const adjusted = applyAdjustment(item, countedQty);
+    set({
+      inventoryItems: state.inventoryItems.map((i) =>
+        i.id === itemId ? { ...i, ...adjusted } : i
+      ),
+      stockMovements: [
+        ...state.stockMovements,
+        recordMovement(state, {
+          productId: item.productId,
+          warehouseId: item.warehouseId,
+          fromLocationId: item.locationId,
+          toLocationId: item.locationId,
+          type: "adjustment",
+          quantity: Math.abs(delta),
+          referenceType: "manual",
+          referenceId: itemId,
+          operatorName,
+        }),
+      ],
+    });
+  },
+
+  relocateInventory: (itemId, toLocationId, operatorName) => {
+    const state = get();
+    const item = state.inventoryItems.find((i) => i.id === itemId);
+    if (!item) throw new Error("inventory item not found");
+    const qty = item.onHandQuantity;
+
+    let updatedItems = state.inventoryItems.map((i) =>
+      i.id === itemId ? { ...i, locationId: toLocationId } : i
+    );
+
+    // Merge with existing item at destination if present
+    const existingDestIdx = updatedItems.findIndex(
+      (i) => i.productId === item.productId && i.locationId === toLocationId && i.id !== itemId
+    );
+    if (existingDestIdx >= 0) {
+      const dest = updatedItems[existingDestIdx];
+      updatedItems[existingDestIdx] = {
+        ...dest,
+        onHandQuantity: dest.onHandQuantity + qty,
+      };
+      updatedItems = updatedItems.filter((i) => i.id !== itemId);
+    }
+
+    const movement = recordMovement(state, {
+      productId: item.productId,
+      warehouseId: item.warehouseId,
+      fromLocationId: item.locationId,
+      toLocationId,
+      type: "putaway",
+      quantity: qty,
+      referenceType: "slotting",
+      referenceId: itemId,
+      operatorName,
+    });
+
+    set({
+      inventoryItems: updatedItems,
+      stockMovements: [...state.stockMovements, movement],
     });
   },
 }));
