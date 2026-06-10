@@ -1,65 +1,186 @@
-import Image from "next/image";
+"use client";
 
-export default function Home() {
+import {
+  AlertTriangle,
+  Boxes,
+  ClipboardList,
+  Grid3x3,
+  PackageCheck,
+  Route,
+  ShoppingCart,
+  TrendingUp,
+  Truck,
+  Undo2,
+  Waves,
+} from "lucide-react";
+import { useWmsStore } from "@/store/wms-store";
+import { selectDashboardKpis, selectSlottingRecommendations } from "@/store/selectors";
+import { KpiCard } from "@/components/shared/kpi-card";
+import { PageHeader } from "@/components/shared/page-header";
+import { StatusBadge } from "@/components/shared/status-badge";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { formatNumber, formatPercent } from "@/lib/formatters";
+
+export default function DashboardPage() {
+  const state = useWmsStore();
+  const kpis = selectDashboardKpis(state);
+  const recommendations = selectSlottingRecommendations(state).slice(0, 4);
+  const recentOrders = [...state.commerceOrders]
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+    .slice(0, 5);
+  const productName = (id: string) =>
+    state.products.find((p) => p.id === id)?.name ?? id;
+  const locationCode = (id: string) =>
+    state.locations.find((l) => l.id === id)?.code ?? id;
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
+    <>
+      <PageHeader
+        title="Dashboard operativo"
+        description="Visión general de la operación de bodega y logística."
+      />
+
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <KpiCard title="Pedidos pendientes" value={kpis.pendingOrders} icon={ShoppingCart} description="Pendientes de operación" />
+        <KpiCard title="Pedidos en picking" value={kpis.ordersInPicking} icon={ClipboardList} />
+        <KpiCard title="Picking parcial" value={kpis.partialPickingTasks} icon={ClipboardList} description="Tareas parciales" />
+        <KpiCard title="Oleadas activas" value={kpis.activeWaves} icon={Waves} />
+        <KpiCard title="Recepciones pendientes" value={kpis.pendingReceipts} icon={PackageCheck} />
+        <KpiCard title="Devoluciones en tránsito" value={kpis.returnsInTransit} icon={Undo2} />
+        <KpiCard title="Inventario en espera" value={formatNumber(kpis.inventoryOnHold)} icon={Boxes} description="Unidades en hold" />
+        <KpiCard title="Rutas activas" value={kpis.activeRoutes} icon={Route} />
+        <KpiCard title="OTIF estimado" value={formatPercent(kpis.otif)} icon={TrendingUp} />
+        <KpiCard title="SKUs mal ubicados" value={kpis.misplacedAClassSkus} icon={Grid3x3} description="Clase A fuera de golden zone" />
+        <KpiCard title="Alertas críticas" value={kpis.criticalAlerts} icon={AlertTriangle} />
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Pedidos recientes</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Pedido</TableHead>
+                  <TableHead>Cliente</TableHead>
+                  <TableHead>Canal</TableHead>
+                  <TableHead>Estado</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {recentOrders.map((o) => (
+                  <TableRow key={o.id}>
+                    <TableCell className="font-medium">{o.orderNumber}</TableCell>
+                    <TableCell>{o.customerName}</TableCell>
+                    <TableCell className="capitalize">{o.channel}</TableCell>
+                    <TableCell><StatusBadge status={o.status} /></TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Grid3x3 className="size-4" /> Salud de slotting
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {recommendations.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Sin oportunidades de reubicación.</p>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Producto</TableHead>
+                    <TableHead>Clase</TableHead>
+                    <TableHead>Sugerida</TableHead>
+                    <TableHead className="text-right">Ahorro (m)</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {recommendations.map((r) => (
+                    <TableRow key={r.id}>
+                      <TableCell className="font-medium">{productName(r.productId)}</TableCell>
+                      <TableCell>{r.abcClass}</TableCell>
+                      <TableCell>{locationCode(r.suggestedLocationId)}</TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        {formatNumber(r.estimatedDistanceSavedM)}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Truck className="size-4" /> Rutas SAP
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Ruta</TableHead>
+                  <TableHead>Transportadora</TableHead>
+                  <TableHead>Estado</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {state.sapRoutes.map((r) => (
+                  <TableRow key={r.id}>
+                    <TableCell className="font-medium">{r.code}</TableCell>
+                    <TableCell>{r.carrierName}</TableCell>
+                    <TableCell><StatusBadge status={r.status} /></TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Salud de integraciones</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Integración</TableHead>
+                  <TableHead>Mensajes</TableHead>
+                  <TableHead>Estado</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {state.integrations.map((i) => (
+                  <TableRow key={i.id}>
+                    <TableCell className="font-medium">{i.name}</TableCell>
+                    <TableCell className="tabular-nums">{formatNumber(i.processedMessages)}</TableCell>
+                    <TableCell><StatusBadge status={i.status} /></TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      </div>
+    </>
   );
 }

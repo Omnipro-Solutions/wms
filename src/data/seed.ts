@@ -1,0 +1,224 @@
+import type {
+  Asn,
+  Carrier,
+  CommerceOrder,
+  IntegrationConnection,
+  InventoryItem,
+  LoadManifest,
+  Operator,
+  PackingOrder,
+  PickingTask,
+  PickingWave,
+  Product,
+  ProductDemandStat,
+  Reason,
+  ReplenishmentTask,
+  ReturnOrder,
+  SapRoute,
+  Shipment,
+  StockMovement,
+  StorageLocation,
+  Store,
+  TransferOrder,
+  Warehouse,
+  WmsLabel,
+  WmsSettings,
+} from "@/types/wms";
+
+export const warehouses: Warehouse[] = [
+  { id: "wh-bog", code: "CEDI-BOG", name: "Centro de Distribución Bogotá", city: "Bogotá", type: "distribution_center" },
+  { id: "wh-med", code: "CEDI-MED", name: "Centro de Distribución Medellín", city: "Medellín", type: "distribution_center" },
+  { id: "wh-andino", code: "ST-AND", name: "Tienda Andino", city: "Bogotá", type: "store" },
+  { id: "wh-santafe", code: "ST-SFE", name: "Tienda Santa Fe", city: "Bogotá", type: "store" },
+  { id: "wh-viva", code: "ST-VIV", name: "Tienda Viva Envigado", city: "Envigado", type: "store" },
+  { id: "wh-unicentro", code: "ST-UNI", name: "Tienda Unicentro", city: "Bogotá", type: "store" },
+];
+
+export const stores: Store[] = warehouses
+  .filter((w) => w.type === "store")
+  .map((w) => ({ id: w.id, code: w.code, name: w.name, city: w.city }));
+
+export const locations: StorageLocation[] = [
+  { id: "loc-a0101", code: "A-01-01", warehouseId: "wh-bog", zone: "A", type: "pick", isPickFace: true, golden: true, accessibilityScore: 95, maxWeightKg: 25, volumeCapacityM3: 2, distanceToDispatchM: 8 },
+  { id: "loc-a0102", code: "A-01-02", warehouseId: "wh-bog", zone: "A", type: "pick", isPickFace: true, golden: true, accessibilityScore: 90, maxWeightKg: 25, volumeCapacityM3: 2, distanceToDispatchM: 10 },
+  { id: "loc-pickfast1", code: "PICK-FAST-01", warehouseId: "wh-bog", zone: "A", type: "pick", isPickFace: true, golden: true, accessibilityScore: 98, maxWeightKg: 20, volumeCapacityM3: 1.5, distanceToDispatchM: 5 },
+  { id: "loc-pickfast2", code: "PICK-FAST-02", warehouseId: "wh-bog", zone: "A", type: "pick", isPickFace: true, golden: true, accessibilityScore: 96, maxWeightKg: 20, volumeCapacityM3: 1.5, distanceToDispatchM: 6 },
+  { id: "loc-b0204", code: "B-02-04", warehouseId: "wh-bog", zone: "B", type: "pick", isPickFace: true, golden: false, accessibilityScore: 40, maxWeightKg: 30, volumeCapacityM3: 3, distanceToDispatchM: 45 },
+  { id: "loc-reserve", code: "RESERVE-05-12", warehouseId: "wh-bog", zone: "R", type: "reserve", isPickFace: false, golden: false, accessibilityScore: 20, maxWeightKg: 100, volumeCapacityM3: 12, distanceToDispatchM: 70 },
+  { id: "loc-qc", code: "QC-01", warehouseId: "wh-bog", zone: "QC", type: "quality_control", isPickFace: false, golden: false, accessibilityScore: 50, maxWeightKg: 50, volumeCapacityM3: 5, distanceToDispatchM: 30 },
+  { id: "loc-stageout", code: "STAGE-OUT-01", warehouseId: "wh-bog", zone: "S", type: "staging", isPickFace: false, golden: false, accessibilityScore: 60, maxWeightKg: 200, volumeCapacityM3: 20, distanceToDispatchM: 2 },
+  { id: "loc-returns", code: "RETURNS-01", warehouseId: "wh-bog", zone: "RT", type: "returns", isPickFace: false, golden: false, accessibilityScore: 45, maxWeightKg: 40, volumeCapacityM3: 4, distanceToDispatchM: 35 },
+];
+
+export const products: Product[] = [
+  { id: "p-tshirt", sku: "TS-BLK-001", name: "Camiseta Básica Negra", category: "Camisetas", barcode: "7700000000011", unitWeightKg: 0.2, unitVolumeM3: 0.002, trackBy: "none" },
+  { id: "p-jeans", sku: "JN-BLU-002", name: "Jean Slim Azul", category: "Pantalones", barcode: "7700000000028", unitWeightKg: 0.6, unitVolumeM3: 0.004, trackBy: "none" },
+  { id: "p-sneakers", sku: "SN-WHT-003", name: "Tenis Urbanos Blancos", category: "Calzado", barcode: "7700000000035", unitWeightKg: 0.9, unitVolumeM3: 0.008, trackBy: "serial" },
+  { id: "p-jacket", sku: "JK-WTP-004", name: "Chaqueta Impermeable", category: "Chaquetas", barcode: "7700000000042", unitWeightKg: 0.8, unitVolumeM3: 0.006, trackBy: "lot" },
+  { id: "p-bag", sku: "BG-SPT-005", name: "Bolso Deportivo", category: "Accesorios", barcode: "7700000000059", unitWeightKg: 0.5, unitVolumeM3: 0.01, trackBy: "none" },
+  { id: "p-cap", sku: "CP-LOG-006", name: "Gorra con Logo", category: "Accesorios", barcode: "7700000000066", unitWeightKg: 0.1, unitVolumeM3: 0.001, trackBy: "none" },
+  { id: "p-socks", sku: "SK-PK3-007", name: "Pack Medias x3", category: "Accesorios", barcode: "7700000000073", unitWeightKg: 0.15, unitVolumeM3: 0.001, trackBy: "none" },
+  { id: "p-dress", sku: "DR-FLR-008", name: "Vestido Floral", category: "Vestidos", barcode: "7700000000080", unitWeightKg: 0.3, unitVolumeM3: 0.003, trackBy: "none" },
+  { id: "p-cargo", sku: "CG-PNT-009", name: "Pantalón Cargo", category: "Pantalones", barcode: "7700000000097", unitWeightKg: 0.7, unitVolumeM3: 0.005, trackBy: "none" },
+  { id: "p-hoodie", sku: "HD-OVR-010", name: "Hoodie Oversize", category: "Buzos", barcode: "7700000000103", unitWeightKg: 0.65, unitVolumeM3: 0.007, trackBy: "none" },
+];
+
+// Demand stats drive ABC/XYZ. tshirt/socks/cap are high rotation (A);
+// note: tshirt (A-class) is intentionally seeded in a poor location below.
+export const demandStats: ProductDemandStat[] = [
+  { productId: "p-tshirt", unitsSold: 4200, pickingFrequency: 320, demandSamples: [300, 310, 305, 320, 315] },
+  { productId: "p-socks", unitsSold: 3800, pickingFrequency: 290, demandSamples: [280, 295, 285, 300, 290] },
+  { productId: "p-cap", unitsSold: 2600, pickingFrequency: 210, demandSamples: [180, 250, 150, 260, 210] },
+  { productId: "p-jeans", unitsSold: 1500, pickingFrequency: 120, demandSamples: [110, 130, 115, 125, 120] },
+  { productId: "p-hoodie", unitsSold: 1300, pickingFrequency: 95, demandSamples: [40, 160, 60, 140, 75] },
+  { productId: "p-sneakers", unitsSold: 900, pickingFrequency: 70, demandSamples: [65, 75, 60, 80, 70] },
+  { productId: "p-dress", unitsSold: 600, pickingFrequency: 45, demandSamples: [10, 90, 20, 80, 25] },
+  { productId: "p-cargo", unitsSold: 400, pickingFrequency: 30, demandSamples: [28, 32, 29, 31, 30] },
+  { productId: "p-jacket", unitsSold: 220, pickingFrequency: 18, demandSamples: [5, 40, 8, 35, 10] },
+  { productId: "p-bag", unitsSold: 150, pickingFrequency: 12, demandSamples: [11, 13, 12, 12, 12] },
+];
+
+export const inventoryItems: InventoryItem[] = [
+  // A-class tshirt sitting in a poor B location -> slotting will flag it.
+  { id: "inv-1", productId: "p-tshirt", warehouseId: "wh-bog", locationId: "loc-b0204", onHandQuantity: 500, reservedQuantity: 40, holdQuantity: 0, status: "available" },
+  { id: "inv-2", productId: "p-socks", warehouseId: "wh-bog", locationId: "loc-a0101", onHandQuantity: 800, reservedQuantity: 60, holdQuantity: 0, status: "available" },
+  { id: "inv-3", productId: "p-cap", warehouseId: "wh-bog", locationId: "loc-a0102", onHandQuantity: 350, reservedQuantity: 20, holdQuantity: 50, status: "on_hold" },
+  { id: "inv-4", productId: "p-jeans", warehouseId: "wh-bog", locationId: "loc-pickfast1", onHandQuantity: 220, reservedQuantity: 10, holdQuantity: 0, status: "available" },
+  { id: "inv-5", productId: "p-hoodie", warehouseId: "wh-bog", locationId: "loc-pickfast2", onHandQuantity: 180, reservedQuantity: 0, holdQuantity: 0, status: "available" },
+  { id: "inv-6", productId: "p-sneakers", warehouseId: "wh-bog", locationId: "loc-reserve", serial: "SN-2024-0001", onHandQuantity: 1, reservedQuantity: 0, holdQuantity: 0, status: "available" },
+  { id: "inv-7", productId: "p-jacket", warehouseId: "wh-bog", locationId: "loc-reserve", lot: "LOT-JK-2406", expirationDate: "2027-06-01", onHandQuantity: 90, reservedQuantity: 0, holdQuantity: 0, status: "available" },
+  { id: "inv-8", productId: "p-dress", warehouseId: "wh-bog", locationId: "loc-b0204", onHandQuantity: 60, reservedQuantity: 5, holdQuantity: 0, status: "available" },
+  { id: "inv-9", productId: "p-cargo", warehouseId: "wh-bog", locationId: "loc-reserve", onHandQuantity: 40, reservedQuantity: 0, holdQuantity: 0, status: "available" },
+  { id: "inv-10", productId: "p-bag", warehouseId: "wh-bog", locationId: "loc-reserve", onHandQuantity: 25, reservedQuantity: 0, holdQuantity: 0, status: "available" },
+];
+
+const NOW = "2026-06-10T08:00:00.000Z";
+
+export const stockMovements: StockMovement[] = [
+  { id: "mv-1", productId: "p-tshirt", warehouseId: "wh-bog", toLocationId: "loc-b0204", type: "receipt", quantity: 500, referenceType: "asn", referenceId: "asn-1", operatorName: "Carlos Ramírez", createdAt: "2026-06-01T09:00:00.000Z" },
+  { id: "mv-2", productId: "p-socks", warehouseId: "wh-bog", toLocationId: "loc-a0101", type: "receipt", quantity: 800, referenceType: "asn", referenceId: "asn-2", operatorName: "Carlos Ramírez", createdAt: "2026-06-02T09:30:00.000Z" },
+  { id: "mv-3", productId: "p-cap", warehouseId: "wh-bog", toLocationId: "loc-a0102", type: "putaway", quantity: 400, referenceType: "asn", referenceId: "asn-3", operatorName: "Diana López", createdAt: "2026-06-03T10:00:00.000Z" },
+  { id: "mv-4", productId: "p-cap", warehouseId: "wh-bog", fromLocationId: "loc-a0102", type: "hold", quantity: 50, referenceType: "manual", referenceId: "adj-1", operatorName: "Diana López", createdAt: "2026-06-05T11:00:00.000Z" },
+  { id: "mv-5", productId: "p-jeans", warehouseId: "wh-bog", fromLocationId: "loc-pickfast1", type: "pick", quantity: 5, referenceType: "commerce_order", referenceId: "co-1", operatorName: "Andrés Gómez", createdAt: "2026-06-08T14:00:00.000Z" },
+];
+
+export const asnRecords: Asn[] = [
+  { id: "asn-1", code: "ASN-2406-001", supplierName: "Textiles del Norte", appointmentDate: "2026-06-12", expectedQuantity: 500, receivedQuantity: 500, status: "completed", requiresQualityControl: false, crossDocking: false, productId: "p-tshirt", suggestedPutawayLocationId: "loc-pickfast1" },
+  { id: "asn-2", code: "ASN-2406-002", supplierName: "Calzado Premium", appointmentDate: "2026-06-13", expectedQuantity: 200, receivedQuantity: 180, status: "partial", requiresQualityControl: true, crossDocking: false, productId: "p-sneakers", suggestedPutawayLocationId: "loc-reserve" },
+  { id: "asn-3", code: "ASN-2406-003", supplierName: "Accesorios Urbanos", appointmentDate: "2026-06-14", expectedQuantity: 600, receivedQuantity: 0, status: "pending", requiresQualityControl: false, crossDocking: true, productId: "p-cap", suggestedPutawayLocationId: "loc-a0102" },
+  { id: "asn-4", code: "ASN-2406-004", supplierName: "Confecciones Andinas", appointmentDate: "2026-06-15", expectedQuantity: 120, receivedQuantity: 0, status: "pending", requiresQualityControl: true, crossDocking: false, productId: "p-jacket", suggestedPutawayLocationId: "loc-reserve" },
+];
+
+export const transfers: TransferOrder[] = [
+  { id: "tr-1", code: "TR-2406-001", type: "dc_to_store", originId: "wh-bog", destinationId: "wh-andino", status: "in_transit", createdAt: "2026-06-07T08:00:00.000Z", estimatedArrivalDate: "2026-06-11", routeId: "route-1", items: [{ id: "trl-1", productId: "p-socks", requestedQuantity: 100 }, { id: "trl-2", productId: "p-cap", requestedQuantity: 50 }] },
+  { id: "tr-2", code: "TR-2406-002", type: "store_to_store", originId: "wh-andino", destinationId: "wh-unicentro", status: "draft", createdAt: "2026-06-09T08:00:00.000Z", estimatedArrivalDate: "2026-06-13", items: [{ id: "trl-3", productId: "p-tshirt", requestedQuantity: 30 }] },
+  { id: "tr-3", code: "TR-2406-003", type: "store_to_dc", originId: "wh-viva", destinationId: "wh-med", status: "completed", createdAt: "2026-06-04T08:00:00.000Z", estimatedArrivalDate: "2026-06-08", items: [{ id: "trl-4", productId: "p-jeans", requestedQuantity: 20 }] },
+];
+
+export const returnOrders: ReturnOrder[] = [
+  { id: "rt-1", rmaCode: "RMA-2406-001", customerName: "María Fernández", type: "customer_to_store", originId: "wh-andino", destinationId: "wh-andino", status: "under_validation", reasonId: "rs-1", disposition: "restock", items: [{ id: "rtl-1", productId: "p-tshirt", requestedQuantity: 1 }] },
+  { id: "rt-2", rmaCode: "RMA-2406-002", customerName: "Jorge Suárez", type: "customer_store_to_dc", originId: "wh-santafe", destinationId: "wh-bog", status: "in_transit_to_dc", reasonId: "rs-2", disposition: "quality_control", items: [{ id: "rtl-2", productId: "p-sneakers", requestedQuantity: 1 }] },
+  { id: "rt-3", rmaCode: "RMA-2406-003", customerName: "Tienda Viva", type: "store_to_dc", originId: "wh-viva", destinationId: "wh-med", status: "received_at_dc", reasonId: "rs-3", disposition: "scrap", items: [{ id: "rtl-3", productId: "p-jacket", requestedQuantity: 2 }] },
+];
+
+export const commerceOrders: CommerceOrder[] = [
+  { id: "co-1", orderNumber: "PED-100234", channel: "ecommerce", customerName: "Laura Méndez", status: "in_progress", createdAt: "2026-06-08T10:00:00.000Z", promisedDeliveryDate: "2026-06-12", fulfillmentType: "ship_from_dc", items: [{ id: "col-1", productId: "p-jeans", requestedQuantity: 2, pickedQuantity: 2 }, { id: "col-2", productId: "p-tshirt", requestedQuantity: 3, pickedQuantity: 1 }] },
+  { id: "co-2", orderNumber: "PED-100235", channel: "marketplace", customerName: "Andrés Castro", status: "pending", createdAt: "2026-06-09T11:00:00.000Z", promisedDeliveryDate: "2026-06-13", fulfillmentType: "ship_from_store", items: [{ id: "col-3", productId: "p-cap", requestedQuantity: 1 }] },
+  { id: "co-3", orderNumber: "PED-100236", channel: "app", customerName: "Sofía Rincón", status: "assigned", createdAt: "2026-06-09T12:00:00.000Z", promisedDeliveryDate: "2026-06-11", fulfillmentType: "pickup_in_store", items: [{ id: "col-4", productId: "p-socks", requestedQuantity: 2 }] },
+  { id: "co-4", orderNumber: "PED-100237", channel: "b2b", customerName: "Distribuidora Sur", status: "completed", createdAt: "2026-06-05T09:00:00.000Z", promisedDeliveryDate: "2026-06-09", fulfillmentType: "ship_from_dc", items: [{ id: "col-5", productId: "p-hoodie", requestedQuantity: 10, pickedQuantity: 10, packedQuantity: 10 }] },
+  { id: "co-5", orderNumber: "PED-100238", channel: "pos", customerName: "Cliente Mostrador", status: "cancelled", createdAt: "2026-06-06T15:00:00.000Z", promisedDeliveryDate: "2026-06-07", fulfillmentType: "pickup_in_store", items: [{ id: "col-6", productId: "p-dress", requestedQuantity: 1 }] },
+];
+
+export const pickingTasks: PickingTask[] = [
+  { id: "pt-1", code: "PICK-001", orderId: "co-1", productId: "p-jeans", locationId: "loc-pickfast1", requestedQuantity: 2, pickedQuantity: 2, pendingQuantity: 0, status: "completed", operatorName: "Andrés Gómez", priority: "medium" },
+  { id: "pt-2", code: "PICK-002", orderId: "co-1", productId: "p-tshirt", locationId: "loc-b0204", requestedQuantity: 3, pickedQuantity: 1, pendingQuantity: 2, status: "partial_with_shortage", operatorName: "Andrés Gómez", priority: "high", partialReasonId: "rs-4" },
+  { id: "pt-3", code: "PICK-003", orderId: "co-3", productId: "p-socks", locationId: "loc-a0101", requestedQuantity: 2, pickedQuantity: 0, pendingQuantity: 2, status: "assigned", operatorName: "Paula Vega", priority: "low" },
+  { id: "pt-4", code: "PICK-004", orderId: "co-2", productId: "p-cap", locationId: "loc-a0102", requestedQuantity: 1, pickedQuantity: 0, pendingQuantity: 1, status: "pending", priority: "low" },
+  { id: "pt-5", code: "PICK-005", orderId: "co-4", productId: "p-hoodie", locationId: "loc-pickfast2", requestedQuantity: 10, pickedQuantity: 10, pendingQuantity: 0, status: "completed", operatorName: "Paula Vega", priority: "medium" },
+];
+
+export const pickingWaves: PickingWave[] = [
+  { id: "wv-1", code: "WAVE-001", name: "Oleada mañana zona A", orderCount: 3, unitCount: 16, zone: "A", groupBy: "zone", groupValue: "A", priority: "high", status: "in_progress", assignedTeam: "Equipo 1", createdAt: "2026-06-10T07:00:00.000Z", orderIds: ["co-1", "co-3", "co-4"] },
+  { id: "wv-2", code: "WAVE-002", name: "Oleada ecommerce", orderCount: 1, unitCount: 1, zone: "A", groupBy: "fulfillment_type", groupValue: "ship_from_store", priority: "medium", status: "draft", createdAt: "2026-06-10T07:30:00.000Z", orderIds: ["co-2"] },
+];
+
+export const packingOrders: PackingOrder[] = [
+  { id: "pk-1", orderId: "co-4", customerName: "Distribuidora Sur", expectedItems: 10, scannedItems: 10, verificationStatus: "verified", suggestedBox: "Caja L", weightKg: 6.5, volumeM3: 0.07, labelGenerated: true },
+  { id: "pk-2", orderId: "co-1", customerName: "Laura Méndez", expectedItems: 5, scannedItems: 3, verificationStatus: "pending", suggestedBox: "Caja M", weightKg: 1.8, volumeM3: 0.012, labelGenerated: false },
+];
+
+export const labels: WmsLabel[] = [
+  { id: "lb-1", code: "LBL-SHP-0001", type: "shipping", reference: "co-4", status: "completed", createdAt: "2026-06-05T16:00:00.000Z", createdBy: "Paula Vega" },
+  { id: "lb-2", code: "LBL-BOX-0002", type: "box", reference: "pk-1", status: "completed", createdAt: "2026-06-05T15:55:00.000Z", createdBy: "Paula Vega" },
+  { id: "lb-3", code: "LBL-LOC-0003", type: "location", reference: "loc-a0101", status: "completed", createdAt: "2026-06-01T08:00:00.000Z", createdBy: "Diana López" },
+];
+
+export const shipments: Shipment[] = [
+  { id: "sh-1", orderId: "co-4", customerName: "Distribuidora Sur", carrierName: "Coordinadora", sapRouteId: "route-1", status: "completed", shippedAt: "2026-06-06T08:00:00.000Z", packageCount: 2, weightKg: 6.5, trackingNumber: "CO-998877", otifStatus: "on_time" },
+  { id: "sh-2", orderId: "co-1", customerName: "Laura Méndez", carrierName: "Servientrega", status: "pending", packageCount: 1, weightKg: 1.8, otifStatus: "at_risk" },
+];
+
+export const sapRoutes: SapRoute[] = [
+  { id: "route-1", code: "SAP-RT-5001", name: "Ruta Bogotá Norte", originId: "wh-bog", destinationIds: ["wh-andino", "wh-unicentro"], carrierName: "Coordinadora", routeDate: "2026-06-11", status: "in_transit", truckPlate: "ABC-123", driverName: "Pedro Martínez", capacityKg: 1200, currentLoadKg: 780 },
+  { id: "route-2", code: "SAP-RT-5002", name: "Ruta Medellín Sur", originId: "wh-med", destinationIds: ["wh-viva"], carrierName: "TCC", routeDate: "2026-06-12", status: "synced", truckPlate: "XYZ-789", driverName: "Luis Torres", capacityKg: 800, currentLoadKg: 240 },
+];
+
+export const loadManifests: LoadManifest[] = [
+  {
+    id: "mf-1", code: "MAN-2406-001", sapRouteId: "route-1", truckPlate: "ABC-123", driverName: "Pedro Martínez", carrierName: "Coordinadora", manifestDate: "2026-06-11", status: "in_progress",
+    orderIds: ["co-4"], transferIds: ["tr-1"], returnIds: [],
+    totalUnits: 160, totalPackages: 12, totalWeightKg: 780, totalVolumeM3: 4.2,
+    stops: [
+      { id: "st-1", sequence: 1, destinationId: "wh-andino", orderIds: [], transferIds: ["tr-1"], returnIds: [] },
+      { id: "st-2", sequence: 2, destinationId: "wh-unicentro", orderIds: ["co-4"], transferIds: [], returnIds: [] },
+    ],
+  },
+];
+
+export const integrations: IntegrationConnection[] = [
+  { id: "int-sap", name: "SAP ERP", type: "sap", status: "active", lastSyncAt: "2026-06-10T07:45:00.000Z", processedMessages: 12480 },
+  { id: "int-ecom", name: "Tienda Ecommerce", type: "ecommerce", status: "active", lastSyncAt: "2026-06-10T07:50:00.000Z", processedMessages: 8932 },
+  { id: "int-mkt", name: "Marketplace", type: "marketplace", status: "error", lastSyncAt: "2026-06-10T06:00:00.000Z", lastError: "Timeout al sincronizar pedidos", processedMessages: 3120 },
+  { id: "int-carrier", name: "Coordinadora API", type: "carrier", status: "active", lastSyncAt: "2026-06-10T07:30:00.000Z", processedMessages: 1450 },
+  { id: "int-pos", name: "POS Tiendas", type: "pos", status: "pending_configuration", processedMessages: 0 },
+];
+
+export const replenishmentTasks: ReplenishmentTask[] = [
+  { id: "rp-1", productId: "p-jeans", originLocationId: "loc-reserve", destinationLocationId: "loc-pickfast1", currentStock: 30, minStock: 100, maxStock: 300, suggestedQuantity: 270, priority: "high", status: "pending" },
+  { id: "rp-2", productId: "p-hoodie", originLocationId: "loc-reserve", destinationLocationId: "loc-pickfast2", currentStock: 80, minStock: 100, maxStock: 250, suggestedQuantity: 170, priority: "medium", status: "pending" },
+  { id: "rp-3", productId: "p-socks", originLocationId: "loc-reserve", destinationLocationId: "loc-a0101", currentStock: 95, minStock: 100, maxStock: 400, suggestedQuantity: 305, priority: "low", status: "assigned", operatorName: "Paula Vega" },
+];
+
+export const operators: Operator[] = [
+  { id: "op-1", code: "OP-001", name: "Andrés Gómez", role: "picker", active: true },
+  { id: "op-2", code: "OP-002", name: "Paula Vega", role: "picker", active: true },
+  { id: "op-3", code: "OP-003", name: "Carlos Ramírez", role: "receiver", active: true },
+  { id: "op-4", code: "OP-004", name: "Diana López", role: "supervisor", active: true },
+  { id: "op-5", code: "OP-005", name: "Pedro Martínez", role: "driver", active: true },
+];
+
+export const reasons: Reason[] = [
+  { id: "rs-1", code: "RET-TALLA", label: "Talla incorrecta", context: "return", active: true },
+  { id: "rs-2", code: "RET-DEFECTO", label: "Producto defectuoso", context: "return", active: true },
+  { id: "rs-3", code: "RET-DANO", label: "Daño en transporte", context: "return", active: true },
+  { id: "rs-4", code: "PP-STOCK", label: "Sin stock suficiente", context: "partial_picking", active: true },
+  { id: "rs-5", code: "ADJ-CONTEO", label: "Ajuste por conteo cíclico", context: "adjustment", active: true },
+  { id: "rs-6", code: "HOLD-CALIDAD", label: "Retención por calidad", context: "hold", active: true },
+];
+
+export const carriers: Carrier[] = [
+  { id: "ca-1", code: "COORD", name: "Coordinadora", active: true },
+  { id: "ca-2", code: "SERVI", name: "Servientrega", active: true },
+  { id: "ca-3", code: "TCC", name: "TCC", active: true },
+];
+
+export const settings: WmsSettings = {
+  abcThresholdA: 0.8,
+  abcThresholdB: 0.95,
+  xyzCvX: 0.5,
+  xyzCvY: 1.0,
+  replenishmentHighFactor: 0.5,
+  simulatedLatencyMs: 120,
+};
+
+export const seedTimestamp = NOW;
