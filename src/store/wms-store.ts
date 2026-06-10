@@ -39,6 +39,7 @@ import type {
   StorageLocation,
   TransferOrder,
   Warehouse,
+  WmsLabel,
   WmsSettings,
 } from "@/types/wms";
 
@@ -66,6 +67,7 @@ export interface WmsState {
   shipments: Shipment[];
   sapRoutes: SapRoute[];
   loadManifests: LoadManifest[];
+  labels: WmsLabel[];
   integrations: IntegrationConnection[];
   replenishmentTasks: ReplenishmentTask[];
   operators: Operator[];
@@ -102,6 +104,29 @@ export interface WmsState {
   // Replenishment
   startReplenishment: (taskId: string, operatorName: string) => ReplenishmentTask;
   completeReplenishment: (taskId: string) => ReplenishmentTask;
+  // Admin — Operators
+  createOperator: (data: Omit<Operator, "id">) => Operator;
+  updateOperator: (id: string, data: Partial<Omit<Operator, "id">>) => Operator;
+  toggleOperator: (id: string) => Operator;
+  // Admin — Reasons
+  createReason: (data: Omit<Reason, "id">) => Reason;
+  updateReason: (id: string, data: Partial<Omit<Reason, "id">>) => Reason;
+  toggleReason: (id: string) => Reason;
+  // Admin — Carriers
+  createCarrier: (data: Omit<Carrier, "id">) => Carrier;
+  updateCarrier: (id: string, data: Partial<Omit<Carrier, "id">>) => Carrier;
+  toggleCarrier: (id: string) => Carrier;
+  // Admin — Settings
+  updateSettings: (data: Partial<WmsSettings>) => WmsSettings;
+  // Admin — Warehouses
+  createWarehouse: (data: Omit<Warehouse, "id">) => Warehouse;
+  updateWarehouse: (id: string, data: Partial<Omit<Warehouse, "id">>) => Warehouse;
+  // Admin — Locations
+  createLocation: (data: Omit<StorageLocation, "id">) => StorageLocation;
+  updateLocation: (id: string, data: Partial<Omit<StorageLocation, "id">>) => StorageLocation;
+  // Admin — Products
+  createProduct: (data: Omit<Product, "id">) => Product;
+  updateProduct: (id: string, data: Partial<Omit<Product, "id">>) => Product;
 }
 
 const recordMovement = (
@@ -129,6 +154,7 @@ export const useWmsStore = create<WmsState>((set, get) => ({
   shipments: seed.shipments,
   sapRoutes: seed.sapRoutes,
   loadManifests: seed.loadManifests,
+  labels: seed.labels,
   integrations: seed.integrations,
   replenishmentTasks: seed.replenishmentTasks,
   operators: seed.operators,
@@ -744,6 +770,138 @@ export const useWmsStore = create<WmsState>((set, get) => ({
       inventoryItems: updatedItems,
       stockMovements: [...state.stockMovements, movement],
     });
+    return updated;
+  },
+
+  // ─── Admin ────────────────────────────────────────────────────────────────
+
+  createOperator: (data) => {
+    const state = get();
+    const created: Operator = { ...data, id: `op-${Date.now()}` };
+    set({ operators: [...state.operators, created] });
+    return created;
+  },
+
+  updateOperator: (id, data) => {
+    const state = get();
+    const op = state.operators.find((o) => o.id === id);
+    if (!op) throw new Error("operator not found");
+    const updated: Operator = { ...op, ...data };
+    set({ operators: state.operators.map((o) => (o.id === id ? updated : o)) });
+    return updated;
+  },
+
+  toggleOperator: (id) => {
+    const state = get();
+    const op = state.operators.find((o) => o.id === id);
+    if (!op) throw new Error("operator not found");
+    const updated: Operator = { ...op, active: !op.active };
+    set({ operators: state.operators.map((o) => (o.id === id ? updated : o)) });
+    return updated;
+  },
+
+  createReason: (data) => {
+    const state = get();
+    const created: Reason = { ...data, id: `rs-${Date.now()}` };
+    set({ reasons: [...state.reasons, created] });
+    return created;
+  },
+
+  updateReason: (id, data) => {
+    const state = get();
+    const reason = state.reasons.find((r) => r.id === id);
+    if (!reason) throw new Error("reason not found");
+    const updated: Reason = { ...reason, ...data };
+    set({ reasons: state.reasons.map((r) => (r.id === id ? updated : r)) });
+    return updated;
+  },
+
+  toggleReason: (id) => {
+    const state = get();
+    const reason = state.reasons.find((r) => r.id === id);
+    if (!reason) throw new Error("reason not found");
+    const updated: Reason = { ...reason, active: !reason.active };
+    set({ reasons: state.reasons.map((r) => (r.id === id ? updated : r)) });
+    return updated;
+  },
+
+  createCarrier: (data) => {
+    const state = get();
+    const created: Carrier = { ...data, id: `ca-${Date.now()}` };
+    set({ carriers: [...state.carriers, created] });
+    return created;
+  },
+
+  updateCarrier: (id, data) => {
+    const state = get();
+    const carrier = state.carriers.find((c) => c.id === id);
+    if (!carrier) throw new Error("carrier not found");
+    const updated: Carrier = { ...carrier, ...data };
+    set({ carriers: state.carriers.map((c) => (c.id === id ? updated : c)) });
+    return updated;
+  },
+
+  toggleCarrier: (id) => {
+    const state = get();
+    const carrier = state.carriers.find((c) => c.id === id);
+    if (!carrier) throw new Error("carrier not found");
+    const updated: Carrier = { ...carrier, active: !carrier.active };
+    set({ carriers: state.carriers.map((c) => (c.id === id ? updated : c)) });
+    return updated;
+  },
+
+  updateSettings: (data) => {
+    const state = get();
+    const updated: WmsSettings = { ...state.settings, ...data };
+    set({ settings: updated });
+    return updated;
+  },
+
+  createWarehouse: (data) => {
+    const state = get();
+    const created: Warehouse = { ...data, id: `wh-${Date.now()}` };
+    set({ warehouses: [...state.warehouses, created] });
+    return created;
+  },
+
+  updateWarehouse: (id, data) => {
+    const state = get();
+    const wh = state.warehouses.find((w) => w.id === id);
+    if (!wh) throw new Error("warehouse not found");
+    const updated: Warehouse = { ...wh, ...data };
+    set({ warehouses: state.warehouses.map((w) => (w.id === id ? updated : w)) });
+    return updated;
+  },
+
+  createLocation: (data) => {
+    const state = get();
+    const created: StorageLocation = { ...data, id: `loc-${Date.now()}` };
+    set({ locations: [...state.locations, created] });
+    return created;
+  },
+
+  updateLocation: (id, data) => {
+    const state = get();
+    const loc = state.locations.find((l) => l.id === id);
+    if (!loc) throw new Error("location not found");
+    const updated: StorageLocation = { ...loc, ...data };
+    set({ locations: state.locations.map((l) => (l.id === id ? updated : l)) });
+    return updated;
+  },
+
+  createProduct: (data) => {
+    const state = get();
+    const created: Product = { ...data, id: `p-${Date.now()}` };
+    set({ products: [...state.products, created] });
+    return created;
+  },
+
+  updateProduct: (id, data) => {
+    const state = get();
+    const product = state.products.find((p) => p.id === id);
+    if (!product) throw new Error("product not found");
+    const updated: Product = { ...product, ...data };
+    set({ products: state.products.map((p) => (p.id === id ? updated : p)) });
     return updated;
   },
 }));
