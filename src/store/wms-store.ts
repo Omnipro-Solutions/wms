@@ -80,7 +80,8 @@ export interface WmsState {
   holdInventory: (itemId: string, qty: number, operatorName: string) => void;
   releaseInventory: (itemId: string, qty: number, operatorName: string) => void;
   // Receiving
-  receiveAsn: (asnId: string, receivedQty: number, operatorName: string) => Asn;
+  receiveAsn: (asnId: string, receivedQty: number, operatorName: string, damagedQty?: number) => Asn;
+  closeAsnWithDiscrepancy: (asnId: string, closeReason: string, operatorName: string) => Asn;
   putawayItem: (asnId: string, locationId: string, operatorName: string) => void;
   // Inventory
   adjustInventory: (itemId: string, countedQty: number, operatorName: string) => void;
@@ -253,7 +254,7 @@ export const useWmsStore = create<WmsState>((set, get) => ({
     });
   },
 
-  receiveAsn: (asnId, receivedQty, operatorName) => {
+  receiveAsn: (asnId, receivedQty, operatorName, damagedQty = 0) => {
     const state = get();
     const asn = state.asnRecords.find((a) => a.id === asnId);
     if (!asn) throw new Error("ASN not found");
@@ -262,7 +263,11 @@ export const useWmsStore = create<WmsState>((set, get) => ({
       asn.status === "partial" ||
       canTransition(asnTransitions, asn.status, "in_progress");
     if (!canReceive) throw new Error(`No se puede recibir desde el estado ${asn.status}`);
-    if (receivedQty <= 0) throw new Error("quantity must be positive");
+    if (receivedQty <= 0 && damagedQty <= 0) throw new Error("Ingresa una cantidad válida.");
+
+    // goodQty = units going to stock; damagedQty = counted but not stocked
+    const goodQty = receivedQty;
+    const totalCounted = goodQty + damagedQty;
 
     // Find or create inventory item in staging/QC location
     const targetLocationId = asn.requiresQualityControl ? "loc-qc" : "loc-stageout";
@@ -270,31 +275,41 @@ export const useWmsStore = create<WmsState>((set, get) => ({
       (i) => i.productId === asn.productId && i.warehouseId === "wh-bog" && i.locationId === targetLocationId
     );
 
-    const newTotal = asn.receivedQuantity + receivedQty;
+    const newTotal = asn.receivedQuantity + totalCounted;
+    const newDamaged = asn.damagedQuantity + damagedQty;
     const finalStatus = newTotal >= asn.expectedQuantity ? "completed" : "partial";
-    const updatedAsn: Asn = { ...asn, receivedQuantity: newTotal, status: finalStatus };
+    const updatedAsn: Asn = {
+      ...asn,
+      receivedQuantity: newTotal,
+      damagedQuantity: newDamaged,
+      status: finalStatus,
+      deliveryCount: asn.deliveryCount + 1,
+    };
 
+    // Only goodQty enters available/hold stock — damaged units are tracked on the ASN but not stocked.
     let updatedItems = [...state.inventoryItems];
-    if (existingItemIdx >= 0) {
-      const existing = updatedItems[existingItemIdx];
-      updatedItems[existingItemIdx] = {
-        ...existing,
-        ...applyReceipt(existing, receivedQty),
-      };
-    } else {
-      updatedItems = [
-        ...updatedItems,
-        {
-          id: `inv-new-${asnId}`,
-          productId: asn.productId,
-          warehouseId: "wh-bog",
-          locationId: targetLocationId,
-          onHandQuantity: receivedQty,
-          reservedQuantity: 0,
-          holdQuantity: 0,
-          status: asn.requiresQualityControl ? ("on_hold" as const) : ("available" as const),
-        },
-      ];
+    if (goodQty > 0) {
+      if (existingItemIdx >= 0) {
+        const existing = updatedItems[existingItemIdx];
+        updatedItems[existingItemIdx] = {
+          ...existing,
+          ...applyReceipt(existing, goodQty),
+        };
+      } else {
+        updatedItems = [
+          ...updatedItems,
+          {
+            id: `inv-new-${asnId}`,
+            productId: asn.productId,
+            warehouseId: "wh-bog",
+            locationId: targetLocationId,
+            onHandQuantity: goodQty,
+            reservedQuantity: 0,
+            holdQuantity: 0,
+            status: asn.requiresQualityControl ? ("on_hold" as const) : ("available" as const),
+          },
+        ];
+      }
     }
 
     const movement = recordMovement({
@@ -302,7 +317,7 @@ export const useWmsStore = create<WmsState>((set, get) => ({
       warehouseId: "wh-bog",
       toLocationId: targetLocationId,
       type: "receipt",
-      quantity: receivedQty,
+      quantity: goodQty,
       referenceType: "asn",
       referenceId: asnId,
       operatorName,
@@ -311,6 +326,30 @@ export const useWmsStore = create<WmsState>((set, get) => ({
     set({
       asnRecords: state.asnRecords.map((a) => (a.id === asnId ? updatedAsn : a)),
       inventoryItems: updatedItems,
+      stockMovements: [...state.stockMovements, movement],
+    });
+    return updatedAsn;
+  },
+
+  closeAsnWithDiscrepancy: (asnId, closeReason, operatorName) => {
+    const state = get();
+    const asn = state.asnRecords.find((a) => a.id === asnId);
+    if (!asn) throw new Error("ASN not found");
+    if (!canTransition(asnTransitions, asn.status, "short_received")) {
+      throw new Error(`No se puede cerrar con diferencia desde el estado ${asn.status}`);
+    }
+    const updatedAsn: Asn = { ...asn, status: "short_received", closeReason };
+    const movement = recordMovement({
+      productId: asn.productId,
+      warehouseId: "wh-bog",
+      type: "adjustment",
+      quantity: asn.expectedQuantity - asn.receivedQuantity,
+      referenceType: "asn",
+      referenceId: asnId,
+      operatorName,
+    });
+    set({
+      asnRecords: state.asnRecords.map((a) => (a.id === asnId ? updatedAsn : a)),
       stockMovements: [...state.stockMovements, movement],
     });
     return updatedAsn;

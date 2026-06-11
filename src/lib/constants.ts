@@ -25,39 +25,47 @@ import type { NavGroup } from "@/types/navigation";
 export const NAV_GROUPS: NavGroup[] = [
   {
     title: "General",
-    items: [{ label: "Dashboard", href: "/", icon: LayoutDashboard }],
+    icon: LayoutDashboard,
+    isActive: true,
+    items: [
+      { label: "Dashboard", href: "/" },
+    ],
   },
   {
     title: "Entrada",
+    icon: PackageCheck,
     items: [
-      { label: "Recepción", href: "/receiving", icon: PackageCheck },
-      { label: "Inventario", href: "/inventory", icon: Boxes },
-      { label: "Slotting", href: "/slotting", icon: Grid3x3 },
-      { label: "Abastecimiento", href: "/replenishment", icon: Warehouse },
+      { label: "Recepción", href: "/receiving" },
+      { label: "Inventario", href: "/inventory" },
+      { label: "Slotting", href: "/slotting" },
+      { label: "Abastecimiento", href: "/replenishment" },
     ],
   },
   {
     title: "Operación",
+    icon: ClipboardList,
     items: [
-      { label: "Traslados", href: "/transfers", icon: ArrowRightLeft },
-      { label: "Devoluciones", href: "/returns", icon: Undo2 },
-      { label: "Commerce", href: "/commerce", icon: ShoppingCart },
-      { label: "Tareas de picking", href: "/picking/tasks", icon: ClipboardList },
-      { label: "Oleadas", href: "/picking/waves", icon: Waves },
-      { label: "Packing", href: "/packing", icon: Package },
-      { label: "Etiquetas", href: "/labels", icon: Tags },
+      { label: "Traslados", href: "/transfers" },
+      { label: "Devoluciones", href: "/returns" },
+      { label: "Commerce", href: "/commerce" },
+      { label: "Tareas de picking", href: "/picking/tasks" },
+      { label: "Oleadas", href: "/picking/waves" },
+      { label: "Packing", href: "/packing" },
+      { label: "Etiquetas", href: "/labels" },
     ],
   },
   {
     title: "Despacho",
+    icon: Truck,
     items: [
-      { label: "Shipping", href: "/shipping", icon: Truck },
-      { label: "Rutas SAP", href: "/sap-routes", icon: Route },
-      { label: "Manifiestos", href: "/load-manifests", icon: MapPinned },
+      { label: "Shipping", href: "/shipping" },
+      { label: "Rutas SAP", href: "/sap-routes" },
+      { label: "Manifiestos", href: "/load-manifests" },
     ],
   },
   {
     title: "Sistema",
+    icon: Settings,
     items: [
       { label: "Integraciones", href: "/integrations", icon: Cable },
       { label: "Reportes", href: "/reports", icon: BarChart3 },
@@ -68,3 +76,20 @@ export const NAV_GROUPS: NavGroup[] = [
 
 export const ALERTS_ICON = AlertTriangle;
 export const TASKS_ICON = ListChecks;
+
+// Individual icons kept for direct use elsewhere
+export {
+  ArrowRightLeft,
+  BarChart3,
+  Boxes,
+  Cable,
+  Grid3x3,
+  MapPinned,
+  Package,
+  Route,
+  ShoppingCart,
+  Tags,
+  Undo2,
+  Warehouse,
+  Waves,
+};

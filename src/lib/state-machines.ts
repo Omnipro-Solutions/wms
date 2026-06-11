@@ -14,10 +14,11 @@ export function canTransition<T extends string>(
 
 export const asnTransitions: Record<string, OperationalStatus[]> = {
   pending: ["in_progress", "partial", "completed", "cancelled"],
-  in_progress: ["partial", "completed", "cancelled"],
-  partial: ["completed", "cancelled"],
+  in_progress: ["partial", "completed", "cancelled", "short_received"],
+  partial: ["in_progress", "completed", "cancelled", "short_received"],
   completed: [],
   cancelled: [],
+  short_received: [],
 };
 
 export const transferTransitions: Record<string, OperationalStatus[]> = {

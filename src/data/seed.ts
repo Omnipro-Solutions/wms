@@ -90,6 +90,8 @@ export const inventoryItems: InventoryItem[] = [
   { id: "inv-8", productId: "p-dress", warehouseId: "wh-bog", locationId: "loc-b0204", onHandQuantity: 60, reservedQuantity: 5, holdQuantity: 0, status: "available" },
   { id: "inv-9", productId: "p-cargo", warehouseId: "wh-bog", locationId: "loc-reserve", onHandQuantity: 40, reservedQuantity: 0, holdQuantity: 0, status: "available" },
   { id: "inv-10", productId: "p-bag", warehouseId: "wh-bog", locationId: "loc-reserve", onHandQuantity: 25, reservedQuantity: 0, holdQuantity: 0, status: "available" },
+  // asn-2 (Sneakers, partial 180/200) was received into QC but the item was missing from seed.
+  { id: "inv-11", productId: "p-sneakers", warehouseId: "wh-bog", locationId: "loc-qc", onHandQuantity: 180, reservedQuantity: 0, holdQuantity: 0, status: "on_hold" },
 ];
 
 const NOW = "2026-06-10T08:00:00.000Z";
@@ -103,10 +105,10 @@ export const stockMovements: StockMovement[] = [
 ];
 
 export const asnRecords: Asn[] = [
-  { id: "asn-1", code: "ASN-2406-001", supplierName: "Textiles del Norte", appointmentDate: "2026-06-12", expectedQuantity: 500, receivedQuantity: 500, status: "completed", requiresQualityControl: false, crossDocking: false, productId: "p-tshirt", suggestedPutawayLocationId: "loc-pickfast1" },
-  { id: "asn-2", code: "ASN-2406-002", supplierName: "Calzado Premium", appointmentDate: "2026-06-13", expectedQuantity: 200, receivedQuantity: 180, status: "partial", requiresQualityControl: true, crossDocking: false, productId: "p-sneakers", suggestedPutawayLocationId: "loc-reserve" },
-  { id: "asn-3", code: "ASN-2406-003", supplierName: "Accesorios Urbanos", appointmentDate: "2026-06-14", expectedQuantity: 600, receivedQuantity: 0, status: "pending", requiresQualityControl: false, crossDocking: true, productId: "p-cap", suggestedPutawayLocationId: "loc-a0102" },
-  { id: "asn-4", code: "ASN-2406-004", supplierName: "Confecciones Andinas", appointmentDate: "2026-06-15", expectedQuantity: 120, receivedQuantity: 0, status: "pending", requiresQualityControl: true, crossDocking: false, productId: "p-jacket", suggestedPutawayLocationId: "loc-reserve" },
+  { id: "asn-1", code: "ASN-2406-001", supplierName: "Textiles del Norte", appointmentDate: "2026-06-12", expectedQuantity: 500, receivedQuantity: 500, damagedQuantity: 0, status: "completed", requiresQualityControl: false, crossDocking: false, productId: "p-tshirt", suggestedPutawayLocationId: "loc-pickfast1", deliveryCount: 1 },
+  { id: "asn-2", code: "ASN-2406-002", supplierName: "Calzado Premium", appointmentDate: "2026-06-13", expectedQuantity: 200, receivedQuantity: 180, damagedQuantity: 0, status: "partial", requiresQualityControl: true, crossDocking: false, productId: "p-sneakers", suggestedPutawayLocationId: "loc-reserve", deliveryCount: 1 },
+  { id: "asn-3", code: "ASN-2406-003", supplierName: "Accesorios Urbanos", appointmentDate: "2026-06-14", expectedQuantity: 600, receivedQuantity: 0, damagedQuantity: 0, status: "pending", requiresQualityControl: false, crossDocking: true, productId: "p-cap", suggestedPutawayLocationId: "loc-a0102", deliveryCount: 0 },
+  { id: "asn-4", code: "ASN-2406-004", supplierName: "Confecciones Andinas", appointmentDate: "2026-06-15", expectedQuantity: 120, receivedQuantity: 0, damagedQuantity: 0, status: "pending", requiresQualityControl: true, crossDocking: false, productId: "p-jacket", suggestedPutawayLocationId: "loc-reserve", deliveryCount: 0 },
 ];
 
 export const transfers: TransferOrder[] = [

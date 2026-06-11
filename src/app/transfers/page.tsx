@@ -1,36 +1,30 @@
-"use client";
+"use client"
 
-import {
-  ArrowRight,
-  ArrowRightLeft,
-  CheckCircle2,
-  ChevronDown,
-  ChevronUp,
-  TriangleAlert,
-} from "lucide-react";
-import { useState } from "react";
-import { useWmsStore } from "@/store/wms-store";
-import { useStoreHelpers } from "@/hooks/use-store-helpers";
-import { useDialogState } from "@/hooks/use-dialog-state";
-import { PageHeader } from "@/components/shared/page-header";
-import { StatusBadge } from "@/components/shared/status-badge";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useMemo, useState } from "react"
+import { ArrowRight, ArrowRightLeft, CheckCircle2, TriangleAlert } from "lucide-react"
+
+import { useWmsStore } from "@/store/wms-store"
+import { useStoreHelpers } from "@/hooks/use-store-helpers"
+import { useDialogState } from "@/hooks/use-dialog-state"
+import { PageHeader } from "@/components/shared/page-header"
+import { StatusBadge } from "@/components/shared/status-badge"
+import { DataTable } from "@/components/data-table"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
   Dialog,
   DialogContent,
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
+} from "@/components/ui/dialog"
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
+} from "@/components/ui/select"
 import {
   Table,
   TableBody,
@@ -38,105 +32,134 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table";
-import { formatNumber } from "@/lib/formatters";
-import type { TransferOrder } from "@/types/wms";
-
-type SortField = "code" | "type" | "origin" | "destination" | "status" | "eta";
-type SortDir = "asc" | "desc";
+} from "@/components/ui/table"
+import { formatNumber } from "@/lib/formatters"
+import { buildTransferColumns, type TransferRow } from "./columns"
 
 interface AdvanceDialogData {
-  transferId: string;
-  code: string;
-  currentStatus: string;
-  nextStatus: string;
-  originName: string;
-  destinationName: string;
+  transferId: string
+  code: string
+  currentStatus: string
+  nextStatus: string
+  originName: string
+  destinationName: string
 }
 
-const TYPE_LABELS: Record<TransferOrder["type"], string> = {
-  dc_to_store: "DC → Tienda",
-  store_to_store: "Tienda → Tienda",
-  store_to_dc: "Tienda → DC",
-  dc_to_dc: "DC → DC",
-};
-
-const TERMINAL_STATUSES = new Set(["completed", "cancelled"]);
-
-function SortIcon({ field, active, dir }: { field: string; active: string; dir: SortDir }) {
-  if (active !== field) return null;
-  return dir === "asc"
-    ? <ChevronUp className="ml-1 inline size-3" />
-    : <ChevronDown className="ml-1 inline size-3" />;
+const NEXT_MAP: Partial<Record<string, string>> = {
+  draft: "pending",
+  pending: "in_progress",
+  in_progress: "in_transit",
+  in_transit: "completed",
+  partial: "completed",
 }
+
+const TERMINAL_STATUSES = new Set(["completed", "cancelled"])
 
 export default function TransfersPage() {
-  const state = useWmsStore();
-  const { advanceTransfer } = useWmsStore();
-  const { warehouseName, productName } = useStoreHelpers();
+  const state = useWmsStore()
+  const { advanceTransfer } = useWmsStore()
+  const { warehouseName, productName } = useStoreHelpers()
 
-  const [sortField, setSortField] = useState<SortField>("code");
-  const [sortDir, setSortDir] = useState<SortDir>("asc");
-  const [typeFilter, setTypeFilter] = useState("all");
-  const [statusFilter, setStatusFilter] = useState("all");
+  const [typeFilter, setTypeFilter] = useState("all")
+  const [statusFilter, setStatusFilter] = useState("all")
 
-  const advanceDialog = useDialogState<AdvanceDialogData>();
+  const advanceDialog = useDialogState<AdvanceDialogData>()
 
-  const NEXT_MAP: Partial<Record<string, string>> = {
-    draft: "pending",
-    pending: "in_progress",
-    in_progress: "in_transit",
-    in_transit: "completed",
-    partial: "completed",
-  };
+  const rows = useMemo<TransferRow[]>(
+    () =>
+      state.transfers.map((t) => ({
+        id: t.id,
+        code: t.code,
+        type: t.type,
+        originName: warehouseName(t.originId),
+        destinationName: warehouseName(t.destinationId),
+        linesCount: t.items.length,
+        estimatedArrivalDate: t.estimatedArrivalDate,
+        status: t.status,
+        canAdvance: !TERMINAL_STATUSES.has(t.status) && !!NEXT_MAP[t.status],
+      })),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [state.transfers]
+  )
 
-  const filtered = state.transfers.filter((t) => {
-    if (typeFilter !== "all" && t.type !== typeFilter) return false;
-    if (statusFilter !== "all" && t.status !== statusFilter) return false;
-    return true;
-  });
+  const filteredRows = useMemo(
+    () =>
+      rows.filter((r) => {
+        if (typeFilter !== "all" && r.type !== typeFilter) return false
+        if (statusFilter !== "all" && r.status !== statusFilter) return false
+        return true
+      }),
+    [rows, typeFilter, statusFilter]
+  )
 
-  const sorted = [...filtered].sort((a, b) => {
-    const d = sortDir === "asc" ? 1 : -1;
-    if (sortField === "code") return a.code.localeCompare(b.code) * d;
-    if (sortField === "type") return a.type.localeCompare(b.type) * d;
-    if (sortField === "origin") return warehouseName(a.originId).localeCompare(warehouseName(b.originId)) * d;
-    if (sortField === "destination") return warehouseName(a.destinationId).localeCompare(warehouseName(b.destinationId)) * d;
-    if (sortField === "status") return a.status.localeCompare(b.status) * d;
-    return a.estimatedArrivalDate.localeCompare(b.estimatedArrivalDate) * d;
-  });
+  const activeTransfers = useMemo(
+    () => state.transfers.filter((t) => !TERMINAL_STATUSES.has(t.status)),
+    [state.transfers]
+  )
 
-  const toggleSort = (field: SortField) => {
-    if (sortField === field) setSortDir(sortDir === "asc" ? "desc" : "asc");
-    else { setSortField(field); setSortDir("asc"); }
-  };
+  const inTransitCount = state.transfers.filter((t) => t.status === "in_transit").length
+  const pendingCount = state.transfers.filter((t) => t.status === "draft" || t.status === "pending").length
+  const completedCount = state.transfers.filter((t) => t.status === "completed").length
 
-  const openAdvanceDialog = (transfer: TransferOrder) => {
-    const next = NEXT_MAP[transfer.status];
-    if (!next) return;
+  const openAdvanceDialog = (row: TransferRow) => {
+    const next = NEXT_MAP[row.status]
+    if (!next) return
     advanceDialog.open({
-      transferId: transfer.id,
-      code: transfer.code,
-      currentStatus: transfer.status,
+      transferId: row.id,
+      code: row.code,
+      currentStatus: row.status,
       nextStatus: next,
-      originName: warehouseName(transfer.originId),
-      destinationName: warehouseName(transfer.destinationId),
-    });
-  };
+      originName: row.originName,
+      destinationName: row.destinationName,
+    })
+  }
 
   const handleAdvance = () => {
-    if (!advanceDialog.data) return;
+    if (!advanceDialog.data) return
     try {
-      advanceTransfer(advanceDialog.data.transferId, "Operador");
-      advanceDialog.close();
+      advanceTransfer(advanceDialog.data.transferId, "Operador")
+      advanceDialog.close()
     } catch (e: unknown) {
-      advanceDialog.setError(e instanceof Error ? e.message : "Error al avanzar traslado");
+      advanceDialog.setError(e instanceof Error ? e.message : "Error al avanzar traslado")
     }
-  };
+  }
 
-  const inTransitCount = state.transfers.filter((t) => t.status === "in_transit").length;
-  const pendingCount = state.transfers.filter((t) => t.status === "draft" || t.status === "pending").length;
-  const completedCount = state.transfers.filter((t) => t.status === "completed").length;
+  const columns = useMemo(
+    () => buildTransferColumns(openAdvanceDialog),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    []
+  )
+
+  const filtersNode = (
+    <>
+      <Select value={typeFilter} onValueChange={setTypeFilter}>
+        <SelectTrigger className="h-8 w-44">
+          <SelectValue placeholder="Tipo" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="all">Todos los tipos</SelectItem>
+          <SelectItem value="dc_to_store">DC → Tienda</SelectItem>
+          <SelectItem value="store_to_store">Tienda → Tienda</SelectItem>
+          <SelectItem value="store_to_dc">Tienda → DC</SelectItem>
+          <SelectItem value="dc_to_dc">DC → DC</SelectItem>
+        </SelectContent>
+      </Select>
+      <Select value={statusFilter} onValueChange={setStatusFilter}>
+        <SelectTrigger className="h-8 w-44">
+          <SelectValue placeholder="Estado" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="all">Todos los estados</SelectItem>
+          <SelectItem value="draft">Borrador</SelectItem>
+          <SelectItem value="pending">Pendiente</SelectItem>
+          <SelectItem value="in_progress">En preparación</SelectItem>
+          <SelectItem value="in_transit">En tránsito</SelectItem>
+          <SelectItem value="completed">Completado</SelectItem>
+          <SelectItem value="cancelled">Cancelado</SelectItem>
+        </SelectContent>
+      </Select>
+    </>
+  )
 
   return (
     <>
@@ -167,101 +190,22 @@ export default function TransfersPage() {
       </div>
 
       <Card>
-        <CardHeader>
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <ArrowRightLeft className="size-4" /> Órdenes de traslado
-            </CardTitle>
-            <div className="flex items-center gap-2">
-              <Select value={typeFilter} onValueChange={setTypeFilter}>
-                <SelectTrigger className="h-8 w-44">
-                  <SelectValue placeholder="Tipo" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos los tipos</SelectItem>
-                  <SelectItem value="dc_to_store">DC → Tienda</SelectItem>
-                  <SelectItem value="store_to_store">Tienda → Tienda</SelectItem>
-                  <SelectItem value="store_to_dc">Tienda → DC</SelectItem>
-                  <SelectItem value="dc_to_dc">DC → DC</SelectItem>
-                </SelectContent>
-              </Select>
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="h-8 w-44">
-                  <SelectValue placeholder="Estado" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos los estados</SelectItem>
-                  <SelectItem value="draft">Borrador</SelectItem>
-                  <SelectItem value="pending">Pendiente</SelectItem>
-                  <SelectItem value="in_progress">En preparación</SelectItem>
-                  <SelectItem value="in_transit">En tránsito</SelectItem>
-                  <SelectItem value="completed">Completado</SelectItem>
-                  <SelectItem value="cancelled">Cancelado</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+        <CardContent className="pt-4">
+          <div className="mb-1 flex items-center gap-2 text-base font-semibold">
+            <ArrowRightLeft className="size-4" /> Órdenes de traslado
           </div>
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="cursor-pointer" onClick={() => toggleSort("code")}>
-                  Código <SortIcon field="code" active={sortField} dir={sortDir} />
-                </TableHead>
-                <TableHead className="cursor-pointer" onClick={() => toggleSort("type")}>
-                  Tipo <SortIcon field="type" active={sortField} dir={sortDir} />
-                </TableHead>
-                <TableHead className="cursor-pointer" onClick={() => toggleSort("origin")}>
-                  Origen <SortIcon field="origin" active={sortField} dir={sortDir} />
-                </TableHead>
-                <TableHead />
-                <TableHead className="cursor-pointer" onClick={() => toggleSort("destination")}>
-                  Destino <SortIcon field="destination" active={sortField} dir={sortDir} />
-                </TableHead>
-                <TableHead>Líneas</TableHead>
-                <TableHead className="cursor-pointer" onClick={() => toggleSort("eta")}>
-                  ETA <SortIcon field="eta" active={sortField} dir={sortDir} />
-                </TableHead>
-                <TableHead className="cursor-pointer" onClick={() => toggleSort("status")}>
-                  Estado <SortIcon field="status" active={sortField} dir={sortDir} />
-                </TableHead>
-                <TableHead />
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {sorted.map((transfer) => (
-                <TableRow key={transfer.id}>
-                  <TableCell className="font-medium">{transfer.code}</TableCell>
-                  <TableCell>
-                    <Badge variant="outline" className="text-xs">
-                      {TYPE_LABELS[transfer.type]}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-sm">{warehouseName(transfer.originId)}</TableCell>
-                  <TableCell>
-                    <ArrowRight className="size-4 text-muted-foreground" />
-                  </TableCell>
-                  <TableCell className="text-sm">{warehouseName(transfer.destinationId)}</TableCell>
-                  <TableCell className="tabular-nums">{transfer.items.length}</TableCell>
-                  <TableCell className="text-sm">{transfer.estimatedArrivalDate}</TableCell>
-                  <TableCell><StatusBadge status={transfer.status} /></TableCell>
-                  <TableCell>
-                    {!TERMINAL_STATUSES.has(transfer.status) && NEXT_MAP[transfer.status] && (
-                      <Button size="sm" onClick={() => openAdvanceDialog(transfer)}>
-                        Avanzar
-                      </Button>
-                    )}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+          <DataTable
+            columns={columns}
+            data={filteredRows}
+            searchColumn="code"
+            searchPlaceholder="Buscar código..."
+            filters={filtersNode}
+            emptyMessage="No hay traslados con los filtros seleccionados."
+          />
         </CardContent>
       </Card>
 
-      {/* Lines detail per transfer */}
-      {sorted.filter((t) => !TERMINAL_STATUSES.has(t.status)).map((transfer) => (
+      {activeTransfers.map((transfer) => (
         <Card key={transfer.id}>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-sm">
@@ -283,7 +227,9 @@ export default function TransfersPage() {
                 {transfer.items.map((line) => (
                   <TableRow key={line.id}>
                     <TableCell>{productName(line.productId)}</TableCell>
-                    <TableCell className="text-right tabular-nums">{formatNumber(line.requestedQuantity)}</TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {formatNumber(line.requestedQuantity)}
+                    </TableCell>
                     <TableCell className="text-right tabular-nums text-muted-foreground">
                       {line.pickedQuantity ?? "—"}
                     </TableCell>
@@ -295,7 +241,10 @@ export default function TransfersPage() {
         </Card>
       ))}
 
-      <Dialog open={!!advanceDialog.data} onOpenChange={(o) => { if (!o) advanceDialog.close(); }}>
+      <Dialog
+        open={!!advanceDialog.data}
+        onOpenChange={(o) => { if (!o) advanceDialog.close() }}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Avanzar estado del traslado</DialogTitle>
@@ -340,5 +289,5 @@ export default function TransfersPage() {
         </DialogContent>
       </Dialog>
     </>
-  );
+  )
 }

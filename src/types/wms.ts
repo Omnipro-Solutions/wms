@@ -14,7 +14,8 @@ export type OperationalStatus =
   | "in_transit"
   | "on_hold"
   | "error"
-  | "synced";
+  | "synced"
+  | "short_received";
 
 export type UnitOfMeasure = "unit" | "box" | "pallet";
 
@@ -124,12 +125,18 @@ export interface Asn {
   appointmentDate: string;
   expectedQuantity: number;
   receivedQuantity: number;
+  // Units counted as damaged/rejected — tracked on ASN but not put to available stock.
+  damagedQuantity: number;
   status: OperationalStatus;
   requiresQualityControl: boolean;
   crossDocking: boolean;
   productId: string;
   // Directed putaway suggestion comes from slotting (ABC class of product).
   suggestedPutawayLocationId?: string;
+  // Populated when ASN is closed with short_received — reason for the discrepancy.
+  closeReason?: string;
+  // Number of individual GR (Goods Receipt) deliveries registered against this ASN.
+  deliveryCount: number;
 }
 
 export interface TransferOrder {
