@@ -1,4 +1,4 @@
-"use client";
+'use client'
 
 import {
   AlertTriangle,
@@ -12,14 +12,14 @@ import {
   Truck,
   Undo2,
   Waves,
-} from "lucide-react";
-import { useWmsStore } from "@/store/wms-store";
-import { selectDashboardKpis, selectSlottingRecommendations } from "@/store/selectors";
-import { useStoreHelpers } from "@/hooks/use-store-helpers";
-import { KpiCard } from "@/components/shared/kpi-card";
-import { PageHeader } from "@/components/shared/page-header";
-import { StatusBadge } from "@/components/shared/status-badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+} from 'lucide-react'
+import { useWmsStore } from '@/store/wms-store'
+import { selectDashboardKpis, selectSlottingRecommendations } from '@/store/selectors'
+import { useStoreHelpers } from '@/hooks/use-store-helpers'
+import { KpiCard } from '@/components/shared/kpi-card'
+import { PageHeader } from '@/components/shared/page-header'
+import { StatusBadge } from '@/components/shared/status-badge'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Table,
   TableBody,
@@ -27,17 +27,17 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table";
-import { formatNumber, formatPercent } from "@/lib/formatters";
+} from '@/components/ui/table'
+import { formatNumber, formatPercent } from '@/lib/formatters'
 
 export default function DashboardPage() {
-  const state = useWmsStore();
-  const { productName, locationCode } = useStoreHelpers();
-  const kpis = selectDashboardKpis(state);
-  const recommendations = selectSlottingRecommendations(state).slice(0, 4);
+  const state = useWmsStore()
+  const { productName, locationCode } = useStoreHelpers()
+  const kpis = selectDashboardKpis(state)
+  const recommendations = selectSlottingRecommendations(state).slice(0, 4)
   const recentOrders = [...state.commerceOrders]
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
-    .slice(0, 5);
+    .slice(0, 5)
 
   return (
     <>
@@ -47,16 +47,36 @@ export default function DashboardPage() {
       />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <KpiCard title="Pedidos pendientes" value={kpis.pendingOrders} icon={ShoppingCart} description="Pendientes de operación" />
+        <KpiCard
+          title="Pedidos pendientes"
+          value={kpis.pendingOrders}
+          icon={ShoppingCart}
+          description="Pendientes de operación"
+        />
         <KpiCard title="Pedidos en picking" value={kpis.ordersInPicking} icon={ClipboardList} />
-        <KpiCard title="Picking parcial" value={kpis.partialPickingTasks} icon={ClipboardList} description="Tareas parciales" />
+        <KpiCard
+          title="Picking parcial"
+          value={kpis.partialPickingTasks}
+          icon={ClipboardList}
+          description="Tareas parciales"
+        />
         <KpiCard title="Oleadas activas" value={kpis.activeWaves} icon={Waves} />
         <KpiCard title="Recepciones pendientes" value={kpis.pendingReceipts} icon={PackageCheck} />
         <KpiCard title="Devoluciones en tránsito" value={kpis.returnsInTransit} icon={Undo2} />
-        <KpiCard title="Inventario en espera" value={formatNumber(kpis.inventoryOnHold)} icon={Boxes} description="Unidades en hold" />
+        <KpiCard
+          title="Inventario en espera"
+          value={formatNumber(kpis.inventoryOnHold)}
+          icon={Boxes}
+          description="Unidades en hold"
+        />
         <KpiCard title="Rutas activas" value={kpis.activeRoutes} icon={Route} />
         <KpiCard title="OTIF estimado" value={formatPercent(kpis.otif)} icon={TrendingUp} />
-        <KpiCard title="SKUs mal ubicados" value={kpis.misplacedAClassSkus} icon={Grid3x3} description="Clase A fuera de golden zone" />
+        <KpiCard
+          title="SKUs mal ubicados"
+          value={kpis.misplacedAClassSkus}
+          icon={Grid3x3}
+          description="Clase A fuera de golden zone"
+        />
         <KpiCard title="Alertas críticas" value={kpis.criticalAlerts} icon={AlertTriangle} />
       </div>
 
@@ -81,7 +101,9 @@ export default function DashboardPage() {
                     <TableCell className="font-medium">{o.orderNumber}</TableCell>
                     <TableCell>{o.customerName}</TableCell>
                     <TableCell className="capitalize">{o.channel}</TableCell>
-                    <TableCell><StatusBadge status={o.status} /></TableCell>
+                    <TableCell>
+                      <StatusBadge status={o.status} />
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -97,7 +119,7 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             {recommendations.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Sin oportunidades de reubicación.</p>
+              <p className="text-muted-foreground text-sm">Sin oportunidades de reubicación.</p>
             ) : (
               <Table>
                 <TableHeader>
@@ -145,7 +167,9 @@ export default function DashboardPage() {
                   <TableRow key={r.id}>
                     <TableCell className="font-medium">{r.code}</TableCell>
                     <TableCell>{r.carrierName}</TableCell>
-                    <TableCell><StatusBadge status={r.status} /></TableCell>
+                    <TableCell>
+                      <StatusBadge status={r.status} />
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -170,8 +194,12 @@ export default function DashboardPage() {
                 {state.integrations.map((i) => (
                   <TableRow key={i.id}>
                     <TableCell className="font-medium">{i.name}</TableCell>
-                    <TableCell className="tabular-nums">{formatNumber(i.processedMessages)}</TableCell>
-                    <TableCell><StatusBadge status={i.status} /></TableCell>
+                    <TableCell className="tabular-nums">
+                      {formatNumber(i.processedMessages)}
+                    </TableCell>
+                    <TableCell>
+                      <StatusBadge status={i.status} />
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -180,5 +208,5 @@ export default function DashboardPage() {
         </Card>
       </div>
     </>
-  );
+  )
 }

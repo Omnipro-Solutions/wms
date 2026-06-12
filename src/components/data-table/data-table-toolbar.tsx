@@ -1,43 +1,35 @@
-"use client"
+'use client'
 
-import { type ReactNode } from "react"
-import { type Table } from "@tanstack/react-table"
-import { Search, X } from "lucide-react"
+import { type ReactNode } from 'react'
+import { type Table } from '@tanstack/react-table'
+import { Search, X } from 'lucide-react'
 
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { DataTableViewOptions } from "./data-table-view-options"
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { DataTableViewOptions } from './data-table-view-options'
 
 interface DataTableToolbarProps<TData> {
   table: Table<TData>
-  /** Column id to use for the global search input */
   searchColumn?: string
-  /** Placeholder text for the search input */
   searchPlaceholder?: string
-  /** Extra filter controls rendered to the right of the search input (e.g. status selects) */
   filters?: ReactNode
-  /** Extra action buttons rendered at the far right (e.g. export, create) */
   actions?: ReactNode
-  /** Whether to show the column-visibility toggle */
   showViewOptions?: boolean
 }
 
 export const DataTableToolbar = <TData,>({
   table,
   searchColumn,
-  searchPlaceholder = "Buscar...",
+  searchPlaceholder = 'Buscar...',
   filters,
   actions,
   showViewOptions = true,
 }: DataTableToolbarProps<TData>) => {
-  const searchValue =
-    searchColumn
-      ? (table.getColumn(searchColumn)?.getFilterValue() as string) ?? ""
-      : ""
+  const searchValue = searchColumn
+    ? ((table.getColumn(searchColumn)?.getFilterValue() as string) ?? '')
+    : ''
 
-  const isFiltered =
-    table.getState().columnFilters.length > 0 ||
-    !!table.getState().globalFilter
+  const isFiltered = table.getState().columnFilters.length > 0 || !!table.getState().globalFilter
 
   const handleSearchChange = (value: string) => {
     if (!searchColumn) return
@@ -50,49 +42,46 @@ export const DataTableToolbar = <TData,>({
   }
 
   return (
-    <div className="flex flex-wrap items-center gap-2 py-3">
-      {/* Search input */}
-      {searchColumn && (
-        <div className="relative max-w-xs flex-1">
-          <Search className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            placeholder={searchPlaceholder}
-            value={searchValue}
-            onChange={(e) => handleSearchChange(e.target.value)}
-            className="h-8 pl-8 pr-8"
-          />
-          {searchValue && (
-            <button
-              onClick={() => handleSearchChange("")}
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-              aria-label="Limpiar búsqueda"
-            >
-              <X className="size-3.5" />
-            </button>
-          )}
-        </div>
-      )}
+    <div className="flex items-center justify-end gap-2 py-2">
+      {/* Left group: search + filters + reset */}
+      <div className="flex flex-wrap items-center gap-2">
+        {searchColumn && (
+          <div className="relative w-xl">
+            <Search className="text-muted-foreground absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2" />
+            <Input
+              placeholder={searchPlaceholder}
+              value={searchValue}
+              onChange={(e) => handleSearchChange(e.target.value)}
+              className="h-8 pr-8 pl-8"
+            />
+            {searchValue && (
+              <button
+                onClick={() => handleSearchChange('')}
+                className="text-muted-foreground hover:text-foreground absolute top-1/2 right-2.5 -translate-y-1/2"
+                aria-label="Limpiar búsqueda"
+              >
+                <X className="size-3.5" />
+              </button>
+            )}
+          </div>
+        )}
 
-      {/* Extra filter controls */}
-      {filters && (
-        <div className="flex flex-wrap items-center gap-2">{filters}</div>
-      )}
+        {filters}
 
-      {/* Reset filters button */}
-      {isFiltered && (
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={handleReset}
-          className="h-8 px-2 text-muted-foreground"
-        >
-          <X className="mr-1 size-3.5" />
-          Limpiar filtros
-        </Button>
-      )}
+        {isFiltered && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleReset}
+            className="text-muted-foreground h-8 px-2"
+          >
+            <X className="mr-1 size-3.5" />
+            Limpiar filtros
+          </Button>
+        )}
+      </div>
 
-      {/* Right-side actions + view toggle */}
-      <div className="ml-auto flex items-center gap-2">
+      <div className="flex items-center gap-2">
         {actions}
         {showViewOptions && <DataTableViewOptions table={table} />}
       </div>

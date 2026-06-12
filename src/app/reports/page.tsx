@@ -1,25 +1,18 @@
-"use client"
+'use client'
 
-import { useMemo } from "react"
-import {
-  Download,
-  PackageCheck,
-  TrendingUp,
-  Truck,
-  User,
-  Warehouse,
-} from "lucide-react"
+import { useMemo } from 'react'
+import { Download, PackageCheck, TrendingUp, Truck, User, Warehouse } from 'lucide-react'
 
-import { useWmsStore } from "@/store/wms-store"
-import { productivityByOperator } from "@/lib/rules/picking"
-import { receivingDiscrepancies, pickingDiscrepancies } from "@/lib/rules/reports"
-import { otifPercentage } from "@/lib/rules/shipping"
-import { availableStock } from "@/lib/rules/inventory"
-import { PageHeader } from "@/components/shared/page-header"
-import { DataTable } from "@/components/data-table"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { formatNumber, formatPercent } from "@/lib/formatters"
+import { useWmsStore } from '@/store/wms-store'
+import { productivityByOperator } from '@/lib/rules/picking'
+import { receivingDiscrepancies, pickingDiscrepancies } from '@/lib/rules/reports'
+import { otifPercentage } from '@/lib/rules/shipping'
+import { availableStock } from '@/lib/rules/inventory'
+import { PageHeader } from '@/components/shared/page-header'
+import { DataTable } from '@/components/data-table'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { formatNumber, formatPercent } from '@/lib/formatters'
 import {
   productivityColumns,
   discrepancyColumns,
@@ -31,13 +24,13 @@ import {
   type WarehouseInventoryRow,
   type MovementRow,
   type OtifRow,
-} from "./columns"
+} from './columns'
 
 const exportCsv = (headers: string[], rows: (string | number)[][], filename: string) => {
-  const lines = [headers.join(","), ...rows.map((r) => r.join(","))]
-  const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8;" })
+  const lines = [headers.join(','), ...rows.map((r) => r.join(','))]
+  const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' })
   const url = URL.createObjectURL(blob)
-  const a = document.createElement("a")
+  const a = document.createElement('a')
   a.href = url
   a.download = filename
   a.click()
@@ -51,21 +44,15 @@ export default function ReportsPage() {
     () => productivityByOperator(state.pickingTasks),
     [state.pickingTasks]
   )
-  const receivingDisc = useMemo(
-    () => receivingDiscrepancies(state.asnRecords),
-    [state.asnRecords]
-  )
-  const pickingDisc = useMemo(
-    () => pickingDiscrepancies(state.pickingTasks),
-    [state.pickingTasks]
-  )
+  const receivingDisc = useMemo(() => receivingDiscrepancies(state.asnRecords), [state.asnRecords])
+  const pickingDisc = useMemo(() => pickingDiscrepancies(state.pickingTasks), [state.pickingTasks])
   const allDiscrepancies = useMemo(
     () => [...receivingDisc, ...pickingDisc],
     [receivingDisc, pickingDisc]
   )
 
   const otif = useMemo(() => otifPercentage(state.shipments), [state.shipments])
-  const otifColor = otif >= 90 ? "text-green-700" : otif >= 75 ? "text-amber-600" : "text-red-600"
+  const otifColor = otif >= 90 ? 'text-green-700' : otif >= 75 ? 'text-amber-600' : 'text-red-600'
 
   const productivityRows = useMemo<ProductivityRow[]>(
     () =>
@@ -148,41 +135,74 @@ export default function ReportsPage() {
 
   const handleExportProductivity = () => {
     exportCsv(
-      ["Operador", "Picks completados", "Unidades pickeadas", "Parciales", "Incidencias"],
-      productivityRows.map((r) => [r.operatorName, r.picksCompleted, r.unitsPicked, r.partialCount, r.issueCount]),
-      "reporte_productividad.csv"
+      ['Operador', 'Picks completados', 'Unidades pickeadas', 'Parciales', 'Incidencias'],
+      productivityRows.map((r) => [
+        r.operatorName,
+        r.picksCompleted,
+        r.unitsPicked,
+        r.partialCount,
+        r.issueCount,
+      ]),
+      'reporte_productividad.csv'
     )
   }
 
   const handleExportDiscrepancies = () => {
     exportCsv(
-      ["Tipo", "Referencia", "Esperado", "Real", "Diferencia"],
-      discrepancyRows.map((r) => [r.referenceType, r.referenceCode, r.expected, r.actual, r.difference]),
-      "reporte_discrepancias.csv"
+      ['Tipo', 'Referencia', 'Esperado', 'Real', 'Diferencia'],
+      discrepancyRows.map((r) => [
+        r.referenceType,
+        r.referenceCode,
+        r.expected,
+        r.actual,
+        r.difference,
+      ]),
+      'reporte_discrepancias.csv'
     )
   }
 
   const handleExportInventory = () => {
     exportCsv(
-      ["Bodega", "En mano", "Reservado", "Retenido", "Disponible", "SKUs"],
-      warehouseInventoryRows.map((r) => [r.warehouseName, r.totalOnHand, r.totalReserved, r.totalHold, r.totalAvailable, r.skuCount]),
-      "reporte_inventario.csv"
+      ['Bodega', 'En mano', 'Reservado', 'Retenido', 'Disponible', 'SKUs'],
+      warehouseInventoryRows.map((r) => [
+        r.warehouseName,
+        r.totalOnHand,
+        r.totalReserved,
+        r.totalHold,
+        r.totalAvailable,
+        r.skuCount,
+      ]),
+      'reporte_inventario.csv'
     )
   }
 
   const handleExportMovements = () => {
     exportCsv(
-      ["ID", "Tipo", "Producto", "Cantidad", "Referencia", "Operador", "Fecha"],
-      movementRows.map((m) => [m.id, m.type, m.productName, m.quantity, m.referenceId, m.operatorName, m.createdAt.slice(0, 16)]),
-      "reporte_movimientos.csv"
+      ['ID', 'Tipo', 'Producto', 'Cantidad', 'Referencia', 'Operador', 'Fecha'],
+      movementRows.map((m) => [
+        m.id,
+        m.type,
+        m.productName,
+        m.quantity,
+        m.referenceId,
+        m.operatorName,
+        m.createdAt.slice(0, 16),
+      ]),
+      'reporte_movimientos.csv'
     )
   }
 
   const handleExportOtif = () => {
     exportCsv(
-      ["Pedido", "Cliente", "Transportadora", "Estado OTIF", "Despachado"],
-      state.shipments.map((s) => [s.orderId, s.customerName, s.carrierName, s.otifStatus, s.shippedAt ?? "—"]),
-      "reporte_otif.csv"
+      ['Pedido', 'Cliente', 'Transportadora', 'Estado OTIF', 'Despachado'],
+      state.shipments.map((s) => [
+        s.orderId,
+        s.customerName,
+        s.carrierName,
+        s.otifStatus,
+        s.shippedAt ?? '—',
+      ]),
+      'reporte_otif.csv'
     )
   }
 
@@ -196,7 +216,7 @@ export default function ReportsPage() {
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardContent className="pt-6">
-            <p className="text-sm text-muted-foreground">Picks completados</p>
+            <p className="text-muted-foreground text-sm">Picks completados</p>
             <p className="text-2xl font-bold tabular-nums">
               {formatNumber(productivityRows.reduce((s, r) => s + r.picksCompleted, 0))}
             </p>
@@ -204,22 +224,26 @@ export default function ReportsPage() {
         </Card>
         <Card>
           <CardContent className="pt-6">
-            <p className="text-sm text-muted-foreground">Discrepancias activas</p>
-            <p className={`text-2xl font-bold tabular-nums ${discrepancyRows.length > 0 ? "text-red-600" : "text-green-700"}`}>
+            <p className="text-muted-foreground text-sm">Discrepancias activas</p>
+            <p
+              className={`text-2xl font-bold tabular-nums ${discrepancyRows.length > 0 ? 'text-red-600' : 'text-green-700'}`}
+            >
               {formatNumber(discrepancyRows.length)}
             </p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-6">
-            <p className="text-sm text-muted-foreground">OTIF</p>
+            <p className="text-muted-foreground text-sm">OTIF</p>
             <p className={`text-2xl font-bold tabular-nums ${otifColor}`}>{formatPercent(otif)}</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-6">
-            <p className="text-sm text-muted-foreground">Movimientos registrados</p>
-            <p className="text-2xl font-bold tabular-nums">{formatNumber(state.stockMovements.length)}</p>
+            <p className="text-muted-foreground text-sm">Movimientos registrados</p>
+            <p className="text-2xl font-bold tabular-nums">
+              {formatNumber(state.stockMovements.length)}
+            </p>
           </CardContent>
         </Card>
       </div>
@@ -331,10 +355,10 @@ export default function ReportsPage() {
         </CardHeader>
         <CardContent>
           <div className="mb-4 flex items-center gap-4">
-            <p className="text-sm text-muted-foreground">OTIF global:</p>
+            <p className="text-muted-foreground text-sm">OTIF global:</p>
             <p className={`text-3xl font-bold tabular-nums ${otifColor}`}>{formatPercent(otif)}</p>
-            <p className="text-sm text-muted-foreground">
-              ({state.shipments.filter((s) => s.otifStatus === "on_time").length} de{" "}
+            <p className="text-muted-foreground text-sm">
+              ({state.shipments.filter((s) => s.otifStatus === 'on_time').length} de{' '}
               {state.shipments.length} envíos a tiempo)
             </p>
           </div>

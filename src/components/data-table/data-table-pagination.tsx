@@ -1,21 +1,16 @@
-"use client"
+'use client'
 
-import { type Table } from "@tanstack/react-table"
-import {
-  ChevronLeft,
-  ChevronRight,
-  ChevronsLeft,
-  ChevronsRight,
-} from "lucide-react"
+import { type Table } from '@tanstack/react-table'
+import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react'
 
-import { Button } from "@/components/ui/button"
+import { Button } from '@/components/ui/button'
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select"
+} from '@/components/ui/select'
 
 interface DataTablePaginationProps<TData> {
   table: Table<TData>
@@ -31,16 +26,14 @@ export const DataTablePagination = <TData,>({
 
   return (
     <div className="flex items-center justify-between px-2 py-3">
-      <div className="flex-1 text-sm text-muted-foreground">
+      <div className="text-muted-foreground flex-1 text-sm">
         {selectedCount > 0 ? (
           <>
-            <span className="font-medium text-foreground">{selectedCount}</span>{" "}
-            de {totalCount} fila(s) seleccionada(s).
+            <span className="text-foreground font-medium">{selectedCount}</span> de {totalCount}{' '}
+            fila(s) seleccionada(s).
           </>
         ) : (
-          <>
-            {totalCount} resultado(s) en total.
-          </>
+          <>{totalCount} resultado(s) en total.</>
         )}
       </div>
 
@@ -65,8 +58,7 @@ export const DataTablePagination = <TData,>({
         </div>
 
         <div className="flex w-[110px] items-center justify-center text-sm font-medium">
-          Página {table.getState().pagination.pageIndex + 1} de{" "}
-          {Math.max(table.getPageCount(), 1)}
+          Página {table.getState().pagination.pageIndex + 1} de {Math.max(table.getPageCount(), 1)}
         </div>
 
         <div className="flex items-center gap-1">

@@ -1,12 +1,12 @@
-import { useState } from "react";
+import { useState } from 'react'
 
 export interface DialogState<T> {
-  data: T | null;
-  error: string;
-  open: (data: T) => void;
-  close: () => void;
-  setError: (msg: string) => void;
-  clearError: () => void;
+  data: T | null
+  error: string
+  open: (data: T) => void
+  close: () => void
+  setError: (msg: string) => void
+  clearError: () => void
 }
 
 /**
@@ -15,21 +15,21 @@ export interface DialogState<T> {
  * repeated `setDialog(null); setError("")` pattern across every page.
  */
 export function useDialogState<T>(): DialogState<T> {
-  const [data, setData] = useState<T | null>(null);
-  const [error, setErrorState] = useState("");
+  const [data, setData] = useState<T | null>(null)
+  const [error, setErrorState] = useState('')
 
   const open = (newData: T) => {
-    setData(newData);
-    setErrorState("");
-  };
+    setData(newData)
+    setErrorState('')
+  }
 
   const close = () => {
-    setData(null);
-    setErrorState("");
-  };
+    setData(null)
+    setErrorState('')
+  }
 
-  const setError = (msg: string) => setErrorState(msg);
-  const clearError = () => setErrorState("");
+  const setError = (msg: string) => setErrorState(msg)
+  const clearError = () => setErrorState('')
 
-  return { data, error, open, close, setError, clearError };
+  return { data, error, open, close, setError, clearError }
 }

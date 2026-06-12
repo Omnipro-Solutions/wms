@@ -1,36 +1,36 @@
-"use client"
+'use client'
 
-import { useMemo, useState } from "react"
-import { Boxes, Filter, TriangleAlert } from "lucide-react"
+import { useMemo, useState } from 'react'
+import { Boxes, Filter, TriangleAlert } from 'lucide-react'
 
-import { useWmsStore } from "@/store/wms-store"
-import { availableStock, abcByProduct } from "@/store/selectors"
-import { useStoreHelpers } from "@/hooks/use-store-helpers"
-import { useDialogState } from "@/hooks/use-dialog-state"
-import { PageHeader } from "@/components/shared/page-header"
-import { DataTable } from "@/components/data-table"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
+import { useWmsStore } from '@/store/wms-store'
+import { availableStock, abcByProduct } from '@/store/selectors'
+import { useStoreHelpers } from '@/hooks/use-store-helpers'
+import { useDialogState } from '@/hooks/use-dialog-state'
+import { PageHeader } from '@/components/shared/page-header'
+import { DataTable } from '@/components/data-table'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent } from '@/components/ui/card'
 import {
   Dialog,
   DialogContent,
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
+} from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select"
-import { formatNumber } from "@/lib/formatters"
-import { buildInventoryColumns, type InventoryRow } from "./columns"
+} from '@/components/ui/select'
+import { formatNumber } from '@/lib/formatters'
+import { buildInventoryColumns, type InventoryRow } from './columns'
 
-type ActionType = "hold" | "release" | "adjust"
+type ActionType = 'hold' | 'release' | 'adjust'
 
 interface ActionDialogData {
   type: ActionType
@@ -41,9 +41,9 @@ interface ActionDialogData {
 }
 
 const DIALOG_TITLES: Record<ActionType, string> = {
-  hold: "Poner en espera (hold)",
-  release: "Liberar del hold",
-  adjust: "Ajuste de inventario",
+  hold: 'Poner en espera (hold)',
+  release: 'Liberar del hold',
+  adjust: 'Ajuste de inventario',
 }
 
 export default function InventoryPage() {
@@ -53,8 +53,8 @@ export default function InventoryPage() {
 
   const abc = abcByProduct(state)
 
-  const [statusFilter, setStatusFilter] = useState("all")
-  const [qty, setQty] = useState("")
+  const [statusFilter, setStatusFilter] = useState('all')
+  const [qty, setQty] = useState('')
 
   const actionDialog = useDialogState<ActionDialogData>()
 
@@ -70,7 +70,7 @@ export default function InventoryPage() {
           locationCode: locationCode(i.locationId),
           lot: i.lot ?? null,
           serial: i.serial ?? null,
-          abcClass: abc[i.productId] ?? "C",
+          abcClass: abc[i.productId] ?? 'C',
           onHandQuantity: i.onHandQuantity,
           reservedQuantity: i.reservedQuantity,
           holdQuantity: i.holdQuantity,
@@ -82,10 +82,7 @@ export default function InventoryPage() {
   )
 
   const filteredRows = useMemo(
-    () =>
-      statusFilter === "all"
-        ? rows
-        : rows.filter((r) => r.status === statusFilter),
+    () => (statusFilter === 'all' ? rows : rows.filter((r) => r.status === statusFilter)),
     [rows, statusFilter]
   )
 
@@ -101,24 +98,25 @@ export default function InventoryPage() {
       currentOnHand: item.onHandQuantity,
       currentHold: item.holdQuantity,
     })
-    setQty(type === "adjust" ? String(item.onHandQuantity) : "")
+    setQty(type === 'adjust' ? String(item.onHandQuantity) : '')
   }
 
   const handleSubmit = () => {
     if (!actionDialog.data) return
     const n = parseInt(qty, 10)
     if (isNaN(n) || n < 0) {
-      actionDialog.setError("Ingresa una cantidad válida.")
+      actionDialog.setError('Ingresa una cantidad válida.')
       return
     }
     try {
-      if (actionDialog.data.type === "hold") holdInventory(actionDialog.data.itemId, n, "Operador")
-      else if (actionDialog.data.type === "release") releaseInventory(actionDialog.data.itemId, n, "Operador")
-      else adjustInventory(actionDialog.data.itemId, n, "Operador")
+      if (actionDialog.data.type === 'hold') holdInventory(actionDialog.data.itemId, n, 'Operador')
+      else if (actionDialog.data.type === 'release')
+        releaseInventory(actionDialog.data.itemId, n, 'Operador')
+      else adjustInventory(actionDialog.data.itemId, n, 'Operador')
       actionDialog.close()
-      setQty("")
+      setQty('')
     } catch (e: unknown) {
-      actionDialog.setError(e instanceof Error ? e.message : "Error en la operación")
+      actionDialog.setError(e instanceof Error ? e.message : 'Error en la operación')
     }
   }
 
@@ -130,7 +128,7 @@ export default function InventoryPage() {
 
   const statusFilterNode = (
     <div className="flex items-center gap-2">
-      <Filter className="size-4 text-muted-foreground" />
+      <Filter className="text-muted-foreground size-4" />
       <Select value={statusFilter} onValueChange={setStatusFilter}>
         <SelectTrigger className="h-8 w-44">
           <SelectValue />
@@ -156,20 +154,24 @@ export default function InventoryPage() {
       <div className="grid gap-4 sm:grid-cols-3">
         <Card>
           <CardContent className="pt-6">
-            <p className="text-sm text-muted-foreground">Total en mano</p>
+            <p className="text-muted-foreground text-sm">Total en mano</p>
             <p className="text-2xl font-bold tabular-nums">{formatNumber(totalOnHand)}</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-6">
-            <p className="text-sm text-muted-foreground">Disponible</p>
-            <p className="text-2xl font-bold tabular-nums text-green-700">{formatNumber(totalAvailable)}</p>
+            <p className="text-muted-foreground text-sm">Disponible</p>
+            <p className="text-2xl font-bold text-green-700 tabular-nums">
+              {formatNumber(totalAvailable)}
+            </p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-6">
-            <p className="text-sm text-muted-foreground">En espera (hold)</p>
-            <p className="text-2xl font-bold tabular-nums text-amber-600">{formatNumber(totalHold)}</p>
+            <p className="text-muted-foreground text-sm">En espera (hold)</p>
+            <p className="text-2xl font-bold text-amber-600 tabular-nums">
+              {formatNumber(totalHold)}
+            </p>
           </CardContent>
         </Card>
       </div>
@@ -193,43 +195,41 @@ export default function InventoryPage() {
 
       <Dialog
         open={!!actionDialog.data}
-        onOpenChange={(o) => { if (!o) actionDialog.close() }}
+        onOpenChange={(o) => {
+          if (!o) actionDialog.close()
+        }}
       >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              {actionDialog.data ? DIALOG_TITLES[actionDialog.data.type] : ""}
+              {actionDialog.data ? DIALOG_TITLES[actionDialog.data.type] : ''}
             </DialogTitle>
           </DialogHeader>
           {actionDialog.data && (
             <div className="space-y-4 py-2">
-              <p className="text-sm text-muted-foreground">
-                Producto:{" "}
-                <span className="font-medium text-foreground">
-                  {actionDialog.data.productName}
-                </span>
+              <p className="text-muted-foreground text-sm">
+                Producto:{' '}
+                <span className="text-foreground font-medium">{actionDialog.data.productName}</span>
               </p>
-              {actionDialog.data.type === "adjust" && (
-                <p className="text-sm text-muted-foreground">
-                  Stock actual en mano:{" "}
-                  <span className="font-medium text-foreground">
+              {actionDialog.data.type === 'adjust' && (
+                <p className="text-muted-foreground text-sm">
+                  Stock actual en mano:{' '}
+                  <span className="text-foreground font-medium">
                     {actionDialog.data.currentOnHand}
                   </span>
                 </p>
               )}
-              {actionDialog.data.type === "release" && (
-                <p className="text-sm text-muted-foreground">
-                  Cantidad en hold:{" "}
-                  <span className="font-medium text-foreground">
+              {actionDialog.data.type === 'release' && (
+                <p className="text-muted-foreground text-sm">
+                  Cantidad en hold:{' '}
+                  <span className="text-foreground font-medium">
                     {actionDialog.data.currentHold}
                   </span>
                 </p>
               )}
               <div className="space-y-1">
                 <Label htmlFor="inv-qty">
-                  {actionDialog.data.type === "adjust"
-                    ? "Nueva cantidad en mano"
-                    : "Cantidad"}
+                  {actionDialog.data.type === 'adjust' ? 'Nueva cantidad en mano' : 'Cantidad'}
                 </Label>
                 <Input
                   id="inv-qty"
@@ -240,7 +240,7 @@ export default function InventoryPage() {
                 />
               </div>
               {actionDialog.error && (
-                <p className="flex items-center gap-1 text-sm text-destructive">
+                <p className="text-destructive flex items-center gap-1 text-sm">
                   <TriangleAlert className="size-3" /> {actionDialog.error}
                 </p>
               )}

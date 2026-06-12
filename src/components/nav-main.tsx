@@ -1,12 +1,8 @@
-"use client"
+'use client'
 
-import Link from "next/link"
-import { usePathname } from "next/navigation"
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible"
+import Link from 'next/link'
+import { usePathname } from 'next/navigation'
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import {
   SidebarGroup,
   SidebarGroupLabel,
@@ -17,9 +13,9 @@ import {
   SidebarMenuSub,
   SidebarMenuSubButton,
   SidebarMenuSubItem,
-} from "@/components/ui/sidebar"
-import { ChevronRightIcon } from "lucide-react"
-import type { NavGroup } from "@/types/navigation"
+} from '@/components/ui/sidebar'
+import { ChevronRightIcon } from 'lucide-react'
+import type { NavGroup } from '@/types/navigation'
 
 interface Props {
   groups: NavGroup[]
@@ -32,13 +28,12 @@ export const NavMain = ({ groups, label, className }: Props) => {
 
   return (
     <SidebarGroup className={className}>
-      <SidebarGroupLabel>{label ?? "Platform"}</SidebarGroupLabel>
+      <SidebarGroupLabel>{label ?? 'Platform'}</SidebarGroupLabel>
       <SidebarMenu>
         {groups.map((group) => {
           const isGroupActive = group.items.some(
             (item) =>
-              pathname === item.href ||
-              (item.href !== "/" && pathname.startsWith(item.href))
+              pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href))
           )
 
           return (
@@ -68,7 +63,7 @@ export const NavMain = ({ groups, label, className }: Props) => {
                     {group.items.map((item) => {
                       const isActive =
                         pathname === item.href ||
-                        (item.href !== "/" && pathname.startsWith(item.href))
+                        (item.href !== '/' && pathname.startsWith(item.href))
                       return (
                         <SidebarMenuSubItem key={item.href}>
                           <SidebarMenuSubButton asChild isActive={isActive}>

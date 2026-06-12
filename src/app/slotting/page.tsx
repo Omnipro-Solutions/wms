@@ -1,6 +1,6 @@
-"use client";
+'use client'
 
-import { useState } from "react";
+import { useState } from 'react'
 import {
   ArrowRight,
   CheckCircle2,
@@ -9,27 +9,27 @@ import {
   MapPin,
   MoveRight,
   TriangleAlert,
-} from "lucide-react";
-import { useWmsStore } from "@/store/wms-store";
+} from 'lucide-react'
+import { useWmsStore } from '@/store/wms-store'
 import {
   selectSlottingRecommendations,
   abcByProduct,
   misplacedAClassItems,
-} from "@/store/selectors";
-import { useStoreHelpers } from "@/hooks/use-store-helpers";
-import { useDialogState } from "@/hooks/use-dialog-state";
-import { classifyXyz } from "@/lib/rules/slotting";
-import { PageHeader } from "@/components/shared/page-header";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+} from '@/store/selectors'
+import { useStoreHelpers } from '@/hooks/use-store-helpers'
+import { useDialogState } from '@/hooks/use-dialog-state'
+import { classifyXyz } from '@/lib/rules/slotting'
+import { PageHeader } from '@/components/shared/page-header'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Dialog,
   DialogContent,
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
+} from '@/components/ui/dialog'
 import {
   Table,
   TableBody,
@@ -37,66 +37,70 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table";
-import { formatNumber } from "@/lib/formatters";
+} from '@/components/ui/table'
+import { formatNumber } from '@/lib/formatters'
 
 interface RelocateDialogData {
-  itemId: string;
-  toLocationId: string;
-  productName: string;
-  fromCode: string;
-  toCode: string;
+  itemId: string
+  toLocationId: string
+  productName: string
+  fromCode: string
+  toCode: string
 }
 
 export default function SlottingPage() {
-  const state = useWmsStore();
-  const { relocateInventory } = useWmsStore();
-  const { productName, locationCode } = useStoreHelpers();
+  const state = useWmsStore()
+  const { relocateInventory } = useWmsStore()
+  const { productName, locationCode } = useStoreHelpers()
 
-  const abc = abcByProduct(state);
-  const recommendations = selectSlottingRecommendations(state);
-  const misplaced = misplacedAClassItems(state);
+  const abc = abcByProduct(state)
+  const recommendations = selectSlottingRecommendations(state)
+  const misplaced = misplacedAClassItems(state)
 
-  const relocateDialog = useDialogState<RelocateDialogData>();
-  const [relocated, setRelocated] = useState<Set<string>>(new Set());
+  const relocateDialog = useDialogState<RelocateDialogData>()
+  const [relocated, setRelocated] = useState<Set<string>>(new Set())
 
   const xyzClass = (productId: string) => {
-    const d = state.demandStats.find((s) => s.productId === productId);
-    if (!d) return "Z";
-    return classifyXyz(d.demandSamples, state.settings.xyzCvX, state.settings.xyzCvY);
-  };
+    const d = state.demandStats.find((s) => s.productId === productId)
+    if (!d) return 'Z'
+    return classifyXyz(d.demandSamples, state.settings.xyzCvX, state.settings.xyzCvY)
+  }
 
   const openRelocateDialog = (rec: ReturnType<typeof selectSlottingRecommendations>[0]) => {
     const item = state.inventoryItems.find(
       (i) => i.productId === rec.productId && i.locationId === rec.currentLocationId
-    );
-    if (!item) return;
+    )
+    if (!item) return
     relocateDialog.open({
       itemId: item.id,
       toLocationId: rec.suggestedLocationId,
       productName: productName(rec.productId),
       fromCode: locationCode(rec.currentLocationId),
       toCode: locationCode(rec.suggestedLocationId),
-    });
-  };
+    })
+  }
 
   const handleRelocate = () => {
-    if (!relocateDialog.data) return;
+    if (!relocateDialog.data) return
     try {
-      relocateInventory(relocateDialog.data.itemId, relocateDialog.data.toLocationId, "Operador Slotting");
-      setRelocated((prev) => new Set([...prev, relocateDialog.data!.itemId]));
-      relocateDialog.close();
+      relocateInventory(
+        relocateDialog.data.itemId,
+        relocateDialog.data.toLocationId,
+        'Operador Slotting'
+      )
+      setRelocated((prev) => new Set([...prev, relocateDialog.data!.itemId]))
+      relocateDialog.close()
     } catch (e: unknown) {
-      relocateDialog.setError(e instanceof Error ? e.message : "Error al reubicar");
+      relocateDialog.setError(e instanceof Error ? e.message : 'Error al reubicar')
     }
-  };
+  }
 
   const activeRecs = recommendations.filter((r) => {
     const item = state.inventoryItems.find(
       (i) => i.productId === r.productId && i.locationId === r.currentLocationId
-    );
-    return item && !relocated.has(item.id);
-  });
+    )
+    return item && !relocated.has(item.id)
+  })
 
   return (
     <>
@@ -109,19 +113,19 @@ export default function SlottingPage() {
         <Card className="border-amber-200 bg-amber-50">
           <CardContent className="pt-6">
             <p className="text-sm text-amber-700">SKUs clase A mal ubicados</p>
-            <p className="text-3xl font-bold tabular-nums text-amber-800">{misplaced.length}</p>
+            <p className="text-3xl font-bold text-amber-800 tabular-nums">{misplaced.length}</p>
             <p className="mt-1 text-xs text-amber-600">Fuera de golden zone</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-6">
-            <p className="text-sm text-muted-foreground">Oportunidades de reubicación</p>
+            <p className="text-muted-foreground text-sm">Oportunidades de reubicación</p>
             <p className="text-3xl font-bold tabular-nums">{activeRecs.length}</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-6">
-            <p className="text-sm text-muted-foreground">Distancia total a ahorrar</p>
+            <p className="text-muted-foreground text-sm">Distancia total a ahorrar</p>
             <p className="text-3xl font-bold tabular-nums">
               {formatNumber(activeRecs.reduce((s, r) => s + r.estimatedDistanceSavedM, 0))} m
             </p>
@@ -154,41 +158,55 @@ export default function SlottingPage() {
               {state.demandStats
                 .sort((a, b) => b.pickingFrequency - a.pickingFrequency)
                 .map((d) => {
-                  const product = state.products.find((p) => p.id === d.productId);
-                  const abcClass = abc[d.productId] ?? "C";
-                  const xyz = xyzClass(d.productId);
-                  const item = state.inventoryItems.find((i) => i.productId === d.productId);
-                  const loc = item ? state.locations.find((l) => l.id === item.locationId) : null;
+                  const product = state.products.find((p) => p.id === d.productId)
+                  const abcClass = abc[d.productId] ?? 'C'
+                  const xyz = xyzClass(d.productId)
+                  const item = state.inventoryItems.find((i) => i.productId === d.productId)
+                  const loc = item ? state.locations.find((l) => l.id === item.locationId) : null
                   return (
                     <TableRow key={d.productId}>
                       <TableCell className="font-medium">{product?.name ?? d.productId}</TableCell>
-                      <TableCell className="font-mono text-xs">{product?.sku ?? "—"}</TableCell>
+                      <TableCell className="font-mono text-xs">{product?.sku ?? '—'}</TableCell>
                       <TableCell>
                         <Badge
-                          variant={abcClass === "A" ? "default" : abcClass === "B" ? "secondary" : "outline"}
-                          className={abcClass === "A" ? "bg-green-600" : ""}
+                          variant={
+                            abcClass === 'A'
+                              ? 'default'
+                              : abcClass === 'B'
+                                ? 'secondary'
+                                : 'outline'
+                          }
+                          className={abcClass === 'A' ? 'bg-green-600' : ''}
                         >
                           {abcClass}
                         </Badge>
                       </TableCell>
                       <TableCell>
                         <Badge
-                          variant={xyz === "X" ? "default" : xyz === "Y" ? "secondary" : "outline"}
-                          className={xyz === "X" ? "bg-blue-600" : xyz !== "Y" ? "text-muted-foreground" : ""}
+                          variant={xyz === 'X' ? 'default' : xyz === 'Y' ? 'secondary' : 'outline'}
+                          className={
+                            xyz === 'X' ? 'bg-blue-600' : xyz !== 'Y' ? 'text-muted-foreground' : ''
+                          }
                         >
                           {xyz}
                         </Badge>
                       </TableCell>
-                      <TableCell className="text-right tabular-nums">{formatNumber(d.unitsSold)}</TableCell>
-                      <TableCell className="text-right tabular-nums">{formatNumber(d.pickingFrequency)}</TableCell>
-                      <TableCell className="font-mono text-xs">{loc?.code ?? "—"}</TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        {formatNumber(d.unitsSold)}
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        {formatNumber(d.pickingFrequency)}
+                      </TableCell>
+                      <TableCell className="font-mono text-xs">{loc?.code ?? '—'}</TableCell>
                       <TableCell>
-                        {loc?.golden
-                          ? <CheckCircle2 className="size-4 text-green-600" />
-                          : <TriangleAlert className="size-4 text-amber-500" />}
+                        {loc?.golden ? (
+                          <CheckCircle2 className="size-4 text-green-600" />
+                        ) : (
+                          <TriangleAlert className="size-4 text-amber-500" />
+                        )}
                       </TableCell>
                     </TableRow>
-                  );
+                  )
                 })}
             </TableBody>
           </Table>
@@ -204,7 +222,7 @@ export default function SlottingPage() {
         </CardHeader>
         <CardContent>
           {activeRecs.length === 0 ? (
-            <div className="flex flex-col items-center justify-center gap-2 py-10 text-center text-muted-foreground">
+            <div className="text-muted-foreground flex flex-col items-center justify-center gap-2 py-10 text-center">
               <CheckCircle2 className="size-8 text-green-500" />
               <p className="text-sm">Sin oportunidades de reubicación — slotting óptimo.</p>
             </div>
@@ -227,39 +245,56 @@ export default function SlottingPage() {
               </TableHeader>
               <TableBody>
                 {activeRecs.map((rec) => {
-                  const sugLoc = state.locations.find((l) => l.id === rec.suggestedLocationId);
+                  const sugLoc = state.locations.find((l) => l.id === rec.suggestedLocationId)
                   return (
                     <TableRow key={rec.id}>
                       <TableCell className="font-medium">{productName(rec.productId)}</TableCell>
                       <TableCell>
                         <Badge
-                          variant={rec.abcClass === "A" ? "default" : rec.abcClass === "B" ? "secondary" : "outline"}
-                          className={rec.abcClass === "A" ? "bg-green-600" : ""}
+                          variant={
+                            rec.abcClass === 'A'
+                              ? 'default'
+                              : rec.abcClass === 'B'
+                                ? 'secondary'
+                                : 'outline'
+                          }
+                          className={rec.abcClass === 'A' ? 'bg-green-600' : ''}
                         >
                           {rec.abcClass}
                         </Badge>
                       </TableCell>
-                      <TableCell className="font-mono text-xs">{locationCode(rec.currentLocationId)}</TableCell>
+                      <TableCell className="font-mono text-xs">
+                        {locationCode(rec.currentLocationId)}
+                      </TableCell>
                       <TableCell>
-                        <ArrowRight className="size-4 text-muted-foreground" />
+                        <ArrowRight className="text-muted-foreground size-4" />
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-1">
                           <MapPin className="size-3 text-green-600" />
-                          <span className="font-mono text-xs">{locationCode(rec.suggestedLocationId)}</span>
+                          <span className="font-mono text-xs">
+                            {locationCode(rec.suggestedLocationId)}
+                          </span>
                           {sugLoc?.golden && (
-                            <Badge variant="outline" className="ml-1 text-xs text-green-700 border-green-300">
+                            <Badge
+                              variant="outline"
+                              className="ml-1 border-green-300 text-xs text-green-700"
+                            >
                               golden
                             </Badge>
                           )}
                         </div>
                       </TableCell>
                       <TableCell className="text-right tabular-nums">
-                        <span className={
-                          rec.score >= 60 ? "font-bold text-green-700"
-                            : rec.score >= 30 ? "text-amber-600"
-                            : "text-muted-foreground"
-                        }>
+                        <span
+                          className={
+                            rec.score >= 60
+                              ? 'font-bold text-green-700'
+                              : rec.score >= 30
+                                ? 'text-amber-600'
+                                : 'text-muted-foreground'
+                          }
+                        >
                           {rec.score}
                         </span>
                       </TableCell>
@@ -275,7 +310,7 @@ export default function SlottingPage() {
                         </Button>
                       </TableCell>
                     </TableRow>
-                  );
+                  )
                 })}
               </TableBody>
             </Table>
@@ -284,41 +319,52 @@ export default function SlottingPage() {
       </Card>
 
       {/* Confirm relocation dialog */}
-      <Dialog open={!!relocateDialog.data} onOpenChange={(o) => { if (!o) relocateDialog.close(); }}>
+      <Dialog
+        open={!!relocateDialog.data}
+        onOpenChange={(o) => {
+          if (!o) relocateDialog.close()
+        }}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Confirmar reubicación</DialogTitle>
           </DialogHeader>
           {relocateDialog.data && (
             <div className="space-y-4 py-2">
-              <p className="text-sm text-muted-foreground">
-                Producto:{" "}
-                <span className="font-medium text-foreground">{relocateDialog.data.productName}</span>
+              <p className="text-muted-foreground text-sm">
+                Producto:{' '}
+                <span className="text-foreground font-medium">
+                  {relocateDialog.data.productName}
+                </span>
               </p>
               <div className="flex items-center gap-3 rounded-md border p-4">
                 <div className="text-center">
-                  <p className="text-xs text-muted-foreground">Actual</p>
+                  <p className="text-muted-foreground text-xs">Actual</p>
                   <p className="font-mono font-semibold">{relocateDialog.data.fromCode}</p>
                 </div>
-                <ArrowRight className="size-5 text-muted-foreground" />
+                <ArrowRight className="text-muted-foreground size-5" />
                 <div className="text-center">
-                  <p className="text-xs text-muted-foreground">Destino</p>
-                  <p className="font-mono font-semibold text-green-700">{relocateDialog.data.toCode}</p>
+                  <p className="text-muted-foreground text-xs">Destino</p>
+                  <p className="font-mono font-semibold text-green-700">
+                    {relocateDialog.data.toCode}
+                  </p>
                 </div>
               </div>
-              <p className="text-sm text-muted-foreground">
+              <p className="text-muted-foreground text-sm">
                 Esta acción moverá todo el stock a la nueva ubicación y registrará un movimiento de
                 tipo <strong>putaway</strong> en el log de auditoría.
               </p>
               {relocateDialog.error && (
-                <p className="flex items-center gap-1 text-sm text-destructive">
+                <p className="text-destructive flex items-center gap-1 text-sm">
                   <TriangleAlert className="size-3" /> {relocateDialog.error}
                 </p>
               )}
             </div>
           )}
           <DialogFooter>
-            <Button variant="outline" onClick={relocateDialog.close}>Cancelar</Button>
+            <Button variant="outline" onClick={relocateDialog.close}>
+              Cancelar
+            </Button>
             <Button onClick={handleRelocate}>
               <CheckCircle2 className="mr-1 size-4" /> Confirmar reubicación
             </Button>
@@ -326,5 +372,5 @@ export default function SlottingPage() {
         </DialogContent>
       </Dialog>
     </>
-  );
+  )
 }

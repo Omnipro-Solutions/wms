@@ -1,6 +1,6 @@
-"use client"
+'use client'
 
-import { type ReactNode, useState } from "react"
+import { type ReactNode, useState } from 'react'
 import {
   type ColumnDef,
   type ColumnFiltersState,
@@ -14,10 +14,10 @@ import {
   getPaginationRowModel,
   getSortedRowModel,
   useReactTable,
-} from "@tanstack/react-table"
+} from '@tanstack/react-table'
 
-import { cn } from "@/lib/utils"
-import { Skeleton } from "@/components/ui/skeleton"
+import { cn } from '@/lib/utils'
+import { Skeleton } from '@/components/ui/skeleton'
 import {
   Table,
   TableBody,
@@ -25,9 +25,9 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table"
-import { DataTablePagination } from "./data-table-pagination"
-import { DataTableToolbar } from "./data-table-toolbar"
+} from '@/components/ui/table'
+import { DataTablePagination } from './data-table-pagination'
+import { DataTableToolbar } from './data-table-toolbar'
 
 interface DataTableProps<TData, TValue> {
   /** Column definitions (TanStack ColumnDef) */
@@ -60,6 +60,8 @@ interface DataTableProps<TData, TValue> {
   emptyMessage?: string
   /** Callback when a row is clicked (optional) */
   onRowClick?: (row: TData) => void
+  /** Optional className per row based on row data */
+  rowClassName?: (row: TData) => string
 }
 
 const SKELETON_ROWS = 5
@@ -78,8 +80,9 @@ export const DataTable = <TData, TValue>({
   defaultPageSize = 20,
   pageSizeOptions,
   className,
-  emptyMessage = "Sin resultados.",
+  emptyMessage = 'Sin resultados.',
   onRowClick,
+  rowClassName,
 }: DataTableProps<TData, TValue>) => {
   const [sorting, setSorting] = useState<SortingState>([])
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
@@ -114,11 +117,10 @@ export const DataTable = <TData, TValue>({
     },
   })
 
-  const showToolbar =
-    searchColumn || filters || actions || showViewOptions
+  const showToolbar = searchColumn || filters || actions || showViewOptions
 
   return (
-    <div className={cn("flex flex-col gap-0", className)}>
+    <div className={cn('flex flex-col gap-0', className)}>
       {showToolbar && (
         <DataTableToolbar
           table={table}
@@ -139,10 +141,7 @@ export const DataTable = <TData, TValue>({
                   <TableHead key={header.id} colSpan={header.colSpan}>
                     {header.isPlaceholder
                       ? null
-                      : flexRender(
-                          header.column.columnDef.header,
-                          header.getContext()
-                        )}
+                      : flexRender(header.column.columnDef.header, header.getContext())}
                   </TableHead>
                 ))}
               </TableRow>
@@ -164,16 +163,17 @@ export const DataTable = <TData, TValue>({
               table.getRowModel().rows.map((row) => (
                 <TableRow
                   key={row.id}
-                  data-state={row.getIsSelected() ? "selected" : undefined}
+                  data-state={row.getIsSelected() ? 'selected' : undefined}
                   onClick={onRowClick ? () => onRowClick(row.original) : undefined}
-                  className={cn(onRowClick && "cursor-pointer")}
+                  className={cn(
+                    'hover:bg-muted/40 transition-colors',
+                    onRowClick && 'cursor-pointer',
+                    rowClassName?.(row.original)
+                  )}
                 >
                   {row.getVisibleCells().map((cell) => (
                     <TableCell key={cell.id}>
-                      {flexRender(
-                        cell.column.columnDef.cell,
-                        cell.getContext()
-                      )}
+                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
                     </TableCell>
                   ))}
                 </TableRow>
@@ -182,7 +182,7 @@ export const DataTable = <TData, TValue>({
               <TableRow>
                 <TableCell
                   colSpan={columns.length}
-                  className="h-24 text-center text-muted-foreground"
+                  className="text-muted-foreground h-24 text-center"
                 >
                   {emptyMessage}
                 </TableCell>

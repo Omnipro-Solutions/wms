@@ -1,29 +1,29 @@
-"use client"
+'use client'
 
-import { useMemo, useState } from "react"
-import { Route } from "lucide-react"
+import { useMemo, useState } from 'react'
+import { Route } from 'lucide-react'
 
-import { useWmsStore } from "@/store/wms-store"
-import { useStoreHelpers } from "@/hooks/use-store-helpers"
-import { PageHeader } from "@/components/shared/page-header"
-import { DataTable } from "@/components/data-table"
-import { Card, CardContent } from "@/components/ui/card"
+import { useWmsStore } from '@/store/wms-store'
+import { useStoreHelpers } from '@/hooks/use-store-helpers'
+import { PageHeader } from '@/components/shared/page-header'
+import { DataTable } from '@/components/data-table'
+import { Card, CardContent } from '@/components/ui/card'
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select"
-import { formatNumber } from "@/lib/formatters"
-import { buildSapRouteColumns, type SapRouteRow } from "./columns"
+} from '@/components/ui/select'
+import { formatNumber } from '@/lib/formatters'
+import { buildSapRouteColumns, type SapRouteRow } from './columns'
 
 export default function SapRoutesPage() {
   const state = useWmsStore()
   const { warehouseName } = useStoreHelpers()
 
-  const [statusFilter, setStatusFilter] = useState("all")
-  const [carrierFilter, setCarrierFilter] = useState("all")
+  const [statusFilter, setStatusFilter] = useState('all')
+  const [carrierFilter, setCarrierFilter] = useState('all')
 
   const carriers = useMemo(
     () => [...new Set(state.sapRoutes.map((r) => r.carrierName))],
@@ -33,8 +33,7 @@ export default function SapRoutesPage() {
   const rows = useMemo<SapRouteRow[]>(
     () =>
       state.sapRoutes.map((r) => {
-        const loadPct =
-          r.capacityKg > 0 ? Math.round((r.currentLoadKg / r.capacityKg) * 100) : 0
+        const loadPct = r.capacityKg > 0 ? Math.round((r.currentLoadKg / r.capacityKg) * 100) : 0
         return {
           id: r.id,
           code: r.code,
@@ -58,15 +57,15 @@ export default function SapRoutesPage() {
   const filteredRows = useMemo(
     () =>
       rows.filter((r) => {
-        if (statusFilter !== "all" && r.status !== statusFilter) return false
-        if (carrierFilter !== "all" && r.carrierName !== carrierFilter) return false
+        if (statusFilter !== 'all' && r.status !== statusFilter) return false
+        if (carrierFilter !== 'all' && r.carrierName !== carrierFilter) return false
         return true
       }),
     [rows, statusFilter, carrierFilter]
   )
 
-  const inTransitCount = state.sapRoutes.filter((r) => r.status === "in_transit").length
-  const syncedCount = state.sapRoutes.filter((r) => r.status === "synced").length
+  const inTransitCount = state.sapRoutes.filter((r) => r.status === 'in_transit').length
+  const syncedCount = state.sapRoutes.filter((r) => r.status === 'synced').length
   const totalLoad = state.sapRoutes.reduce((s, r) => s + r.currentLoadKg, 0)
 
   const columns = useMemo(() => buildSapRouteColumns(), [])
@@ -80,7 +79,9 @@ export default function SapRoutesPage() {
         <SelectContent>
           <SelectItem value="all">Todas</SelectItem>
           {carriers.map((c) => (
-            <SelectItem key={c} value={c}>{c}</SelectItem>
+            <SelectItem key={c} value={c}>
+              {c}
+            </SelectItem>
           ))}
         </SelectContent>
       </Select>
@@ -111,19 +112,23 @@ export default function SapRoutesPage() {
       <div className="grid gap-4 sm:grid-cols-3">
         <Card>
           <CardContent className="pt-6">
-            <p className="text-sm text-muted-foreground">En tránsito</p>
-            <p className="text-2xl font-bold tabular-nums text-blue-600">{formatNumber(inTransitCount)}</p>
+            <p className="text-muted-foreground text-sm">En tránsito</p>
+            <p className="text-2xl font-bold text-blue-600 tabular-nums">
+              {formatNumber(inTransitCount)}
+            </p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-6">
-            <p className="text-sm text-muted-foreground">Sincronizadas</p>
-            <p className="text-2xl font-bold tabular-nums text-green-700">{formatNumber(syncedCount)}</p>
+            <p className="text-muted-foreground text-sm">Sincronizadas</p>
+            <p className="text-2xl font-bold text-green-700 tabular-nums">
+              {formatNumber(syncedCount)}
+            </p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-6">
-            <p className="text-sm text-muted-foreground">Carga total activa (kg)</p>
+            <p className="text-muted-foreground text-sm">Carga total activa (kg)</p>
             <p className="text-2xl font-bold tabular-nums">{formatNumber(totalLoad)}</p>
           </CardContent>
         </Card>

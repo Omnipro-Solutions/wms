@@ -1,32 +1,32 @@
-"use client"
+'use client'
 
-import { useMemo } from "react"
-import { CheckCircle2, Truck, TriangleAlert } from "lucide-react"
+import { useMemo } from 'react'
+import { CheckCircle2, Truck, TriangleAlert } from 'lucide-react'
 
-import { useWmsStore } from "@/store/wms-store"
-import { useDialogState } from "@/hooks/use-dialog-state"
-import { PageHeader } from "@/components/shared/page-header"
-import { DataTable } from "@/components/data-table"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
+import { useWmsStore } from '@/store/wms-store'
+import { useDialogState } from '@/hooks/use-dialog-state'
+import { PageHeader } from '@/components/shared/page-header'
+import { DataTable } from '@/components/data-table'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent } from '@/components/ui/card'
 import {
   Dialog,
   DialogContent,
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog"
+} from '@/components/ui/dialog'
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select"
-import { formatNumber, formatPercent } from "@/lib/formatters"
-import { otifPercentage } from "@/lib/rules/shipping"
-import { buildShippingColumns, type ShippingRow } from "./columns"
-import { useState } from "react"
+} from '@/components/ui/select'
+import { formatNumber, formatPercent } from '@/lib/formatters'
+import { otifPercentage } from '@/lib/rules/shipping'
+import { buildShippingColumns, type ShippingRow } from './columns'
+import { useState } from 'react'
 
 interface ShipDialogData {
   shipmentId: string
@@ -40,8 +40,8 @@ export default function ShippingPage() {
   const state = useWmsStore()
   const { shipOrder } = useWmsStore()
 
-  const [otifFilter, setOtifFilter] = useState("all")
-  const [statusFilter, setStatusFilter] = useState("all")
+  const [otifFilter, setOtifFilter] = useState('all')
+  const [statusFilter, setStatusFilter] = useState('all')
 
   const shipDialog = useDialogState<ShipDialogData>()
 
@@ -58,10 +58,10 @@ export default function ShippingPage() {
   const handleShip = () => {
     if (!shipDialog.data) return
     try {
-      shipOrder(shipDialog.data.shipmentId, "Operador")
+      shipOrder(shipDialog.data.shipmentId, 'Operador')
       shipDialog.close()
     } catch (e: unknown) {
-      shipDialog.setError(e instanceof Error ? e.message : "Error al despachar")
+      shipDialog.setError(e instanceof Error ? e.message : 'Error al despachar')
     }
   }
 
@@ -69,15 +69,13 @@ export default function ShippingPage() {
     () =>
       state.shipments.map((sh) => {
         const order = state.commerceOrders.find((o) => o.id === sh.orderId)
-        const route = sh.sapRouteId
-          ? state.sapRoutes.find((r) => r.id === sh.sapRouteId)
-          : null
+        const route = sh.sapRouteId ? state.sapRoutes.find((r) => r.id === sh.sapRouteId) : null
         return {
           id: sh.id,
           orderNumber: order?.orderNumber ?? sh.orderId,
           customerName: sh.customerName,
           carrierName: sh.carrierName,
-          sapRouteCode: route?.code ?? "",
+          sapRouteCode: route?.code ?? '',
           packageCount: sh.packageCount,
           weightKg: sh.weightKg,
           trackingNumber: sh.trackingNumber ?? null,
@@ -93,16 +91,16 @@ export default function ShippingPage() {
   const filteredRows = useMemo(
     () =>
       rows.filter((r) => {
-        if (otifFilter !== "all" && r.otifStatus !== otifFilter) return false
-        if (statusFilter !== "all" && r.status !== statusFilter) return false
+        if (otifFilter !== 'all' && r.otifStatus !== otifFilter) return false
+        if (statusFilter !== 'all' && r.status !== statusFilter) return false
         return true
       }),
     [rows, otifFilter, statusFilter]
   )
 
   const otif = otifPercentage(state.shipments)
-  const inTransitCount = state.shipments.filter((s) => s.status === "in_transit").length
-  const pendingCount = state.shipments.filter((s) => s.status === "pending").length
+  const inTransitCount = state.shipments.filter((s) => s.status === 'in_transit').length
+  const pendingCount = state.shipments.filter((s) => s.status === 'pending').length
 
   const columns = useMemo(
     () => buildShippingColumns(openShipDialog),
@@ -148,22 +146,28 @@ export default function ShippingPage() {
       <div className="grid gap-4 sm:grid-cols-3">
         <Card>
           <CardContent className="pt-6">
-            <p className="text-sm text-muted-foreground">OTIF estimado</p>
-            <p className={`text-2xl font-bold tabular-nums ${otif >= 90 ? "text-green-700" : otif >= 75 ? "text-amber-600" : "text-red-600"}`}>
+            <p className="text-muted-foreground text-sm">OTIF estimado</p>
+            <p
+              className={`text-2xl font-bold tabular-nums ${otif >= 90 ? 'text-green-700' : otif >= 75 ? 'text-amber-600' : 'text-red-600'}`}
+            >
               {formatPercent(otif)}
             </p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-6">
-            <p className="text-sm text-muted-foreground">En tránsito</p>
-            <p className="text-2xl font-bold tabular-nums text-blue-600">{formatNumber(inTransitCount)}</p>
+            <p className="text-muted-foreground text-sm">En tránsito</p>
+            <p className="text-2xl font-bold text-blue-600 tabular-nums">
+              {formatNumber(inTransitCount)}
+            </p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-6">
-            <p className="text-sm text-muted-foreground">Pendientes de despacho</p>
-            <p className="text-2xl font-bold tabular-nums text-amber-600">{formatNumber(pendingCount)}</p>
+            <p className="text-muted-foreground text-sm">Pendientes de despacho</p>
+            <p className="text-2xl font-bold text-amber-600 tabular-nums">
+              {formatNumber(pendingCount)}
+            </p>
           </CardContent>
         </Card>
       </div>
@@ -186,7 +190,9 @@ export default function ShippingPage() {
 
       <Dialog
         open={!!shipDialog.data}
-        onOpenChange={(o) => { if (!o) shipDialog.close() }}
+        onOpenChange={(o) => {
+          if (!o) shipDialog.close()
+        }}
       >
         <DialogContent>
           <DialogHeader>
@@ -194,24 +200,43 @@ export default function ShippingPage() {
           </DialogHeader>
           {shipDialog.data && (
             <div className="space-y-4 py-2">
-              <div className="space-y-1 text-sm text-muted-foreground">
-                <p>Cliente: <span className="font-medium text-foreground">{shipDialog.data.customerName}</span></p>
-                <p>Transportadora: <span className="font-medium text-foreground">{shipDialog.data.carrierName}</span></p>
-                <p>Paquetes: <span className="font-medium text-foreground">{shipDialog.data.packageCount}</span></p>
-                <p>Peso total: <span className="font-medium text-foreground">{shipDialog.data.weightKg} kg</span></p>
+              <div className="text-muted-foreground space-y-1 text-sm">
+                <p>
+                  Cliente:{' '}
+                  <span className="text-foreground font-medium">
+                    {shipDialog.data.customerName}
+                  </span>
+                </p>
+                <p>
+                  Transportadora:{' '}
+                  <span className="text-foreground font-medium">{shipDialog.data.carrierName}</span>
+                </p>
+                <p>
+                  Paquetes:{' '}
+                  <span className="text-foreground font-medium">
+                    {shipDialog.data.packageCount}
+                  </span>
+                </p>
+                <p>
+                  Peso total:{' '}
+                  <span className="text-foreground font-medium">{shipDialog.data.weightKg} kg</span>
+                </p>
               </div>
-              <p className="text-sm text-muted-foreground">
-                Esta acción cambiará el estado del envío a <strong>En tránsito</strong> y generará el número de tracking.
+              <p className="text-muted-foreground text-sm">
+                Esta acción cambiará el estado del envío a <strong>En tránsito</strong> y generará
+                el número de tracking.
               </p>
               {shipDialog.error && (
-                <p className="flex items-center gap-1 text-sm text-destructive">
+                <p className="text-destructive flex items-center gap-1 text-sm">
                   <TriangleAlert className="size-3" /> {shipDialog.error}
                 </p>
               )}
             </div>
           )}
           <DialogFooter>
-            <Button variant="outline" onClick={shipDialog.close}>Cancelar</Button>
+            <Button variant="outline" onClick={shipDialog.close}>
+              Cancelar
+            </Button>
             <Button onClick={handleShip}>
               <CheckCircle2 className="mr-1 size-4" /> Confirmar despacho
             </Button>

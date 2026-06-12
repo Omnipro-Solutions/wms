@@ -1,28 +1,28 @@
-"use client"
+'use client'
 
-import { useMemo, useState } from "react"
-import { Tag } from "lucide-react"
+import { useMemo, useState } from 'react'
+import { Tag } from 'lucide-react'
 
-import { useWmsStore } from "@/store/wms-store"
-import { PageHeader } from "@/components/shared/page-header"
-import { DataTable } from "@/components/data-table"
-import { Card, CardContent } from "@/components/ui/card"
+import { useWmsStore } from '@/store/wms-store'
+import { PageHeader } from '@/components/shared/page-header'
+import { DataTable } from '@/components/data-table'
+import { Card, CardContent } from '@/components/ui/card'
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select"
-import { cn } from "@/lib/utils"
-import { buildLabelColumns, TYPE_LABELS, TYPE_COLORS, type LabelRow } from "./columns"
-import type { WmsLabel } from "@/types/wms"
+} from '@/components/ui/select'
+import { cn } from '@/lib/utils'
+import { buildLabelColumns, TYPE_LABELS, TYPE_COLORS, type LabelRow } from './columns'
+import type { WmsLabel } from '@/types/wms'
 
 export default function LabelsPage() {
   const state = useWmsStore()
 
-  const [typeFilter, setTypeFilter] = useState("all")
-  const [statusFilter, setStatusFilter] = useState("all")
+  const [typeFilter, setTypeFilter] = useState('all')
+  const [statusFilter, setStatusFilter] = useState('all')
 
   const rows = useMemo<LabelRow[]>(
     () =>
@@ -41,18 +41,18 @@ export default function LabelsPage() {
   const filteredRows = useMemo(
     () =>
       rows.filter((r) => {
-        if (typeFilter !== "all" && r.type !== typeFilter) return false
-        if (statusFilter !== "all" && r.status !== statusFilter) return false
+        if (typeFilter !== 'all' && r.type !== typeFilter) return false
+        if (statusFilter !== 'all' && r.status !== statusFilter) return false
         return true
       }),
     [rows, typeFilter, statusFilter]
   )
 
-  const completedCount = state.labels.filter((l) => l.status === "completed").length
-  const pendingCount = state.labels.filter((l) => l.status === "pending").length
+  const completedCount = state.labels.filter((l) => l.status === 'completed').length
+  const pendingCount = state.labels.filter((l) => l.status === 'pending').length
 
   const byType = Object.keys(TYPE_LABELS).map((t) => ({
-    type: t as WmsLabel["type"],
+    type: t as WmsLabel['type'],
     count: state.labels.filter((l) => l.type === t).length,
   }))
 
@@ -67,7 +67,9 @@ export default function LabelsPage() {
         <SelectContent>
           <SelectItem value="all">Todos los tipos</SelectItem>
           {Object.entries(TYPE_LABELS).map(([val, label]) => (
-            <SelectItem key={val} value={val}>{label}</SelectItem>
+            <SelectItem key={val} value={val}>
+              {label}
+            </SelectItem>
           ))}
         </SelectContent>
       </Select>
@@ -95,20 +97,20 @@ export default function LabelsPage() {
       <div className="grid gap-4 sm:grid-cols-3">
         <Card>
           <CardContent className="pt-6">
-            <p className="text-sm text-muted-foreground">Total etiquetas</p>
+            <p className="text-muted-foreground text-sm">Total etiquetas</p>
             <p className="text-2xl font-bold tabular-nums">{state.labels.length}</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-6">
-            <p className="text-sm text-muted-foreground">Generadas</p>
-            <p className="text-2xl font-bold tabular-nums text-green-700">{completedCount}</p>
+            <p className="text-muted-foreground text-sm">Generadas</p>
+            <p className="text-2xl font-bold text-green-700 tabular-nums">{completedCount}</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-6">
-            <p className="text-sm text-muted-foreground">Pendientes</p>
-            <p className="text-2xl font-bold tabular-nums text-amber-600">{pendingCount}</p>
+            <p className="text-muted-foreground text-sm">Pendientes</p>
+            <p className="text-2xl font-bold text-amber-600 tabular-nums">{pendingCount}</p>
           </CardContent>
         </Card>
       </div>
@@ -117,14 +119,19 @@ export default function LabelsPage() {
         {byType.map(({ type, count }) => (
           <Card
             key={type}
-            className={cn("cursor-pointer transition-colors", typeFilter === type && "ring-2 ring-primary")}
-            onClick={() => setTypeFilter(typeFilter === type ? "all" : type)}
+            className={cn(
+              'cursor-pointer transition-colors',
+              typeFilter === type && 'ring-primary ring-2'
+            )}
+            onClick={() => setTypeFilter(typeFilter === type ? 'all' : type)}
           >
-            <CardContent className="pb-4 pt-4">
-              <p className="text-xs text-muted-foreground">{TYPE_LABELS[type]}</p>
+            <CardContent className="pt-4 pb-4">
+              <p className="text-muted-foreground text-xs">{TYPE_LABELS[type]}</p>
               <p className="text-xl font-bold tabular-nums">{count}</p>
               {typeFilter === type && (
-                <div className={`mt-1 inline-block rounded-full px-1.5 py-0.5 text-xs font-medium ${TYPE_COLORS[type]}`}>
+                <div
+                  className={`mt-1 inline-block rounded-full px-1.5 py-0.5 text-xs font-medium ${TYPE_COLORS[type]}`}
+                >
                   Filtrando
                 </div>
               )}
