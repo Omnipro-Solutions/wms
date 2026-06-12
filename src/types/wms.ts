@@ -60,6 +60,7 @@ export interface Product {
   unitWeightKg: number
   unitVolumeM3: number
   trackBy: 'none' | 'lot' | 'serial'
+  imageUrl?: string
 }
 
 export interface InventoryItem {

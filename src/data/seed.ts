@@ -181,6 +181,7 @@ export const products: Product[] = [
     unitWeightKg: 0.2,
     unitVolumeM3: 0.002,
     trackBy: 'none',
+    imageUrl: 'https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=80&h=80&fit=crop&auto=format',
   },
   {
     id: 'p-jeans',
@@ -191,6 +192,7 @@ export const products: Product[] = [
     unitWeightKg: 0.6,
     unitVolumeM3: 0.004,
     trackBy: 'none',
+    imageUrl: 'https://images.unsplash.com/photo-1542272604-787c3835535d?w=80&h=80&fit=crop&auto=format',
   },
   {
     id: 'p-sneakers',
@@ -201,6 +203,7 @@ export const products: Product[] = [
     unitWeightKg: 0.9,
     unitVolumeM3: 0.008,
     trackBy: 'serial',
+    imageUrl: 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=80&h=80&fit=crop&auto=format',
   },
   {
     id: 'p-jacket',
@@ -211,6 +214,7 @@ export const products: Product[] = [
     unitWeightKg: 0.8,
     unitVolumeM3: 0.006,
     trackBy: 'lot',
+    imageUrl: 'https://images.unsplash.com/photo-1551698618-1dfe5d97d256?w=80&h=80&fit=crop&auto=format',
   },
   {
     id: 'p-bag',
@@ -221,6 +225,7 @@ export const products: Product[] = [
     unitWeightKg: 0.5,
     unitVolumeM3: 0.01,
     trackBy: 'none',
+    imageUrl: 'https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=80&h=80&fit=crop&auto=format',
   },
   {
     id: 'p-cap',
@@ -231,6 +236,7 @@ export const products: Product[] = [
     unitWeightKg: 0.1,
     unitVolumeM3: 0.001,
     trackBy: 'none',
+    imageUrl: 'https://images.unsplash.com/photo-1588850561407-ed78c282e89b?w=80&h=80&fit=crop&auto=format',
   },
   {
     id: 'p-socks',
@@ -241,6 +247,7 @@ export const products: Product[] = [
     unitWeightKg: 0.15,
     unitVolumeM3: 0.001,
     trackBy: 'none',
+    imageUrl: 'https://images.unsplash.com/photo-1586350977771-b3b0abd50c82?w=80&h=80&fit=crop&auto=format',
   },
   {
     id: 'p-dress',
@@ -251,6 +258,7 @@ export const products: Product[] = [
     unitWeightKg: 0.3,
     unitVolumeM3: 0.003,
     trackBy: 'none',
+    imageUrl: 'https://images.unsplash.com/photo-1496747611176-843222e1e57c?w=80&h=80&fit=crop&auto=format',
   },
   {
     id: 'p-cargo',
@@ -261,6 +269,7 @@ export const products: Product[] = [
     unitWeightKg: 0.7,
     unitVolumeM3: 0.005,
     trackBy: 'none',
+    imageUrl: 'https://images.unsplash.com/photo-1624378439575-d8705ad7ae80?w=80&h=80&fit=crop&auto=format',
   },
   {
     id: 'p-hoodie',
@@ -271,6 +280,7 @@ export const products: Product[] = [
     unitWeightKg: 0.65,
     unitVolumeM3: 0.007,
     trackBy: 'none',
+    imageUrl: 'https://images.unsplash.com/photo-1556821840-3a63f15732ce?w=80&h=80&fit=crop&auto=format',
   },
 ]
 
@@ -341,6 +351,8 @@ export const inventoryItems: InventoryItem[] = [
     productId: 'p-tshirt',
     warehouseId: 'wh-bog',
     locationId: 'loc-b0204',
+    lot: 'LOT-TS-2601',
+    expirationDate: '2026-06-20', // vence en 8 días — alerta crítica
     onHandQuantity: 500,
     reservedQuantity: 40,
     holdQuantity: 0,
@@ -351,6 +363,8 @@ export const inventoryItems: InventoryItem[] = [
     productId: 'p-socks',
     warehouseId: 'wh-bog',
     locationId: 'loc-a0101',
+    lot: 'LOT-SK-2601',
+    expirationDate: '2026-07-10', // vence en 28 días — alerta próximo
     onHandQuantity: 800,
     reservedQuantity: 60,
     holdQuantity: 0,
@@ -361,6 +375,8 @@ export const inventoryItems: InventoryItem[] = [
     productId: 'p-cap',
     warehouseId: 'wh-bog',
     locationId: 'loc-a0102',
+    lot: 'LOT-CP-2601',
+    expirationDate: '2026-06-05', // ya venció
     onHandQuantity: 350,
     reservedQuantity: 20,
     holdQuantity: 50,
@@ -403,7 +419,7 @@ export const inventoryItems: InventoryItem[] = [
     warehouseId: 'wh-bog',
     locationId: 'loc-reserve',
     lot: 'LOT-JK-2406',
-    expirationDate: '2027-06-01',
+    expirationDate: '2027-06-01', // vence en ~1 año — OK
     onHandQuantity: 90,
     reservedQuantity: 0,
     holdQuantity: 0,
@@ -414,6 +430,8 @@ export const inventoryItems: InventoryItem[] = [
     productId: 'p-dress',
     warehouseId: 'wh-bog',
     locationId: 'loc-b0204',
+    lot: 'LOT-DR-2605',
+    expirationDate: '2026-07-30', // vence en 48 días — próximo
     onHandQuantity: 60,
     reservedQuantity: 5,
     holdQuantity: 0,
