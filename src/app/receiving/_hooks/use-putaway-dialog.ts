@@ -4,15 +4,26 @@ import { useState, useMemo, useCallback } from 'react'
 import { useDialogState } from '@/hooks/use-dialog-state'
 import { useWmsStore } from '@/store/wms-store'
 import { useStoreHelpers } from '@/hooks/use-store-helpers'
-import { selectSlottingRecommendations } from '@/store/selectors'
+import { selectSlottingRecommendations, abcByProduct, xyzByProduct } from '@/store/selectors'
+import { idealLocationTier } from '@/lib/rules/slotting'
+import type { AbcClass, XyzClass } from '@/types/wms'
 
 export interface PutawayDialogData {
   asnId: string
   productName: string
   asnCode: string
   suggestedLocationId: string | null
-  abcClass: string
+  abcClass: AbcClass
+  xyzClass: XyzClass
+  tierLabel: string
+  suggestionReason: string
   isCrossDocking: boolean
+}
+
+const TIER_LABEL: Record<string, string> = {
+  golden: 'Golden zone — alta rotación, acceso ergonómico',
+  standard: 'Zona estándar — rotación media',
+  remote: 'Zona remota — baja rotación o demanda errática',
 }
 
 export const usePutawayDialog = () => {
@@ -29,6 +40,9 @@ export const usePutawayDialog = () => {
     [state.inventoryItems, state.locations, state.demandStats]
   )
 
+  const abc = useMemo(() => abcByProduct(state), [state.demandStats, state.settings])
+  const xyz = useMemo(() => xyzByProduct(state), [state.demandStats, state.settings])
+
   const allLocations = useMemo(
     () =>
       state.locations.filter(
@@ -37,26 +51,54 @@ export const usePutawayDialog = () => {
     [state.locations]
   )
 
-  const getSuggestedLocationId = useCallback(
-    (asnId: string): string | null => {
+  const getSuggestion = useCallback(
+    (asnId: string): { locationId: string | null; reason: string } => {
       const asn = state.asnRecords.find((a) => a.id === asnId)
-      if (!asn) return null
+      if (!asn) return { locationId: null, reason: '' }
       const rec = recommendations.find((r) => r.productId === asn.productId)
-      return rec?.suggestedLocationId ?? asn.suggestedPutawayLocationId ?? null
+      if (rec) {
+        const loc = state.locations.find((l) => l.id === rec.suggestedLocationId)
+        return {
+          locationId: rec.suggestedLocationId,
+          reason: `Calculada por slotting (score ${rec.score}/100) — ahorra ~${Math.round(rec.estimatedDistanceSavedM)} m por ciclo hacia ${loc?.code ?? ''}`,
+        }
+      }
+      if (asn.suggestedPutawayLocationId) {
+        return {
+          locationId: asn.suggestedPutawayLocationId,
+          reason: 'Sugerencia estática del ASN (sin recomendación de slotting activa)',
+        }
+      }
+      return { locationId: null, reason: 'Sin sugerencia disponible — selecciona manualmente.' }
     },
-    [state.asnRecords, recommendations]
+    [state.asnRecords, state.locations, recommendations]
   )
 
   const open = (
     asnId: string,
     asnCode: string,
     productName: string,
-    abcClass: string,
+    rawAbcClass: string,
     isCrossDocking: boolean
   ) => {
-    const sug = getSuggestedLocationId(asnId)
-    dialog.open({ asnId, asnCode, productName, suggestedLocationId: sug, abcClass, isCrossDocking })
-    setSelectedLocation(sug ?? '')
+    const asn = state.asnRecords.find((a) => a.id === asnId)
+    const abcClass: AbcClass = (abc[asn?.productId ?? ''] ?? rawAbcClass ?? 'C') as AbcClass
+    const xyzClass: XyzClass = (xyz[asn?.productId ?? ''] ?? 'Z') as XyzClass
+    const tier = idealLocationTier(abcClass, xyzClass)
+    const { locationId, reason } = getSuggestion(asnId)
+
+    dialog.open({
+      asnId,
+      asnCode,
+      productName,
+      suggestedLocationId: locationId,
+      abcClass,
+      xyzClass,
+      tierLabel: TIER_LABEL[tier] ?? tier,
+      suggestionReason: reason,
+      isCrossDocking,
+    })
+    setSelectedLocation(locationId ?? '')
   }
 
   const handleSubmit = () => {

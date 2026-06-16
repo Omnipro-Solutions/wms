@@ -37,8 +37,9 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { label: 'Recepción', href: '/receiving' },
       { label: 'Inventario', href: '/inventory' },
+      { label: 'Trazabilidad lotes', href: '/inventory/lot-trace' },
+      { label: 'Ubicaciones', href: '/locations' },
       { label: 'Slotting', href: '/slotting' },
-      { label: 'Abastecimiento', href: '/replenishment' },
     ],
   },
   {

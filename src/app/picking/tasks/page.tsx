@@ -7,6 +7,7 @@ import {
   ChevronDown,
   ChevronUp,
   ClipboardList,
+  Hash,
   PlayCircle,
   ThumbsDown,
   ThumbsUp,
@@ -59,6 +60,7 @@ interface PickDialogData {
   locationCode: string
   requestedQuantity: number
   currentPicked: number
+  requiresSerial: boolean
 }
 
 const PRIORITY_COLORS: Record<PickingTask['priority'], string> = {
@@ -92,6 +94,7 @@ export default function PickingTasksPage() {
   const [statusFilter, setStatusFilter] = useState('all')
   const [pickedQty, setPickedQty] = useState('')
   const [reasonId, setReasonId] = useState('')
+  const [capturedSerial, setCapturedSerial] = useState('')
 
   const pickDialog = useDialogState<PickDialogData>()
 
@@ -125,6 +128,7 @@ export default function PickingTasksPage() {
   }
 
   const openPickDialog = (task: PickingTask) => {
+    const product = state.products.find((p) => p.id === task.productId)
     pickDialog.open({
       taskId: task.id,
       code: task.code,
@@ -132,9 +136,11 @@ export default function PickingTasksPage() {
       locationCode: locationCode(task.locationId),
       requestedQuantity: task.requestedQuantity,
       currentPicked: task.pickedQuantity,
+      requiresSerial: product?.trackBy === 'serial',
     })
     setPickedQty(String(task.requestedQuantity))
     setReasonId('')
+    setCapturedSerial('')
   }
 
   const handleStartPicking = (taskId: string) => {
@@ -163,11 +169,21 @@ export default function PickingTasksPage() {
       pickDialog.setError('Selecciona un motivo de picking parcial.')
       return
     }
+    if (pickDialog.data.requiresSerial && n > 0 && !capturedSerial.trim()) {
+      pickDialog.setError('Este producto requiere captura de serial.')
+      return
+    }
     try {
-      completePick(pickDialog.data.taskId, n, isPartial ? reasonId : undefined)
+      completePick(
+        pickDialog.data.taskId,
+        n,
+        isPartial ? reasonId : undefined,
+        capturedSerial.trim() || undefined
+      )
       pickDialog.close()
       setPickedQty('')
       setReasonId('')
+      setCapturedSerial('')
     } catch (e: unknown) {
       pickDialog.setError(e instanceof Error ? e.message : 'Error al registrar picking')
     }
@@ -425,6 +441,21 @@ export default function PickingTasksPage() {
                   onChange={(e) => setPickedQty(e.target.value)}
                 />
               </div>
+              {pickDialog.data.requiresSerial && (
+                <div className="space-y-1">
+                  <Label htmlFor="pick-serial" className="flex items-center gap-1">
+                    <Hash className="size-3" /> Serial del producto
+                    <span className="text-destructive ml-0.5">*</span>
+                  </Label>
+                  <Input
+                    id="pick-serial"
+                    placeholder="Escanear o ingresar serial…"
+                    value={capturedSerial}
+                    onChange={(e) => setCapturedSerial(e.target.value)}
+                    className="font-mono"
+                  />
+                </div>
+              )}
               {parseInt(pickedQty, 10) < pickDialog.data.requestedQuantity && pickedQty !== '' && (
                 <div className="space-y-1">
                   <Label htmlFor="pick-reason">Motivo picking parcial</Label>

@@ -57,7 +57,7 @@ export const PutawayDialog = ({ state }: Props) => {
           </div>
 
           {dialog.data && (
-            <div className="mt-4 flex flex-wrap gap-x-6 gap-y-1 text-sm">
+            <div className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-1.5 text-sm">
               <span className="text-muted-foreground">
                 N° Aviso:{' '}
                 <span className="text-foreground font-mono font-semibold">
@@ -68,9 +68,19 @@ export const PutawayDialog = ({ state }: Props) => {
                 Producto:{' '}
                 <span className="text-foreground font-medium">{dialog.data.productName}</span>
               </span>
-              <span className="text-muted-foreground">
-                Rotación:{' '}
-                <span className="text-foreground font-medium">Clase {dialog.data.abcClass}</span>
+              <span className="flex items-center gap-1.5 text-muted-foreground">
+                Clasificación:{' '}
+                <span className="inline-flex items-center gap-1">
+                  <span className="rounded bg-green-600 px-1.5 py-0.5 text-xs font-bold text-white">
+                    {dialog.data.abcClass}
+                  </span>
+                  <span className="rounded bg-violet-600 px-1.5 py-0.5 text-xs font-bold text-white">
+                    {dialog.data.xyzClass}
+                  </span>
+                </span>
+              </span>
+              <span className="text-muted-foreground text-xs italic">
+                {dialog.data.tierLabel}
               </span>
             </div>
           )}
@@ -94,13 +104,13 @@ export const PutawayDialog = ({ state }: Props) => {
                   <div className="flex items-start justify-between gap-2">
                     <div>
                       <p className="text-[10px] font-bold tracking-widest text-emerald-600 uppercase">
-                        Posición recomendada
+                        Posición recomendada por slotting
                       </p>
                       <p className="mt-1 text-4xl font-bold tracking-tight text-emerald-800">
                         {locationCode(dialog.data.suggestedLocationId)}
                       </p>
-                      <p className="mt-1 text-xs text-emerald-600">
-                        Optimiza tiempos de picking — producto clase {dialog.data.abcClass}
+                      <p className="mt-2 text-xs text-emerald-700">
+                        {dialog.data.suggestionReason}
                       </p>
                     </div>
                     <CheckCircle2 className="mt-1 size-8 shrink-0 text-emerald-400" />
@@ -118,14 +128,14 @@ export const PutawayDialog = ({ state }: Props) => {
                 </div>
                 <div className="text-muted-foreground flex items-center gap-2 text-xs">
                   <div className="bg-border h-px flex-1" />
-                  o selecciona otra posición
+                  o selecciona otra posición manualmente
                   <div className="bg-border h-px flex-1" />
                 </div>
               </div>
             ) : (
               <div className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
                 <ClipboardCheck className="mt-0.5 size-4 shrink-0" />
-                <span>Sin posición recomendada. Selecciona la ubicación manualmente.</span>
+                <span>{dialog.data.suggestionReason || 'Sin posición recomendada. Selecciona la ubicación manualmente.'}</span>
               </div>
             )}
 

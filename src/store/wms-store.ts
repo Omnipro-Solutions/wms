@@ -17,6 +17,14 @@ import {
   transferTransitions,
   returnTransitions,
 } from '@/lib/state-machines'
+import {
+  selectReplenishmentNeeds,
+  selectSlottingRecommendations,
+  selectSlottingImpact,
+  selectAffinityRecommendations,
+  misplacedAClassItems,
+} from './selectors'
+import type { SlottingRecommendation, SlottingSnapshot } from '@/types/wms'
 import type {
   Asn,
   Carrier,
@@ -72,6 +80,7 @@ export interface WmsState {
   labels: WmsLabel[]
   integrations: IntegrationConnection[]
   replenishmentTasks: ReplenishmentTask[]
+  slottingSnapshots: SlottingSnapshot[]
   operators: Operator[]
   reasons: Reason[]
   carriers: Carrier[]
@@ -90,8 +99,10 @@ export interface WmsState {
 
   // Actions (more added per module in later phases)
   reserveInventory: (orderId: string) => CommerceOrder
-  holdInventory: (itemId: string, qty: number, operatorName: string) => void
+  holdInventory: (itemId: string, qty: number, operatorName: string, reasonId?: string) => void
   releaseInventory: (itemId: string, qty: number, operatorName: string) => void
+  holdByLot: (lot: string, warehouseId: string, operatorName: string, reasonId?: string) => void
+  holdByLocation: (locationId: string, operatorName: string, reasonId?: string) => void
   // Receiving
   confirmArrival: (asnId: string) => Asn
   receiveAsn: (asnId: string, receivedQty: number, operatorName: string, damagedQty?: number) => Asn
@@ -104,7 +115,7 @@ export interface WmsState {
   relocateInventory: (itemId: string, toLocationId: string, operatorName: string) => void
   // Picking
   startPicking: (taskId: string, operatorName: string) => PickingTask
-  completePick: (taskId: string, pickedQty: number, reasonId?: string) => PickingTask
+  completePick: (taskId: string, pickedQty: number, reasonId?: string, capturedSerial?: string) => PickingTask
   approvePart: (taskId: string) => PickingTask
   rejectPart: (taskId: string) => PickingTask
   // Waves
@@ -121,6 +132,10 @@ export interface WmsState {
   // Replenishment
   startReplenishment: (taskId: string, operatorName: string) => ReplenishmentTask
   completeReplenishment: (taskId: string) => ReplenishmentTask
+  generateReplenishmentTasks: () => ReplenishmentTask[]
+  // Slotting batch
+  relocateAll: (recs: SlottingRecommendation[], operatorName: string) => number
+  captureSlottingSnapshot: (label: string) => SlottingSnapshot
   // Admin — Operators
   createOperator: (data: Omit<Operator, 'id'>) => Operator
   updateOperator: (id: string, data: Partial<Omit<Operator, 'id'>>) => Operator
@@ -141,6 +156,8 @@ export interface WmsState {
   // Admin — Locations
   createLocation: (data: Omit<StorageLocation, 'id'>) => StorageLocation
   updateLocation: (id: string, data: Partial<Omit<StorageLocation, 'id'>>) => StorageLocation
+  blockLocation: (id: string) => StorageLocation
+  unblockLocation: (id: string) => StorageLocation
   // Admin — Products
   createProduct: (data: Omit<Product, 'id'>) => Product
   updateProduct: (id: string, data: Partial<Omit<Product, 'id'>>) => Product
@@ -173,6 +190,7 @@ export const useWmsStore = create<WmsState>((set, get) => ({
   labels: seed.labels,
   integrations: seed.integrations,
   replenishmentTasks: seed.replenishmentTasks,
+  slottingSnapshots: [],
   operators: seed.operators,
   reasons: seed.reasons,
   carriers: seed.carriers,
@@ -292,14 +310,16 @@ export const useWmsStore = create<WmsState>((set, get) => ({
     return updatedOrder
   },
 
-  holdInventory: (itemId, qty, operatorName) => {
+  holdInventory: (itemId, qty, operatorName, reasonId) => {
     const state = get()
     const item = state.inventoryItems.find((i) => i.id === itemId)
     if (!item) throw new Error('inventory item not found')
     const held = applyHold(item, qty)
     set({
       inventoryItems: state.inventoryItems.map((i) =>
-        i.id === itemId ? { ...i, ...held, status: 'on_hold' } : i
+        i.id === itemId
+          ? { ...i, ...held, status: 'on_hold', ...(reasonId ? { holdReasonId: reasonId } : {}) }
+          : i
       ),
       stockMovements: [
         ...state.stockMovements,
@@ -317,15 +337,94 @@ export const useWmsStore = create<WmsState>((set, get) => ({
     })
   },
 
+  holdByLot: (lot, warehouseId, operatorName, reasonId) => {
+    const state = get()
+    const targetIds = new Set(
+      state.inventoryItems
+        .filter((i) => i.lot === lot && i.warehouseId === warehouseId && i.status !== 'on_hold')
+        .map((i) => i.id)
+    )
+    if (targetIds.size === 0) throw new Error('No hay ítems disponibles para ese lote')
+    const movements: StockMovement[] = []
+    const updatedItems = state.inventoryItems.map((i) => {
+      if (!targetIds.has(i.id)) return i
+      const avail = availableStock(i)
+      if (avail <= 0) return i
+      movements.push(
+        recordMovement({
+          productId: i.productId,
+          warehouseId: i.warehouseId,
+          fromLocationId: i.locationId,
+          type: 'hold',
+          quantity: avail,
+          lot: i.lot,
+          referenceType: 'manual',
+          referenceId: `lot-${lot}`,
+          operatorName,
+        })
+      )
+      return {
+        ...i,
+        holdQuantity: i.holdQuantity + avail,
+        status: 'on_hold' as const,
+        ...(reasonId ? { holdReasonId: reasonId } : {}),
+      }
+    })
+    set({ inventoryItems: updatedItems, stockMovements: [...state.stockMovements, ...movements] })
+  },
+
+  holdByLocation: (locationId, operatorName, reasonId) => {
+    const state = get()
+    const targetIds = new Set(
+      state.inventoryItems
+        .filter((i) => i.locationId === locationId && i.status !== 'on_hold')
+        .map((i) => i.id)
+    )
+    if (targetIds.size === 0) throw new Error('No hay ítems disponibles en esa ubicación')
+    const movements: StockMovement[] = []
+    const updatedItems = state.inventoryItems.map((i) => {
+      if (!targetIds.has(i.id)) return i
+      const avail = availableStock(i)
+      if (avail <= 0) return i
+      movements.push(
+        recordMovement({
+          productId: i.productId,
+          warehouseId: i.warehouseId,
+          fromLocationId: i.locationId,
+          type: 'hold',
+          quantity: avail,
+          lot: i.lot,
+          serial: i.serial,
+          referenceType: 'manual',
+          referenceId: `loc-${locationId}`,
+          operatorName,
+        })
+      )
+      return {
+        ...i,
+        holdQuantity: i.holdQuantity + avail,
+        status: 'on_hold' as const,
+        ...(reasonId ? { holdReasonId: reasonId } : {}),
+      }
+    })
+    set({ inventoryItems: updatedItems, stockMovements: [...state.stockMovements, ...movements] })
+  },
+
   releaseInventory: (itemId, qty, operatorName) => {
     const state = get()
     const item = state.inventoryItems.find((i) => i.id === itemId)
     if (!item) throw new Error('inventory item not found')
     const released = applyRelease(item, qty)
+    const isFullyReleased = released.holdQuantity === 0
     set({
       inventoryItems: state.inventoryItems.map((i) =>
         i.id === itemId
-          ? { ...i, ...released, status: released.holdQuantity > 0 ? 'on_hold' : 'available' }
+          ? {
+              ...i,
+              ...released,
+              status: released.holdQuantity > 0 ? 'on_hold' : 'available',
+              ...(isFullyReleased ? { holdReasonId: undefined } : {}),
+            }
           : i
       ),
       stockMovements: [
@@ -705,7 +804,7 @@ export const useWmsStore = create<WmsState>((set, get) => ({
     return updated
   },
 
-  completePick: (taskId, pickedQty, reasonId) => {
+  completePick: (taskId, pickedQty, reasonId, capturedSerial) => {
     const state = get()
     const task = state.pickingTasks.find((t) => t.id === taskId)
     if (!task) throw new Error('picking task not found')
@@ -714,6 +813,20 @@ export const useWmsStore = create<WmsState>((set, get) => ({
       !canTransition(pickingTaskTransitions, task.status, 'partially_picked')
     ) {
       throw new Error(`No se puede completar tarea desde el estado ${task.status}`)
+    }
+
+    // Validate serial capture when the product requires it
+    const product = state.products.find((p) => p.id === task.productId)
+    if (product?.trackBy === 'serial' && pickedQty > 0 && !capturedSerial?.trim()) {
+      throw new Error('Este producto requiere captura de serial')
+    }
+
+    // Validate captured serial matches inventory when provided
+    if (capturedSerial?.trim()) {
+      const serialItem = state.inventoryItems.find(
+        (i) => i.productId === task.productId && i.serial === capturedSerial.trim()
+      )
+      if (!serialItem) throw new Error(`Serial "${capturedSerial}" no encontrado en inventario`)
     }
 
     const clamped = Math.min(pickedQty, task.requestedQuantity)
@@ -734,7 +847,10 @@ export const useWmsStore = create<WmsState>((set, get) => ({
 
     // Deduct reserved inventory when picking completes
     const inventoryItem = state.inventoryItems.find(
-      (i) => i.productId === task.productId && i.locationId === task.locationId
+      (i) =>
+        i.productId === task.productId &&
+        i.locationId === task.locationId &&
+        (!capturedSerial?.trim() || i.serial === capturedSerial.trim())
     )
     const updatedItems = inventoryItem
       ? state.inventoryItems.map((i) =>
@@ -754,6 +870,7 @@ export const useWmsStore = create<WmsState>((set, get) => ({
       fromLocationId: task.locationId,
       type: 'pick',
       quantity: clamped,
+      serial: capturedSerial?.trim() || undefined,
       referenceType: 'commerce_order',
       referenceId: task.orderId,
       operatorName: task.operatorName ?? 'Operador',
@@ -1031,6 +1148,107 @@ export const useWmsStore = create<WmsState>((set, get) => ({
     return updated
   },
 
+  generateReplenishmentTasks: () => {
+    const state = get()
+    const needs = selectReplenishmentNeeds(state)
+    if (needs.length === 0) return []
+
+    const baseIdx = state.replenishmentTasks.length
+    const newTasks: ReplenishmentTask[] = needs.map((need, i) => ({
+      id: `rp-gen-${baseIdx + i + 1}`,
+      productId: need.productId,
+      originLocationId: need.reserveLocationId,
+      destinationLocationId: need.pickFaceLocationId,
+      currentStock: need.currentStock,
+      minStock: need.minStock,
+      maxStock: need.maxStock,
+      suggestedQuantity: need.suggestedQuantity,
+      priority: need.priority,
+      status: 'pending',
+    }))
+
+    set({ replenishmentTasks: [...state.replenishmentTasks, ...newTasks] })
+    return newTasks
+  },
+
+  relocateAll: (recs, operatorName) => {
+    const state = get()
+    let items = [...state.inventoryItems]
+    const movements: StockMovement[] = []
+    let count = 0
+
+    for (const rec of recs) {
+      const srcIdx = items.findIndex(
+        (i) => i.productId === rec.productId && i.locationId === rec.currentLocationId
+      )
+      if (srcIdx === -1) continue
+
+      const src = items[srcIdx]
+      const qty = src.onHandQuantity
+      const toLocationId = rec.suggestedLocationId
+
+      // Vaciar origen
+      items[srcIdx] = { ...src, onHandQuantity: 0 }
+
+      // Fusionar o crear en destino
+      const destIdx = items.findIndex(
+        (i) => i.productId === rec.productId && i.locationId === toLocationId && i.id !== src.id
+      )
+      if (destIdx >= 0) {
+        items[destIdx] = { ...items[destIdx], onHandQuantity: items[destIdx].onHandQuantity + qty }
+        items = items.filter((i) => i.id !== src.id)
+      } else {
+        items[srcIdx] = { ...items[srcIdx], locationId: toLocationId }
+      }
+
+      movements.push(
+        recordMovement({
+          productId: rec.productId,
+          warehouseId: src.warehouseId,
+          fromLocationId: rec.currentLocationId,
+          toLocationId,
+          type: 'putaway',
+          quantity: qty,
+          referenceType: 'slotting',
+          referenceId: rec.id,
+          operatorName,
+        })
+      )
+      count++
+    }
+
+    set({ inventoryItems: items, stockMovements: [...state.stockMovements, ...movements] })
+    return count
+  },
+
+  captureSlottingSnapshot: (label) => {
+    const state = get()
+    const recs = selectSlottingRecommendations(state)
+    const impact = selectSlottingImpact(state, recs)
+    const misplaced = misplacedAClassItems(state)
+    const affinityRecs = selectAffinityRecommendations(state)
+    const pendingReplenishment = state.replenishmentTasks.filter(
+      (t) => t.status === 'pending' || t.status === 'assigned'
+    ).length
+
+    const snapshot: SlottingSnapshot = {
+      id: `snap-${state.slottingSnapshots.length + 1}`,
+      capturedAt: seed.seedTimestamp,
+      label,
+      misplacedAClassCount: misplaced.length,
+      relocationsAvailable: recs.length,
+      totalDistanceSavedM: impact.totalDistanceSavedM,
+      totalTimeSavedMin: impact.totalTimeSavedMin,
+      aToGoldenCount: impact.aClassToGoldenCount,
+      czInGoldenCount: impact.czOutOfGoldenCount,
+      pendingReplenishment,
+      affinityPairsNeedingAction: affinityRecs.filter((r) => !r.isAlreadyClose).length,
+    }
+
+    set({ slottingSnapshots: [...state.slottingSnapshots, snapshot] })
+    return snapshot
+  },
+
   // ─── Admin ────────────────────────────────────────────────────────────────
 
   createOperator: (data) => {
@@ -1143,6 +1361,24 @@ export const useWmsStore = create<WmsState>((set, get) => ({
     const loc = state.locations.find((l) => l.id === id)
     if (!loc) throw new Error('location not found')
     const updated: StorageLocation = { ...loc, ...data }
+    set({ locations: state.locations.map((l) => (l.id === id ? updated : l)) })
+    return updated
+  },
+
+  blockLocation: (id) => {
+    const state = get()
+    const loc = state.locations.find((l) => l.id === id)
+    if (!loc) throw new Error('location not found')
+    const updated: StorageLocation = { ...loc, isBlocked: true }
+    set({ locations: state.locations.map((l) => (l.id === id ? updated : l)) })
+    return updated
+  },
+
+  unblockLocation: (id) => {
+    const state = get()
+    const loc = state.locations.find((l) => l.id === id)
+    if (!loc) throw new Error('location not found')
+    const updated: StorageLocation = { ...loc, isBlocked: false }
     set({ locations: state.locations.map((l) => (l.id === id ? updated : l)) })
     return updated
   },

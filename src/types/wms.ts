@@ -45,6 +45,7 @@ export interface StorageLocation {
   type: 'pick' | 'reserve' | 'quality_control' | 'staging' | 'returns'
   isPickFace: boolean
   golden: boolean
+  isBlocked: boolean // blocked locations reject new putaway/pick operations
   accessibilityScore: number // 0-100; higher = easier/faster to pick
   maxWeightKg: number
   volumeCapacityM3: number
@@ -74,6 +75,7 @@ export interface InventoryItem {
   onHandQuantity: number
   reservedQuantity: number
   holdQuantity: number
+  holdReasonId?: string // references a Reason (context: 'hold')
   // availableQuantity is DERIVED via rules/inventory.ts, not stored.
   status: 'available' | 'reserved' | 'on_hold' | 'in_transit' | 'expired' | 'damaged'
 }
@@ -468,4 +470,22 @@ export interface InventoryReportRow {
   totalReserved: number
   totalHold: number
   totalAvailable: number
+}
+
+// --- Slotting KPI snapshot ---
+
+// Point-in-time capture of slotting health metrics.
+// Appended each time the user clicks "Capturar estado" on the slotting page.
+export interface SlottingSnapshot {
+  id: string
+  capturedAt: string         // ISO timestamp
+  label: string              // user-provided or auto-generated (e.g. "Después de reubicación masiva")
+  misplacedAClassCount: number
+  relocationsAvailable: number
+  totalDistanceSavedM: number
+  totalTimeSavedMin: number
+  aToGoldenCount: number     // A-class items that ARE in golden zone
+  czInGoldenCount: number    // CZ items still occupying golden zone
+  pendingReplenishment: number
+  affinityPairsNeedingAction: number
 }

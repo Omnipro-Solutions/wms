@@ -166,7 +166,7 @@ export const DataTable = <TData, TValue>({
                   data-state={row.getIsSelected() ? 'selected' : undefined}
                   onClick={onRowClick ? () => onRowClick(row.original) : undefined}
                   className={cn(
-                    'hover:bg-muted/40 transition-colors',
+                    'group hover:bg-muted/40 transition-colors',
                     onRowClick && 'cursor-pointer',
                     rowClassName?.(row.original)
                   )}

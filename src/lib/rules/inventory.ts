@@ -5,6 +5,13 @@ export interface StockLevels {
   onHandQuantity: number
   reservedQuantity: number
   holdQuantity: number
+  expirationDate?: string
+}
+
+// Returns true when an item is past its expiration date (FIFO gate).
+export function isExpired(item: Pick<StockLevels, 'expirationDate'>): boolean {
+  if (!item.expirationDate) return false
+  return new Date(item.expirationDate) < new Date()
 }
 
 export function availableStock(item: StockLevels): number {
@@ -13,6 +20,7 @@ export function availableStock(item: StockLevels): number {
 
 export function applyReserve(item: StockLevels, qty: number): StockLevels {
   if (qty <= 0) throw new Error('quantity must be positive')
+  if (isExpired(item)) throw new Error('No se puede reservar stock vencido (FIFO)')
   if (qty > availableStock(item)) throw new Error('insufficient available stock')
   return { ...item, reservedQuantity: item.reservedQuantity + qty }
 }

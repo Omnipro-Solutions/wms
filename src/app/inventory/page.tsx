@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { Boxes, CalendarClock, PackageSearch, TriangleAlert, Warehouse } from 'lucide-react'
+import { Boxes, CalendarClock, PackageSearch, Search, TriangleAlert, Warehouse } from 'lucide-react'
 
 import { useWmsStore } from '@/store/wms-store'
 import { availableStock, abcByProduct } from '@/store/selectors'
@@ -18,9 +18,15 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
 } from '@/components/ui/dialog'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import {
   Select,
   SelectContent,
@@ -28,9 +34,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { Field, FieldLabel, FieldDescription } from '@/components/ui/field'
+import { InventoryDetailSheet } from './_components/inventory-detail-sheet'
 import { buildInventoryColumns, daysUntilExpiry, type InventoryRow } from './columns'
 
 type ActionType = 'hold' | 'release' | 'adjust' | 'relocate'
+type BulkActionType = 'hold_lot' | 'hold_location'
 
 interface ActionDialogData {
   type: ActionType
@@ -41,6 +50,10 @@ interface ActionDialogData {
   locationId: string
 }
 
+interface BulkDialogData {
+  type: BulkActionType
+}
+
 const DIALOG_TITLES: Record<ActionType, string> = {
   hold: 'Poner en espera (hold)',
   release: 'Liberar del hold',
@@ -48,22 +61,43 @@ const DIALOG_TITLES: Record<ActionType, string> = {
   relocate: 'Reubicar inventario',
 }
 
+const BULK_DIALOG_TITLES: Record<BulkActionType, string> = {
+  hold_lot: 'Hold masivo por lote',
+  hold_location: 'Hold masivo por ubicación',
+}
+
 const EXPIRY_FILTER_DAYS = 30
 
 export default function InventoryPage() {
   const state = useWmsStore()
-  const { holdInventory, releaseInventory, adjustInventory, relocateInventory, locations } =
-    useWmsStore()
+  const {
+    holdInventory,
+    releaseInventory,
+    adjustInventory,
+    relocateInventory,
+    holdByLot,
+    holdByLocation,
+    locations,
+  } = state
   const { productName, productSku, locationCode } = useStoreHelpers()
 
   const abc = abcByProduct(state)
 
+  const [productFilter, setProductFilter] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const [expiryFilter, setExpiryFilter] = useState('all')
+  const [lotFilter, setLotFilter] = useState('')
   const [qty, setQty] = useState('')
   const [relocateLocationId, setRelocateLocationId] = useState('')
+  const [holdReasonId, setHoldReasonId] = useState('')
+  const [bulkLotInput, setBulkLotInput] = useState('')
+  const [bulkLocationId, setBulkLocationId] = useState('')
+  const [selectedItem, setSelectedItem] = useState<InventoryRow | null>(null)
 
   const actionDialog = useDialogState<ActionDialogData>()
+  const bulkDialog = useDialogState<BulkDialogData>()
+
+  const holdReasons = state.reasons.filter((r) => r.context === 'hold' && r.active)
 
   const rows = useMemo<InventoryRow[]>(
     () =>
@@ -109,31 +143,37 @@ export default function InventoryPage() {
           daysUntilExpiry(r.expirationDate) <= EXPIRY_FILTER_DAYS
       )
     }
+    if (lotFilter.trim()) {
+      const q = lotFilter.trim().toLowerCase()
+      result = result.filter(
+        (r) => r.lot?.toLowerCase().includes(q) || r.serial?.toLowerCase().includes(q)
+      )
+    }
+    if (productFilter.trim()) {
+      const q = productFilter.trim().toLowerCase()
+      result = result.filter(
+        (r) => r.productName.toLowerCase().includes(q) || r.productSku.toLowerCase().includes(q)
+      )
+    }
     return result
-  }, [rows, statusFilter, expiryFilter])
+  }, [rows, statusFilter, expiryFilter, lotFilter, productFilter])
 
   // ── KPI derivations ──────────────────────────────────────────────────────────
   const totalOnHand = rows.reduce((s, i) => s + i.onHandQuantity, 0)
   const totalAvailable = rows.reduce((s, i) => s + i.available, 0)
   const totalHold = rows.reduce((s, i) => s + i.holdQuantity, 0)
 
-  const expiredCount = useMemo(
-    () =>
-      rows.filter((r) => r.expirationDate !== null && daysUntilExpiry(r.expirationDate) < 0).length,
-    [rows]
-  )
-  const expiringSoonCount = useMemo(
-    () =>
-      rows.filter(
-        (r) =>
-          r.expirationDate !== null &&
-          daysUntilExpiry(r.expirationDate) >= 0 &&
-          daysUntilExpiry(r.expirationDate) <= EXPIRY_FILTER_DAYS
-      ).length,
-    [rows]
-  )
+  const expiredCount = rows.filter(
+    (r) => r.expirationDate !== null && daysUntilExpiry(r.expirationDate) < 0
+  ).length
+  const expiringSoonCount = rows.filter(
+    (r) =>
+      r.expirationDate !== null &&
+      daysUntilExpiry(r.expirationDate) >= 0 &&
+      daysUntilExpiry(r.expirationDate) <= EXPIRY_FILTER_DAYS
+  ).length
 
-  // ── Action dialog ─────────────────────────────────────────────────────────
+  // ── Item action dialog ────────────────────────────────────────────────────
   const openActionDialog = (type: ActionType, item: InventoryRow) => {
     actionDialog.open({
       type,
@@ -145,38 +185,74 @@ export default function InventoryPage() {
     })
     setQty(type === 'adjust' ? String(item.onHandQuantity) : '')
     setRelocateLocationId('')
+    setHoldReasonId('')
   }
 
   const handleSubmit = () => {
     if (!actionDialog.data) return
+    const { type, itemId, locationId } = actionDialog.data
     try {
-      if (actionDialog.data.type === 'relocate') {
+      if (type === 'relocate') {
         if (!relocateLocationId) {
           actionDialog.setError('Selecciona una ubicación destino.')
           return
         }
-        if (relocateLocationId === actionDialog.data.locationId) {
+        if (relocateLocationId === locationId) {
           actionDialog.setError('La ubicación destino debe ser diferente a la actual.')
           return
         }
-        relocateInventory(actionDialog.data.itemId, relocateLocationId, 'Operador')
+        relocateInventory(itemId, relocateLocationId, 'Operador')
       } else {
         const n = parseInt(qty, 10)
         if (isNaN(n) || n < 0) {
           actionDialog.setError('Ingresa una cantidad válida.')
           return
         }
-        if (actionDialog.data.type === 'hold')
-          holdInventory(actionDialog.data.itemId, n, 'Operador')
-        else if (actionDialog.data.type === 'release')
-          releaseInventory(actionDialog.data.itemId, n, 'Operador')
-        else adjustInventory(actionDialog.data.itemId, n, 'Operador')
+        if (type === 'hold') holdInventory(itemId, n, 'Operador', holdReasonId || undefined)
+        else if (type === 'release') releaseInventory(itemId, n, 'Operador')
+        else adjustInventory(itemId, n, 'Operador')
       }
       actionDialog.close()
       setQty('')
       setRelocateLocationId('')
+      setHoldReasonId('')
     } catch (e: unknown) {
       actionDialog.setError(e instanceof Error ? e.message : 'Error en la operación')
+    }
+  }
+
+  // ── Bulk action dialog ────────────────────────────────────────────────────
+  const openBulkDialog = (type: BulkActionType) => {
+    bulkDialog.open({ type })
+    setBulkLotInput('')
+    setBulkLocationId('')
+    setHoldReasonId('')
+  }
+
+  const handleBulkSubmit = () => {
+    if (!bulkDialog.data) return
+    const { type } = bulkDialog.data
+    try {
+      if (type === 'hold_lot') {
+        if (!bulkLotInput.trim()) {
+          bulkDialog.setError('Ingresa un número de lote.')
+          return
+        }
+        const warehouseId = state.warehouses[0]?.id ?? 'wh-bog'
+        holdByLot(bulkLotInput.trim(), warehouseId, 'Operador', holdReasonId || undefined)
+      } else {
+        if (!bulkLocationId) {
+          bulkDialog.setError('Selecciona una ubicación.')
+          return
+        }
+        holdByLocation(bulkLocationId, 'Operador', holdReasonId || undefined)
+      }
+      bulkDialog.close()
+      setBulkLotInput('')
+      setBulkLocationId('')
+      setHoldReasonId('')
+    } catch (e: unknown) {
+      bulkDialog.setError(e instanceof Error ? e.message : 'Error en la operación')
     }
   }
 
@@ -201,45 +277,58 @@ export default function InventoryPage() {
         ? `${expiringSoonCount} lote${expiringSoonCount !== 1 ? 's' : ''} vencen en ≤30 días`
         : 'Sin alertas de vencimiento'
 
+  const hasActiveFilters =
+    productFilter.trim() !== '' ||
+    statusFilter !== 'all' ||
+    expiryFilter !== 'all' ||
+    lotFilter.trim() !== ''
+
   const filtersNode = (
     <div className="flex flex-wrap items-center gap-2">
-      <div className="flex items-center gap-1.5">
-        <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="h-8 w-44">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Todos los estados</SelectItem>
-            <SelectItem value="available">Disponible</SelectItem>
-            <SelectItem value="on_hold">En espera</SelectItem>
-            <SelectItem value="reserved">Reservado</SelectItem>
-            <SelectItem value="in_transit">En tránsito</SelectItem>
-          </SelectContent>
-        </Select>
+      <div className="relative">
+        <Search className="text-muted-foreground absolute top-1/2 left-2 size-3.5 -translate-y-1/2" />
+        <Input
+          value={productFilter}
+          onChange={(e) => setProductFilter(e.target.value)}
+          placeholder="Buscar producto..."
+          className="h-8 w-44 pl-7 text-xs"
+        />
       </div>
-      <div className="flex items-center gap-1.5">
-        <Select value={expiryFilter} onValueChange={setExpiryFilter}>
-          <SelectTrigger className="h-8 w-48">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Todos los vencimientos</SelectItem>
-            <SelectItem value="soon">Próximos a vencer (≤30d)</SelectItem>
-            <SelectItem value="expired">Ya vencidos</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-      {(statusFilter !== 'all' || expiryFilter !== 'all') && (
+      <Select value={statusFilter} onValueChange={setStatusFilter}>
+        <SelectTrigger className="h-8 w-40">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="all">Todos los estados</SelectItem>
+          <SelectItem value="available">Disponible</SelectItem>
+          <SelectItem value="on_hold">En espera</SelectItem>
+          <SelectItem value="reserved">Reservado</SelectItem>
+          <SelectItem value="in_transit">En tránsito</SelectItem>
+        </SelectContent>
+      </Select>
+      <Select value={expiryFilter} onValueChange={setExpiryFilter}>
+        <SelectTrigger className="h-8 w-44">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="all">Todos los vencimientos</SelectItem>
+          <SelectItem value="soon">Próximos a vencer (≤30d)</SelectItem>
+          <SelectItem value="expired">Ya vencidos</SelectItem>
+        </SelectContent>
+      </Select>
+      {hasActiveFilters && (
         <Button
           variant="ghost"
           size="sm"
           className="text-muted-foreground h-8 text-xs"
           onClick={() => {
+            setProductFilter('')
             setStatusFilter('all')
             setExpiryFilter('all')
+            setLotFilter('')
           }}
         >
-          Limpiar filtros
+          Limpiar
         </Button>
       )}
     </div>
@@ -295,9 +384,26 @@ export default function InventoryPage() {
       {/* ── Inventory table ──────────────────────────────────────────────── */}
       <Card>
         <CardHeader className="pb-2">
-          <div className="flex items-center gap-2">
-            <Boxes className="text-muted-foreground size-4" />
-            <CardTitle className="text-base">Posiciones de inventario</CardTitle>
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <Boxes className="text-muted-foreground size-4" />
+              <CardTitle className="text-base">Posiciones de inventario</CardTitle>
+            </div>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" className="gap-1.5 text-xs">
+                  Acciones masivas
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => openBulkDialog('hold_lot')}>
+                  Hold por lote
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => openBulkDialog('hold_location')}>
+                  Hold por ubicación
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
           <CardDescription>
             Cada fila es una posición única: producto × ubicación × lote/serial.
@@ -307,21 +413,15 @@ export default function InventoryPage() {
           <DataTable
             columns={columns}
             data={filteredRows}
-            searchColumn="productName"
-            searchPlaceholder="Buscar producto..."
             filters={filtersNode}
             emptyMessage="No hay posiciones de inventario con los filtros seleccionados."
+            onRowClick={(row) => setSelectedItem(row)}
           />
         </CardContent>
       </Card>
 
-      {/* ── Action dialog ────────────────────────────────────────────────── */}
-      <Dialog
-        open={!!actionDialog.data}
-        onOpenChange={(o) => {
-          if (!o) actionDialog.close()
-        }}
-      >
+      {/* ── Item action dialog ───────────────────────────────────────────── */}
+      <Dialog open={!!actionDialog.data} onOpenChange={(o) => { if (!o) actionDialog.close() }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
@@ -339,24 +439,20 @@ export default function InventoryPage() {
               {actionDialog.data.type === 'adjust' && (
                 <p className="text-muted-foreground text-sm">
                   Stock actual en mano:{' '}
-                  <span className="text-foreground font-medium">
-                    {actionDialog.data.currentOnHand}
-                  </span>
+                  <span className="text-foreground font-medium">{actionDialog.data.currentOnHand}</span>
                 </p>
               )}
 
               {actionDialog.data.type === 'release' && (
                 <p className="text-muted-foreground text-sm">
                   Cantidad en hold:{' '}
-                  <span className="text-foreground font-medium">
-                    {actionDialog.data.currentHold}
-                  </span>
+                  <span className="text-foreground font-medium">{actionDialog.data.currentHold}</span>
                 </p>
               )}
 
               {actionDialog.data.type === 'relocate' ? (
-                <div className="space-y-1">
-                  <Label htmlFor="inv-relocate">Ubicación destino</Label>
+                <Field className="w-full">
+                  <FieldLabel htmlFor="inv-relocate">Ubicación destino</FieldLabel>
                   <Select value={relocateLocationId} onValueChange={setRelocateLocationId}>
                     <SelectTrigger id="inv-relocate">
                       <SelectValue placeholder="Seleccionar ubicación..." />
@@ -372,20 +468,39 @@ export default function InventoryPage() {
                       ))}
                     </SelectContent>
                   </Select>
-                </div>
+                </Field>
               ) : (
-                <div className="space-y-1">
-                  <Label htmlFor="inv-qty">
-                    {actionDialog.data.type === 'adjust' ? 'Nueva cantidad en mano' : 'Cantidad'}
-                  </Label>
-                  <Input
-                    id="inv-qty"
-                    type="number"
-                    min={0}
-                    value={qty}
-                    onChange={(e) => setQty(e.target.value)}
-                  />
-                </div>
+                <>
+                  <Field className="w-full">
+                    <FieldLabel htmlFor="inv-qty">
+                      {actionDialog.data.type === 'adjust' ? 'Nueva cantidad en mano' : 'Cantidad'}
+                    </FieldLabel>
+                    <Input
+                      id="inv-qty"
+                      type="number"
+                      min={0}
+                      value={qty}
+                      onChange={(e) => setQty(e.target.value)}
+                    />
+                  </Field>
+                  {actionDialog.data.type === 'hold' && (
+                    <Field className="w-full">
+                      <FieldLabel htmlFor="inv-hold-reason">Motivo de hold</FieldLabel>
+                      <Select value={holdReasonId} onValueChange={setHoldReasonId}>
+                        <SelectTrigger id="inv-hold-reason">
+                          <SelectValue placeholder="Seleccionar motivo (opcional)..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {holdReasons.map((r) => (
+                            <SelectItem key={r.id} value={r.id}>
+                              {r.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </Field>
+                  )}
+                </>
               )}
 
               {actionDialog.error && (
@@ -397,13 +512,98 @@ export default function InventoryPage() {
           )}
 
           <DialogFooter>
-            <Button variant="outline" onClick={actionDialog.close}>
-              Cancelar
-            </Button>
+            <Button variant="outline" onClick={actionDialog.close}>Cancelar</Button>
             <Button onClick={handleSubmit}>Confirmar</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* ── Bulk action dialog ───────────────────────────────────────────── */}
+      <Dialog open={!!bulkDialog.data} onOpenChange={(o) => { if (!o) bulkDialog.close() }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {bulkDialog.data ? BULK_DIALOG_TITLES[bulkDialog.data.type] : ''}
+            </DialogTitle>
+            <DialogDescription>
+              {bulkDialog.data?.type === 'hold_lot'
+                ? 'Se bloquearán todas las posiciones disponibles del lote indicado.'
+                : 'Se bloquearán todos los ítems disponibles en la ubicación seleccionada.'}
+            </DialogDescription>
+          </DialogHeader>
+
+          {bulkDialog.data && (
+            <div className="space-y-4 py-2">
+              {bulkDialog.data.type === 'hold_lot' ? (
+                <Field className="w-full">
+                  <FieldLabel htmlFor="bulk-lot">Número de lote</FieldLabel>
+                  <FieldDescription>Ej. LOT-TS-2601</FieldDescription>
+                  <Input
+                    id="bulk-lot"
+                    placeholder="LOT-TS-2601"
+                    value={bulkLotInput}
+                    onChange={(e) => setBulkLotInput(e.target.value)}
+                    className="font-mono"
+                  />
+                </Field>
+              ) : (
+                <Field className="w-full">
+                  <FieldLabel htmlFor="bulk-location">Ubicación</FieldLabel>
+                  <Select value={bulkLocationId} onValueChange={setBulkLocationId}>
+                    <SelectTrigger id="bulk-location">
+                      <SelectValue placeholder="Seleccionar ubicación..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {locations.map((loc) => (
+                        <SelectItem key={loc.id} value={loc.id}>
+                          <span className="font-mono">{loc.code}</span>
+                          <span className="text-muted-foreground ml-2 text-xs">
+                            {loc.zone} · {loc.type}
+                          </span>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </Field>
+              )}
+
+              <Field className="w-full">
+                <FieldLabel htmlFor="bulk-reason">Motivo de hold</FieldLabel>
+                <Select value={holdReasonId} onValueChange={setHoldReasonId}>
+                  <SelectTrigger id="bulk-reason">
+                    <SelectValue placeholder="Seleccionar motivo (opcional)..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {holdReasons.map((r) => (
+                      <SelectItem key={r.id} value={r.id}>
+                        {r.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </Field>
+
+              {bulkDialog.error && (
+                <p className="text-destructive flex items-center gap-1 text-sm">
+                  <TriangleAlert className="size-3" /> {bulkDialog.error}
+                </p>
+              )}
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={bulkDialog.close}>Cancelar</Button>
+            <Button onClick={handleBulkSubmit}>Confirmar hold masivo</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Detail sheet ─────────────────────────────────────────────────── */}
+      <InventoryDetailSheet
+        item={selectedItem}
+        movements={state.stockMovements}
+        onClose={() => setSelectedItem(null)}
+      />
     </>
   )
 }

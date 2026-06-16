@@ -1,10 +1,17 @@
 'use client'
 
 import { type ColumnDef } from '@tanstack/react-table'
-import { AlertTriangle, Clock, Package } from 'lucide-react'
+import { AlertTriangle, Clock, MoreHorizontal, Package } from 'lucide-react'
 import Image from 'next/image'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { Progress } from '@/components/ui/progress'
 import { StatusBadge } from '@/components/shared/status-badge'
 import { DataTableColumnHeader } from '@/components/data-table'
@@ -340,52 +347,39 @@ export const buildInventoryColumns = (onAction: ActionHandler): ColumnDef<Invent
     cell: ({ row }) => {
       const item = row.original
       return (
-        <div className="flex gap-1">
-          {item.status !== 'on_hold' && (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
             <Button
               size="sm"
-              variant="outline"
-              onClick={(e) => {
-                e.stopPropagation()
-                onAction('hold', item)
-              }}
+              variant="ghost"
+              className="size-8 p-0"
+              onClick={(e) => e.stopPropagation()}
             >
-              Hold
+              <MoreHorizontal className="size-4" />
             </Button>
-          )}
-          {item.holdQuantity > 0 && (
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={(e) => {
-                e.stopPropagation()
-                onAction('release', item)
-              }}
-            >
-              Liberar
-            </Button>
-          )}
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={(e) => {
-              e.stopPropagation()
-              onAction('relocate', item)
-            }}
-          >
-            Reubicar
-          </Button>
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={(e) => {
-              e.stopPropagation()
-              onAction('adjust', item)
-            }}
-          >
-            Ajustar
-          </Button>
-        </div>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+            {item.status !== 'on_hold' && (
+              <DropdownMenuItem onClick={() => onAction('hold', item)}>
+                Poner en hold
+              </DropdownMenuItem>
+            )}
+            {item.holdQuantity > 0 && (
+              <DropdownMenuItem onClick={() => onAction('release', item)}>
+                Liberar hold
+              </DropdownMenuItem>
+            )}
+            {(item.status !== 'on_hold' || item.holdQuantity > 0) && (
+              <DropdownMenuSeparator />
+            )}
+            <DropdownMenuItem onClick={() => onAction('relocate', item)}>
+              Reubicar
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => onAction('adjust', item)}>
+              Ajustar stock
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       )
     },
   },

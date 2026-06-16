@@ -335,6 +335,7 @@ export default function AdminPage() {
         type: locForm.type,
         isPickFace: locForm.isPickFace,
         golden: locForm.golden,
+        isBlocked: false,
         accessibilityScore: locForm.accessibilityScore,
         maxWeightKg: locForm.maxWeightKg,
         volumeCapacityM3: locForm.volumeCapacityM3,
