@@ -62,6 +62,8 @@ const STATUS_MAP: Record<string, StatusMeta> = {
   // Packing verification
   verified: { label: 'Verificado', variant: 'success' },
   mismatch: { label: 'Discrepancia', variant: 'danger' },
+  labelled: { label: 'Etiquetado', variant: 'progress' },
+  dispatched: { label: 'Despachado', variant: 'success' },
 }
 
 export function statusMeta(status: string): StatusMeta {

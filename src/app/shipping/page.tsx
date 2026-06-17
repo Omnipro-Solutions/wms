@@ -1,11 +1,12 @@
 'use client'
 
-import { useMemo } from 'react'
-import { CheckCircle2, Truck, TriangleAlert } from 'lucide-react'
+import { useMemo, useState } from 'react'
+import { CheckCircle2, Clock, DollarSign, Truck, TriangleAlert, TrendingUp } from 'lucide-react'
 
 import { useWmsStore } from '@/store/wms-store'
 import { useDialogState } from '@/hooks/use-dialog-state'
 import { PageHeader } from '@/components/shared/page-header'
+import { KpiCard } from '@/components/shared/kpi-card'
 import { DataTable } from '@/components/data-table'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -23,10 +24,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { formatNumber, formatPercent } from '@/lib/formatters'
-import { otifPercentage } from '@/lib/rules/shipping'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { formatNumber } from '@/lib/formatters'
+import { otifPercentage, otifAlerts, rateShop } from '@/lib/rules/shipping'
+import { RateShoppingDialog } from './_components/rate-shopping-dialog'
+import { OtifDashboard } from './_components/otif-dashboard'
 import { buildShippingColumns, type ShippingRow } from './columns'
-import { useState } from 'react'
+import type { CarrierRateQuote } from '@/types/wms'
 
 interface ShipDialogData {
   shipmentId: string
@@ -36,14 +40,108 @@ interface ShipDialogData {
   weightKg: number
 }
 
-export default function ShippingPage() {
-  const state = useWmsStore()
-  const { shipOrder } = useWmsStore()
+interface RateShopContext {
+  shipmentId: string
+  customerName: string
+  destinationCity: string
+  destinationZone: string
+  weightKg: number
+  packageCount: number
+}
 
+export default function ShippingPage() {
+  const today = new Date().toISOString().slice(0, 10)
+
+  const state = useWmsStore()
+  const { shipOrder, deliverShipment } = state
+
+  const [activeTab, setActiveTab] = useState('shipments')
   const [otifFilter, setOtifFilter] = useState('all')
   const [statusFilter, setStatusFilter] = useState('all')
+  const [carrierFilter, setCarrierFilter] = useState('all')
 
   const shipDialog = useDialogState<ShipDialogData>()
+  const deliverDialog = useDialogState<{ shipmentId: string; customerName: string }>()
+
+  const [rateShopCtx, setRateShopCtx] = useState<RateShopContext | null>(null)
+  const [rateShopError, setRateShopError] = useState('')
+
+  // ── Rows ──────────────────────────────────────────────────────────────────
+
+  const rows = useMemo<ShippingRow[]>(
+    () =>
+      state.shipments.map((sh) => {
+        const order = state.commerceOrders.find((o) => o.id === sh.orderId)
+        return {
+          id: sh.id,
+          orderNumber: order?.orderNumber ?? sh.orderId,
+          customerName: sh.customerName,
+          carrierId: sh.carrierId,
+          carrierName: sh.carrierName,
+          serviceLevel: sh.serviceLevel,
+          quotedCostUsd: sh.quotedCostUsd,
+          destinationCity: sh.destinationCity,
+          packageCount: sh.packageCount,
+          weightKg: sh.weightKg,
+          trackingNumber: sh.trackingNumber ?? null,
+          promisedDate: sh.promisedDate ?? null,
+          estimatedDeliveryDate: sh.estimatedDeliveryDate ?? null,
+          otifStatus: sh.otifStatus,
+          status: sh.status,
+          shippedAt: sh.shippedAt ?? null,
+          deliveredAt: sh.deliveredAt ?? null,
+        }
+      }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [state.shipments]
+  )
+
+  const uniqueCarriers = useMemo(() => [...new Set(rows.map((r) => r.carrierName))], [rows])
+
+  const filteredRows = useMemo(
+    () =>
+      rows.filter((r) => {
+        if (otifFilter !== 'all' && r.otifStatus !== otifFilter) return false
+        if (statusFilter !== 'all' && r.status !== statusFilter) return false
+        if (carrierFilter !== 'all' && r.carrierName !== carrierFilter) return false
+        return true
+      }),
+    [rows, otifFilter, statusFilter, carrierFilter]
+  )
+
+  // ── KPIs ──────────────────────────────────────────────────────────────────
+
+  const otif = otifPercentage(state.shipments)
+  const { inTransitCount, pendingCount, totalCost } = useMemo(() => {
+    let inTransit = 0, pending = 0, cost = 0
+    for (const s of state.shipments) {
+      if (s.status === 'in_transit') inTransit++
+      if (s.status === 'pending') pending++
+      cost += s.quotedCostUsd ?? 0
+    }
+    return { inTransitCount: inTransit, pendingCount: pending, totalCost: cost }
+  }, [state.shipments])
+
+  // ── OTIF alerts ───────────────────────────────────────────────────────────
+
+  const orderNumberMap = useMemo(
+    () => Object.fromEntries(state.commerceOrders.map((o) => [o.id, o.orderNumber])),
+    [state.commerceOrders]
+  )
+
+  const alerts = useMemo(
+    () => otifAlerts(state.shipments, orderNumberMap, today),
+    [state.shipments, orderNumberMap]
+  )
+
+  // ── Rate shop quotes ───────────────────────────────────────────────────────
+
+  const rateQuotes = useMemo<CarrierRateQuote[]>(() => {
+    if (!rateShopCtx) return []
+    return rateShop(state.carriers, rateShopCtx.weightKg, rateShopCtx.destinationZone, today)
+  }, [rateShopCtx, state.carriers])
+
+  // ── Handlers ──────────────────────────────────────────────────────────────
 
   const openShipDialog = (row: ShippingRow) => {
     shipDialog.open({
@@ -65,51 +163,86 @@ export default function ShippingPage() {
     }
   }
 
-  const rows = useMemo<ShippingRow[]>(
-    () =>
-      state.shipments.map((sh) => {
-        const order = state.commerceOrders.find((o) => o.id === sh.orderId)
-        const route = sh.sapRouteId ? state.sapRoutes.find((r) => r.id === sh.sapRouteId) : null
-        return {
-          id: sh.id,
-          orderNumber: order?.orderNumber ?? sh.orderId,
-          customerName: sh.customerName,
-          carrierName: sh.carrierName,
-          sapRouteCode: route?.code ?? '',
-          packageCount: sh.packageCount,
-          weightKg: sh.weightKg,
-          trackingNumber: sh.trackingNumber ?? null,
-          otifStatus: sh.otifStatus,
-          status: sh.status,
-          shippedAt: sh.shippedAt ?? null,
-        }
-      }),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [state.shipments]
-  )
+  const openDeliverDialog = (row: ShippingRow) => {
+    deliverDialog.open({ shipmentId: row.id, customerName: row.customerName })
+  }
 
-  const filteredRows = useMemo(
-    () =>
-      rows.filter((r) => {
-        if (otifFilter !== 'all' && r.otifStatus !== otifFilter) return false
-        if (statusFilter !== 'all' && r.status !== statusFilter) return false
-        return true
-      }),
-    [rows, otifFilter, statusFilter]
-  )
+  const handleDeliver = () => {
+    if (!deliverDialog.data) return
+    try {
+      deliverShipment(deliverDialog.data.shipmentId)
+      deliverDialog.close()
+    } catch (e: unknown) {
+      deliverDialog.setError(e instanceof Error ? e.message : 'Error al registrar entrega')
+    }
+  }
 
-  const otif = otifPercentage(state.shipments)
-  const inTransitCount = state.shipments.filter((s) => s.status === 'in_transit').length
-  const pendingCount = state.shipments.filter((s) => s.status === 'pending').length
+  const openRateShop = (row: ShippingRow) => {
+    setRateShopError('')
+    const shipment = state.shipments.find((s) => s.id === row.id)
+    setRateShopCtx({
+      shipmentId: row.id,
+      customerName: row.customerName,
+      destinationCity: row.destinationCity ?? '',
+      destinationZone: shipment?.destinationZone ?? 'Z1',
+      weightKg: row.weightKg,
+      packageCount: row.packageCount,
+    })
+  }
+
+  const handleConfirmRate = (quote: CarrierRateQuote) => {
+    if (!rateShopCtx) return
+    try {
+      useWmsStore.setState((st) => ({
+        shipments: st.shipments.map((s) =>
+          s.id === rateShopCtx.shipmentId
+            ? {
+                ...s,
+                carrierId: quote.carrierId,
+                carrierName: quote.carrierName,
+                serviceLevel: quote.serviceLevel,
+                quotedCostUsd: quote.quotedCostUsd,
+                estimatedDeliveryDate: quote.estimatedDeliveryDate,
+              }
+            : s
+        ),
+      }))
+      setRateShopCtx(null)
+    } catch (e: unknown) {
+      setRateShopError(e instanceof Error ? e.message : 'Error al aplicar tarifa')
+    }
+  }
+
+  // ── Columns ───────────────────────────────────────────────────────────────
 
   const columns = useMemo(
-    () => buildShippingColumns(openShipDialog),
+    () =>
+      buildShippingColumns({
+        onShip: openShipDialog,
+        onRateShop: openRateShop,
+        onDeliver: openDeliverDialog,
+      }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     []
   )
 
+  // ── Filters node ──────────────────────────────────────────────────────────
+
   const filtersNode = (
     <>
+      <Select value={carrierFilter} onValueChange={setCarrierFilter}>
+        <SelectTrigger className="h-8 w-44">
+          <SelectValue placeholder="Transportadora" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="all">Todas</SelectItem>
+          {uniqueCarriers.map((c) => (
+            <SelectItem key={c} value={c}>
+              {c}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
       <Select value={otifFilter} onValueChange={setOtifFilter}>
         <SelectTrigger className="h-8 w-36">
           <SelectValue placeholder="OTIF" />
@@ -129,7 +262,7 @@ export default function ShippingPage() {
           <SelectItem value="all">Todos los estados</SelectItem>
           <SelectItem value="pending">Pendiente</SelectItem>
           <SelectItem value="in_transit">En tránsito</SelectItem>
-          <SelectItem value="delivered">Entregado</SelectItem>
+          <SelectItem value="completed">Entregado</SelectItem>
           <SelectItem value="cancelled">Cancelado</SelectItem>
         </SelectContent>
       </Select>
@@ -140,54 +273,92 @@ export default function ShippingPage() {
     <>
       <PageHeader
         title="Shipping — Despacho"
-        description="Gestiona el despacho de envíos. Supervisa OTIF y estado de entrega por transportadora."
+        description="Gestiona el despacho de envíos. Cotiza tarifas, supervisa OTIF y registra entregas por transportadora."
       />
 
-      <div className="grid gap-4 sm:grid-cols-3">
-        <Card>
-          <CardContent className="pt-6">
-            <p className="text-muted-foreground text-sm">OTIF estimado</p>
-            <p
-              className={`text-2xl font-bold tabular-nums ${otif >= 90 ? 'text-green-700' : otif >= 75 ? 'text-amber-600' : 'text-red-600'}`}
-            >
-              {formatPercent(otif)}
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <p className="text-muted-foreground text-sm">En tránsito</p>
-            <p className="text-2xl font-bold text-blue-600 tabular-nums">
-              {formatNumber(inTransitCount)}
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <p className="text-muted-foreground text-sm">Pendientes de despacho</p>
-            <p className="text-2xl font-bold text-amber-600 tabular-nums">
-              {formatNumber(pendingCount)}
-            </p>
-          </CardContent>
-        </Card>
+      {/* Global KPIs */}
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <KpiCard
+          icon={TrendingUp}
+          value={otif}
+          label="OTIF estimado"
+          sublabel={`${formatNumber(state.shipments.length)} envíos totales`}
+          tone={otif >= 90 ? 'green' : otif >= 75 ? 'amber' : 'red'}
+        />
+        <KpiCard icon={Truck} value={inTransitCount} label="En tránsito" tone="blue" />
+        <KpiCard
+          icon={Clock}
+          value={pendingCount}
+          label="Pendientes de despacho"
+          tone="amber"
+          alert={pendingCount > 0}
+        />
+        <KpiCard
+          icon={DollarSign}
+          value={Math.round(totalCost)}
+          label="Costo cotizado (USD)"
+          sublabel={`$${totalCost.toFixed(2)} total`}
+          tone="neutral"
+        />
       </div>
 
-      <Card>
-        <CardContent className="pt-4">
-          <div className="mb-1 flex items-center gap-2 text-base font-semibold">
-            <Truck className="size-4" /> Envíos
-          </div>
-          <DataTable
-            columns={columns}
-            data={filteredRows}
-            searchColumn="customerName"
-            searchPlaceholder="Buscar cliente..."
-            filters={filtersNode}
-            emptyMessage="No hay envíos con los filtros seleccionados."
-          />
-        </CardContent>
-      </Card>
+      {/* Tabs */}
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <TabsList>
+          <TabsTrigger value="shipments" className="flex items-center gap-1.5">
+            <Truck className="size-3.5" /> Envíos
+            {filteredRows.length > 0 && (
+              <span className="bg-muted text-muted-foreground ml-1 rounded px-1.5 py-0.5 text-xs tabular-nums">
+                {filteredRows.length}
+              </span>
+            )}
+          </TabsTrigger>
+          <TabsTrigger value="otif" className="flex items-center gap-1.5">
+            <TrendingUp className="size-3.5" /> Dashboard OTIF
+            {alerts.length > 0 && (
+              <span className="ml-1 rounded bg-red-100 px-1.5 py-0.5 text-xs font-medium text-red-700 tabular-nums">
+                {alerts.length}
+              </span>
+            )}
+          </TabsTrigger>
+        </TabsList>
 
+        {/* Shipments table */}
+        <TabsContent value="shipments" className="mt-4">
+          <Card>
+            <CardContent className="pt-4">
+              <DataTable
+                columns={columns}
+                data={filteredRows}
+                searchColumn="customerName"
+                searchPlaceholder="Buscar cliente..."
+                filters={filtersNode}
+                emptyMessage="No hay envíos con los filtros seleccionados."
+              />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* OTIF dashboard */}
+        <TabsContent value="otif" className="mt-4">
+          <OtifDashboard shipments={state.shipments} alerts={alerts} today={today} />
+        </TabsContent>
+      </Tabs>
+
+      {/* Rate shopping dialog */}
+      <RateShoppingDialog
+        open={!!rateShopCtx}
+        quotes={rateQuotes}
+        weightKg={rateShopCtx?.weightKg ?? 0}
+        destinationCity={rateShopCtx?.destinationCity ?? ''}
+        packageCount={rateShopCtx?.packageCount ?? 0}
+        customerName={rateShopCtx?.customerName ?? ''}
+        error={rateShopError}
+        onConfirm={handleConfirmRate}
+        onClose={() => setRateShopCtx(null)}
+      />
+
+      {/* Ship confirmation */}
       <Dialog
         open={!!shipDialog.data}
         onOpenChange={(o) => {
@@ -239,6 +410,41 @@ export default function ShippingPage() {
             </Button>
             <Button onClick={handleShip}>
               <CheckCircle2 className="mr-1 size-4" /> Confirmar despacho
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Deliver confirmation */}
+      <Dialog
+        open={!!deliverDialog.data}
+        onOpenChange={(o) => {
+          if (!o) deliverDialog.close()
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Registrar entrega</DialogTitle>
+          </DialogHeader>
+          {deliverDialog.data && (
+            <div className="space-y-4 py-2">
+              <p className="text-muted-foreground text-sm">
+                Confirma la entrega del envío de <strong>{deliverDialog.data.customerName}</strong>.
+                El estado cambiará a <strong>Entregado</strong>.
+              </p>
+              {deliverDialog.error && (
+                <p className="text-destructive flex items-center gap-1 text-sm">
+                  <TriangleAlert className="size-3" /> {deliverDialog.error}
+                </p>
+              )}
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={deliverDialog.close}>
+              Cancelar
+            </Button>
+            <Button onClick={handleDeliver}>
+              <Clock className="mr-1 size-4" /> Registrar entrega
             </Button>
           </DialogFooter>
         </DialogContent>

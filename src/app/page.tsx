@@ -6,10 +6,8 @@ import {
   ClipboardList,
   Grid3x3,
   PackageCheck,
-  Route,
   ShoppingCart,
   TrendingUp,
-  Truck,
   Undo2,
   Waves,
 } from 'lucide-react'
@@ -28,7 +26,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { formatNumber, formatPercent } from '@/lib/formatters'
+import { formatNumber } from '@/lib/formatters'
 
 export default function DashboardPage() {
   const state = useWmsStore()
@@ -48,36 +46,66 @@ export default function DashboardPage() {
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <KpiCard
-          title="Pedidos pendientes"
+          label="Pedidos pendientes"
           value={kpis.pendingOrders}
           icon={ShoppingCart}
-          description="Pendientes de operación"
+          tone="amber"
+          sublabel="Pendientes de operación"
         />
-        <KpiCard title="Pedidos en picking" value={kpis.ordersInPicking} icon={ClipboardList} />
         <KpiCard
-          title="Picking parcial"
+          label="Pedidos en picking"
+          value={kpis.ordersInPicking}
+          icon={ClipboardList}
+          tone="blue"
+        />
+        <KpiCard
+          label="Picking parcial"
           value={kpis.partialPickingTasks}
           icon={ClipboardList}
-          description="Tareas parciales"
+          tone="amber"
+          sublabel="Tareas parciales"
         />
-        <KpiCard title="Oleadas activas" value={kpis.activeWaves} icon={Waves} />
-        <KpiCard title="Recepciones pendientes" value={kpis.pendingReceipts} icon={PackageCheck} />
-        <KpiCard title="Devoluciones en tránsito" value={kpis.returnsInTransit} icon={Undo2} />
+        <KpiCard label="Oleadas activas" value={kpis.activeWaves} icon={Waves} tone="blue" />
         <KpiCard
-          title="Inventario en espera"
-          value={formatNumber(kpis.inventoryOnHold)}
+          label="Recepciones pendientes"
+          value={kpis.pendingReceipts}
+          icon={PackageCheck}
+          tone="neutral"
+        />
+        <KpiCard
+          label="Devoluciones en tránsito"
+          value={kpis.returnsInTransit}
+          icon={Undo2}
+          tone="neutral"
+        />
+        <KpiCard
+          label="Inventario en espera"
+          value={kpis.inventoryOnHold}
           icon={Boxes}
-          description="Unidades en hold"
+          tone="neutral"
+          sublabel="Unidades en hold"
         />
-        <KpiCard title="Rutas activas" value={kpis.activeRoutes} icon={Route} />
-        <KpiCard title="OTIF estimado" value={formatPercent(kpis.otif)} icon={TrendingUp} />
         <KpiCard
-          title="SKUs mal ubicados"
+          label="OTIF estimado"
+          value={kpis.otif}
+          icon={TrendingUp}
+          tone="green"
+          sublabel="%"
+        />
+        <KpiCard
+          label="SKUs mal ubicados"
           value={kpis.misplacedAClassSkus}
           icon={Grid3x3}
-          description="Clase A fuera de golden zone"
+          tone="red"
+          sublabel="Clase A fuera de golden zone"
         />
-        <KpiCard title="Alertas críticas" value={kpis.criticalAlerts} icon={AlertTriangle} />
+        <KpiCard
+          label="Alertas críticas"
+          value={kpis.criticalAlerts}
+          icon={AlertTriangle}
+          tone="red"
+          alert
+        />
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
@@ -144,36 +172,6 @@ export default function DashboardPage() {
                 </TableBody>
               </Table>
             )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Truck className="size-4" /> Rutas SAP
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Ruta</TableHead>
-                  <TableHead>Transportadora</TableHead>
-                  <TableHead>Estado</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {state.sapRoutes.map((r) => (
-                  <TableRow key={r.id}>
-                    <TableCell className="font-medium">{r.code}</TableCell>
-                    <TableCell>{r.carrierName}</TableCell>
-                    <TableCell>
-                      <StatusBadge status={r.status} />
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
           </CardContent>
         </Card>
 

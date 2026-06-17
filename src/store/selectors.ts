@@ -21,7 +21,6 @@ export interface DashboardKpis {
   pendingReceipts: number
   returnsInTransit: number
   inventoryOnHold: number
-  activeRoutes: number
   otif: number
   misplacedAClassSkus: number
   criticalAlerts: number
@@ -56,8 +55,8 @@ export function misplacedItems(state: WmsState) {
     const loc = state.locations.find((l) => l.id === item.locationId)
     if (!abcClass || !loc) return false
     const tier = idealLocationTier(abcClass, xyzClass)
-    if (tier === 'golden' && !loc.golden) return true   // high-value item wasting remote slot
-    if (tier === 'remote' && loc.golden) return true    // low-value item occupying prime slot
+    if (tier === 'golden' && !loc.golden) return true // high-value item wasting remote slot
+    if (tier === 'remote' && loc.golden) return true // low-value item occupying prime slot
     return false
   })
 }
@@ -86,9 +85,6 @@ export function selectDashboardKpis(state: WmsState): DashboardKpis {
   ).length
   const returnsInTransit = state.returnOrders.filter((r) => r.status === 'in_transit_to_dc').length
   const inventoryOnHold = state.inventoryItems.reduce((sum, i) => sum + i.holdQuantity, 0)
-  const activeRoutes = state.sapRoutes.filter(
-    (r) => r.status === 'in_transit' || r.status === 'in_progress'
-  ).length
   const otif = otifPercentage(state.shipments)
   const misplaced = misplacedAClassItems(state).length
   const integrationErrors = state.integrations.filter((i) => i.status === 'error').length
@@ -102,7 +98,6 @@ export function selectDashboardKpis(state: WmsState): DashboardKpis {
     pendingReceipts,
     returnsInTransit,
     inventoryOnHold,
-    activeRoutes,
     otif,
     misplacedAClassSkus: misplaced,
     criticalAlerts,
@@ -215,7 +210,7 @@ export interface SimulationRow {
   xyzClass: XyzClass
   fromCode: string
   toCode: string
-  isGoldenMove: boolean   // current → non-golden, candidate → golden
+  isGoldenMove: boolean // current → non-golden, candidate → golden
   score: number
   distanceSavedM: number
   timeSavedSeconds: number
@@ -330,8 +325,7 @@ export function selectReplenishmentNeeds(state: WmsState): ReplenishmentNeed[] {
       if (!reserveLocationId) continue
 
       const highThreshold = minStock * replenishmentHighFactor
-      const priority: 'high' | 'medium' | 'low' =
-        currentStock < highThreshold ? 'high' : 'medium'
+      const priority: 'high' | 'medium' | 'low' = currentStock < highThreshold ? 'high' : 'medium'
 
       needs.push({
         productId: item.productId,
@@ -359,16 +353,16 @@ export interface AffinityRecommendation {
   pair: ProductAffinityPair
   productNameA: string
   productNameB: string
-  locationCodeA: string | null  // current pick location of A
+  locationCodeA: string | null // current pick location of A
   locationCodeB: string | null
   distanceBetweenM: number | null
-  isAlreadyClose: boolean       // both already in the same zone
+  isAlreadyClose: boolean // both already in the same zone
   suggestion: string
 }
 
 export function selectAffinityRecommendations(state: WmsState): AffinityRecommendation[] {
   const matrix = buildAffinityMatrix(state.commerceOrders)
-  const CLOSE_THRESHOLD_M = 15  // locations within 15 m to dispatch are "close enough"
+  const CLOSE_THRESHOLD_M = 15 // locations within 15 m to dispatch are "close enough"
 
   return matrix.map((pair) => {
     const productA = state.products.find((p) => p.id === pair.productA)
@@ -385,12 +379,9 @@ export function selectAffinityRecommendations(state: WmsState): AffinityRecommen
     const locB = itemB ? state.locations.find((l) => l.id === itemB.locationId) : null
 
     const distanceBetweenM =
-      locA && locB
-        ? Math.abs(locA.distanceToDispatchM - locB.distanceToDispatchM)
-        : null
+      locA && locB ? Math.abs(locA.distanceToDispatchM - locB.distanceToDispatchM) : null
 
-    const isAlreadyClose =
-      distanceBetweenM !== null && distanceBetweenM <= CLOSE_THRESHOLD_M
+    const isAlreadyClose = distanceBetweenM !== null && distanceBetweenM <= CLOSE_THRESHOLD_M
 
     const nameA = productA?.name ?? pair.productA
     const nameB = productB?.name ?? pair.productB
@@ -421,9 +412,9 @@ export function selectAffinityRecommendations(state: WmsState): AffinityRecommen
 
 export interface SlottingTrend {
   // delta between the two most recent snapshots; null if fewer than 2 snapshots
-  misplacedDelta: number | null       // negative = improvement
+  misplacedDelta: number | null // negative = improvement
   relocationsAvailableDelta: number | null
-  distanceSavedDelta: number | null   // positive = more opportunity (worse)
+  distanceSavedDelta: number | null // positive = more opportunity (worse)
   pendingReplenishmentDelta: number | null
   // percentage change for headline KPI (misplaced A-class), -100..+100
   misplacedPct: number | null

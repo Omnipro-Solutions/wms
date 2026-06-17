@@ -1,22 +1,39 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { ArrowRight, CheckCircle2, TriangleAlert, Undo2 } from 'lucide-react'
+import {
+  ArrowRight,
+  CheckCircle2,
+  ClipboardCheck,
+  PackageCheck,
+  Settings2,
+  Trash2,
+  TriangleAlert,
+  Undo2,
+  Wrench,
+  MapPin,
+  User,
+  Tag,
+  ChevronRight,
+} from 'lucide-react'
 
 import { useWmsStore } from '@/store/wms-store'
 import { useStoreHelpers } from '@/hooks/use-store-helpers'
 import { useDialogState } from '@/hooks/use-dialog-state'
 import { PageHeader } from '@/components/shared/page-header'
+import { KpiCard } from '@/components/shared/kpi-card'
 import { StatusBadge } from '@/components/shared/status-badge'
 import { DataTable } from '@/components/data-table'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
+import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import {
   Dialog,
   DialogContent,
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
 } from '@/components/ui/dialog'
 import {
   Select,
@@ -25,17 +42,25 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
+import { Separator } from '@/components/ui/separator'
 import { formatNumber } from '@/lib/formatters'
-import type { ReturnOrder } from '@/types/wms'
-import { buildReturnColumns, DISPOSITION_LABELS, type ReturnRow } from './columns'
+import { InspectReturnDialog } from './_components/inspect-return-dialog'
+import { SetDispositionDialog } from './_components/set-disposition-dialog'
+import { ReentryDialog } from './_components/reentry-dialog'
+import { ScrapDialog } from './_components/scrap-dialog'
+import { RepairDialog } from './_components/repair-dialog'
+import { RepairReturnDialog } from './_components/repair-return-dialog'
+import { buildReturnColumns, DISPOSITION_LABELS, DISPOSITION_COLORS, TYPE_LABELS, type ReturnRow } from './columns'
+import type {
+  ReentryLine,
+  RepairTicket,
+  RepairTicketLine,
+  RepairType,
+  ReturnItemInspection,
+  ReturnOrder,
+  ScrapLine,
+  ScrapMethod,
+} from '@/types/wms'
 
 interface AdvanceReturnDialogData {
   returnId: string
@@ -44,6 +69,24 @@ interface AdvanceReturnDialogData {
   currentStatus: string
   nextStatus: string
   disposition: string
+}
+
+interface ReturnActionDialogData {
+  returnId: string
+  rmaCode: string
+  customerName: string
+  items: ReturnOrder['items']
+}
+
+interface DispositionDialogData {
+  returnId: string
+  rmaCode: string
+  customerName: string
+  currentDisposition: ReturnOrder['disposition']
+}
+
+interface RepairReturnDialogData {
+  ticket: RepairTicket
 }
 
 const NEXT_STATUS_MAP: Partial<Record<string, string>> = {
@@ -61,7 +104,7 @@ const NEXT_STATUS_MAP: Partial<Record<string, string>> = {
 
 const TERMINAL_STATUSES = new Set(['closed', 'rejected'])
 
-const STATUS_LABELS: Record<string, string> = {
+export const STATUS_LABELS: Record<string, string> = {
   requested: 'Solicitada',
   received_at_store: 'Recibida en tienda',
   in_transit_to_dc: 'En tránsito al DC',
@@ -75,6 +118,34 @@ const STATUS_LABELS: Record<string, string> = {
   closed: 'Cerrada',
 }
 
+const CONDITION_LABELS: Record<string, string> = {
+  new: 'Nuevo',
+  like_new: 'Como nuevo',
+  good: 'Buen estado',
+  fair: 'Aceptable',
+  defective: 'Defectuoso',
+}
+
+const CONDITION_COLORS: Record<string, string> = {
+  new: 'bg-green-100 text-green-800',
+  like_new: 'bg-emerald-100 text-emerald-800',
+  good: 'bg-blue-100 text-blue-800',
+  fair: 'bg-amber-100 text-amber-800',
+  defective: 'bg-red-100 text-red-800',
+}
+
+const RESULT_LABELS: Record<string, string> = {
+  pass: 'Aprobada',
+  partial_pass: 'Aprobación parcial',
+  fail: 'Rechazada',
+}
+
+const RESULT_STYLES: Record<string, string> = {
+  pass: 'bg-green-100 text-green-800 border-green-200',
+  partial_pass: 'bg-amber-100 text-amber-800 border-amber-200',
+  fail: 'bg-red-100 text-red-800 border-red-200',
+}
+
 const resolveNextStatus = (ret: ReturnOrder): string | null => {
   const raw = NEXT_STATUS_MAP[ret.status]
   if (!raw) return null
@@ -85,15 +156,50 @@ const resolveNextStatus = (ret: ReturnOrder): string | null => {
   return 'sent_to_quality_control'
 }
 
+/* ─── Action banner por estado ────────────────────────────────────────── */
+
+const STATUS_BANNERS: Partial<Record<string, { color: string; message: string }>> = {
+  under_validation: {
+    color: 'border-amber-200 bg-amber-50 text-amber-800',
+    message: 'Pendiente de inspección y asignación de disposición antes de avanzar.',
+  },
+  reentered: {
+    color: 'border-green-200 bg-green-50 text-green-800',
+    message: 'Lista para ejecutar el reingreso al inventario.',
+  },
+  sent_to_repair: {
+    color: 'border-orange-200 bg-orange-50 text-orange-800',
+    message: 'Crear un ticket con el taller y recibir el retorno cuando esté listo.',
+  },
+  sent_to_scrap: {
+    color: 'border-red-200 bg-red-50 text-red-800',
+    message: 'Confirmar la baja definitiva para cerrar esta devolución.',
+  },
+}
+
 export default function ReturnsPage() {
   const state = useWmsStore()
-  const { advanceReturn } = useWmsStore()
+  const {
+    advanceReturn,
+    inspectReturn,
+    setReturnDisposition,
+    executeReentry,
+    executeScrap,
+    createRepairTicket,
+    receiveRepairReturn,
+  } = state
   const { warehouseName, productName } = useStoreHelpers()
 
   const [dispositionFilter, setDispositionFilter] = useState('all')
   const [statusFilter, setStatusFilter] = useState('all')
 
   const advanceDialog = useDialogState<AdvanceReturnDialogData>()
+  const inspectDialog = useDialogState<ReturnActionDialogData>()
+  const dispositionDialog = useDialogState<DispositionDialogData>()
+  const reentryDialog = useDialogState<ReturnActionDialogData>()
+  const scrapDialog = useDialogState<ReturnActionDialogData>()
+  const repairDialog = useDialogState<ReturnActionDialogData>()
+  const repairReturnDialog = useDialogState<RepairReturnDialogData>()
 
   const rows = useMemo<ReturnRow[]>(
     () =>
@@ -132,13 +238,25 @@ export default function ReturnsPage() {
     [state.returnOrders]
   )
 
-  const inTransitCount = state.returnOrders.filter((r) => r.status === 'in_transit_to_dc').length
-  const validationCount = state.returnOrders.filter(
-    (r) => r.status === 'under_validation' || r.status === 'sent_to_quality_control'
-  ).length
-  const closedCount = state.returnOrders.filter((r) => r.status === 'closed').length
+  const { inTransitCount, validationCount, reenteredCount, scrapCount, repairCount, closedCount } = useMemo(() => {
+    let inTransit = 0, validation = 0, reentered = 0, scrap = 0, repair = 0, closed = 0
+    for (const r of state.returnOrders) {
+      if (r.status === 'in_transit_to_dc') inTransit++
+      else if (r.status === 'under_validation' || r.status === 'sent_to_quality_control') validation++
+      else if (r.status === 'reentered') reentered++
+      else if (r.status === 'sent_to_scrap') scrap++
+      else if (r.status === 'sent_to_repair') repair++
+      else if (r.status === 'closed') closed++
+    }
+    return { inTransitCount: inTransit, validationCount: validation, reenteredCount: reentered, scrapCount: scrap, repairCount: repair, closedCount: closed }
+  }, [state.returnOrders])
+  const openRepairTickets = useMemo(
+    () => state.repairTickets.filter((t) => t.status !== 'completed' && t.status !== 'failed').length,
+    [state.repairTickets]
+  )
+  const inspectedCount = state.returnInspections.length
 
-  const openAdvanceDialog = (row: ReturnRow) => {
+  const handleOpenAdvance = (row: ReturnRow) => {
     const ret = state.returnOrders.find((r) => r.id === row.id)
     if (!ret) return
     const next = resolveNextStatus(ret)
@@ -153,6 +271,125 @@ export default function ReturnsPage() {
     })
   }
 
+  const handleOpenInspect = (ret: ReturnOrder) => {
+    inspectDialog.open({
+      returnId: ret.id,
+      rmaCode: ret.rmaCode,
+      customerName: ret.customerName,
+      items: ret.items,
+    })
+  }
+
+  const handleOpenDisposition = (ret: ReturnOrder) => {
+    dispositionDialog.open({
+      returnId: ret.id,
+      rmaCode: ret.rmaCode,
+      customerName: ret.customerName,
+      currentDisposition: ret.disposition,
+    })
+  }
+
+  const handleOpenReentry = (ret: ReturnOrder) => {
+    reentryDialog.open({
+      returnId: ret.id,
+      rmaCode: ret.rmaCode,
+      customerName: ret.customerName,
+      items: ret.items,
+    })
+  }
+
+  const handleOpenRepair = (ret: ReturnOrder) => {
+    repairDialog.open({
+      returnId: ret.id,
+      rmaCode: ret.rmaCode,
+      customerName: ret.customerName,
+      items: ret.items,
+    })
+  }
+
+  const handleCreateRepair = (
+    vendorName: string,
+    repairType: RepairType,
+    lines: RepairTicketLine[],
+    expectedReturnDate: string,
+    operatorName: string
+  ) => {
+    if (!repairDialog.data) return
+    try {
+      createRepairTicket(
+        repairDialog.data.returnId,
+        vendorName,
+        repairType,
+        lines,
+        expectedReturnDate,
+        operatorName
+      )
+      repairDialog.close()
+    } catch (e: unknown) {
+      repairDialog.setError(e instanceof Error ? e.message : 'Error al crear ticket de reparación')
+    }
+  }
+
+  const handleOpenRepairReturn = (ticket: RepairTicket) => {
+    repairReturnDialog.open({ ticket })
+  }
+
+  const handleReceiveRepair = (
+    outcome: RepairTicket['outcome'],
+    finalCostUsd: number,
+    outcomeNotes: string,
+    targetLocationId?: string
+  ) => {
+    if (!repairReturnDialog.data) return
+    try {
+      receiveRepairReturn(
+        repairReturnDialog.data.ticket.id,
+        outcome,
+        finalCostUsd,
+        outcomeNotes,
+        targetLocationId
+      )
+      repairReturnDialog.close()
+    } catch (e: unknown) {
+      repairReturnDialog.setError(e instanceof Error ? e.message : 'Error al recibir reparación')
+    }
+  }
+
+  const handleOpenScrap = (ret: ReturnOrder) => {
+    scrapDialog.open({
+      returnId: ret.id,
+      rmaCode: ret.rmaCode,
+      customerName: ret.customerName,
+      items: ret.items,
+    })
+  }
+
+  const handleScrap = (
+    lines: ScrapLine[],
+    disposalMethod: ScrapMethod,
+    operatorName: string,
+    referenceDoc: string,
+    notes: string
+  ) => {
+    if (!scrapDialog.data) return
+    try {
+      executeScrap(scrapDialog.data.returnId, lines, disposalMethod, operatorName, referenceDoc, notes)
+      scrapDialog.close()
+    } catch (e: unknown) {
+      scrapDialog.setError(e instanceof Error ? e.message : 'Error al ejecutar baja')
+    }
+  }
+
+  const handleReentry = (lines: ReentryLine[], operatorName: string) => {
+    if (!reentryDialog.data) return
+    try {
+      executeReentry(reentryDialog.data.returnId, lines, operatorName)
+      reentryDialog.close()
+    } catch (e: unknown) {
+      reentryDialog.setError(e instanceof Error ? e.message : 'Error al ejecutar reingreso')
+    }
+  }
+
   const handleAdvance = () => {
     if (!advanceDialog.data) return
     try {
@@ -163,8 +400,34 @@ export default function ReturnsPage() {
     }
   }
 
+  const handleInspect = (
+    inspectorName: string,
+    items: ReturnItemInspection[],
+    notes: string
+  ) => {
+    if (!inspectDialog.data) return
+    try {
+      inspectReturn(inspectDialog.data.returnId, inspectorName, items, notes)
+      inspectDialog.close()
+    } catch (e: unknown) {
+      inspectDialog.setError(e instanceof Error ? e.message : 'Error al registrar inspección')
+    }
+  }
+
+  const handleSetDisposition = (disposition: ReturnOrder['disposition']) => {
+    if (!dispositionDialog.data) return
+    try {
+      setReturnDisposition(dispositionDialog.data.returnId, disposition)
+      dispositionDialog.close()
+    } catch (e: unknown) {
+      dispositionDialog.setError(
+        e instanceof Error ? e.message : 'Error al actualizar disposición'
+      )
+    }
+  }
+
   const columns = useMemo(
-    () => buildReturnColumns(openAdvanceDialog),
+    () => buildReturnColumns(handleOpenAdvance),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     []
   )
@@ -207,37 +470,32 @@ export default function ReturnsPage() {
         description="Flujo de 11 estados: desde la solicitud del cliente hasta el cierre (reingreso, desecho o reparación)."
       />
 
-      <div className="grid gap-4 sm:grid-cols-3">
-        <Card>
-          <CardContent className="pt-6">
-            <p className="text-muted-foreground text-sm">En tránsito al DC</p>
-            <p className="text-2xl font-bold text-blue-600 tabular-nums">
-              {formatNumber(inTransitCount)}
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <p className="text-muted-foreground text-sm">En validación / QC</p>
-            <p className="text-2xl font-bold text-amber-600 tabular-nums">
-              {formatNumber(validationCount)}
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <p className="text-muted-foreground text-sm">Cerradas</p>
-            <p className="text-2xl font-bold text-green-700 tabular-nums">
-              {formatNumber(closedCount)}
-            </p>
-          </CardContent>
-        </Card>
+      {/* KPIs */}
+      <div className="grid gap-4 sm:grid-cols-4 lg:grid-cols-7">
+        <KpiCard label="En tránsito al DC" value={inTransitCount} icon={Undo2} tone="blue" />
+        <KpiCard label="En validación" value={validationCount} icon={ClipboardCheck} tone="amber" />
+        <KpiCard label="Inspeccionadas" value={inspectedCount} icon={ClipboardCheck} tone="green" />
+        <KpiCard label="Para reingresar" value={reenteredCount} icon={PackageCheck} tone="green" />
+        <KpiCard
+          label="En reparación"
+          value={repairCount}
+          icon={Wrench}
+          tone="amber"
+          sublabel={
+            openRepairTickets > 0
+              ? `${openRepairTickets} ticket${openRepairTickets > 1 ? 's' : ''} abierto${openRepairTickets > 1 ? 's' : ''}`
+              : undefined
+          }
+        />
+        <KpiCard label="Para desecho" value={scrapCount} icon={Trash2} tone="red" />
+        <KpiCard label="Cerradas" value={closedCount} icon={CheckCircle2} tone="neutral" />
       </div>
 
+      {/* Tabla principal */}
       <Card>
         <CardContent className="pt-4">
-          <div className="mb-1 flex items-center gap-2 text-base font-semibold">
-            <Undo2 className="size-4" /> Devoluciones (RMA)
+          <div className="mb-3 flex items-center gap-2 text-base font-semibold">
+            <Undo2 className="size-4" /> Todas las devoluciones (RMA)
           </div>
           <DataTable
             columns={columns}
@@ -250,92 +508,269 @@ export default function ReturnsPage() {
         </CardContent>
       </Card>
 
-      {activeReturns.map((ret) => (
-        <Card key={ret.id}>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-sm">
-              <Undo2 className="size-4 text-amber-600" />
-              {ret.rmaCode} — {ret.customerName}
-              <StatusBadge status={ret.status} />
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Producto</TableHead>
-                  <TableHead className="text-right">Unidades</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {ret.items.map((line) => (
-                  <TableRow key={line.id}>
-                    <TableCell>{productName(line.productId)}</TableCell>
-                    <TableCell className="text-right tabular-nums">
-                      {formatNumber(line.requestedQuantity)}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-      ))}
+      {/* Cards de RMAs activas — requieren acción */}
+      {activeReturns.length > 0 && (
+        <div className="space-y-3">
+          <div className="flex items-center gap-2">
+            <h2 className="text-base font-semibold">Requieren acción</h2>
+            <Badge variant="outline" className="tabular-nums">
+              {activeReturns.length}
+            </Badge>
+          </div>
 
+          {activeReturns.map((ret) => {
+            const inspection = ret.inspectionId
+              ? state.returnInspections.find((i) => i.id === ret.inspectionId)
+              : undefined
+            const reason = state.reasons.find((r) => r.id === ret.reasonId)
+            const banner = STATUS_BANNERS[ret.status]
+            const openTicket = state.repairTickets.find(
+              (t) =>
+                t.returnOrderId === ret.id &&
+                t.status !== 'completed' &&
+                t.status !== 'failed'
+            )
+
+            return (
+              <Card key={ret.id} className="overflow-hidden">
+                {/* Header de la card */}
+                <CardHeader className="pb-0 pt-4 px-5">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    {/* Identidad del RMA */}
+                    <div className="space-y-2">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-semibold text-base">{ret.rmaCode}</span>
+                        <StatusBadge status={ret.status} />
+                        <Badge
+                          variant="outline"
+                          className={`text-xs ${DISPOSITION_COLORS[ret.disposition]}`}
+                        >
+                          {DISPOSITION_LABELS[ret.disposition]}
+                        </Badge>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                        <span className="flex items-center gap-1">
+                          <User className="size-3" /> {ret.customerName}
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <MapPin className="size-3" />
+                          {warehouseName(ret.originId)}
+                          <ChevronRight className="size-3" />
+                          {warehouseName(ret.destinationId)}
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <Tag className="size-3" /> {TYPE_LABELS[ret.type]}
+                        </span>
+                        {reason && (
+                          <span className="flex items-center gap-1">
+                            <TriangleAlert className="size-3" /> {reason.label}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Acciones principales */}
+                    <div className="flex shrink-0 flex-wrap items-center gap-2">
+                      {ret.status === 'under_validation' && (
+                        <>
+                          <Button
+                            size="sm"
+                            variant={inspection ? 'outline' : 'default'}
+                            onClick={() => handleOpenInspect(ret)}
+                          >
+                            <ClipboardCheck className="mr-1.5 size-3.5" />
+                            {inspection ? 'Re-inspeccionar' : 'Inspeccionar'}
+                          </Button>
+                          <Button size="sm" variant="outline" onClick={() => handleOpenDisposition(ret)}>
+                            <Settings2 className="mr-1.5 size-3.5" /> Disposición
+                          </Button>
+                        </>
+                      )}
+
+                      {ret.status === 'reentered' && (
+                        <Button size="sm" onClick={() => handleOpenReentry(ret)}>
+                          <PackageCheck className="mr-1.5 size-3.5" /> Reingresar al stock
+                        </Button>
+                      )}
+
+                      {ret.status === 'sent_to_repair' && (
+                        <>
+                          {!openTicket && (
+                            <Button size="sm" variant="outline" onClick={() => handleOpenRepair(ret)}>
+                              <Wrench className="mr-1.5 size-3.5" /> Crear ticket
+                            </Button>
+                          )}
+                          {openTicket && (
+                            <Button size="sm" onClick={() => handleOpenRepairReturn(openTicket)}>
+                              <PackageCheck className="mr-1.5 size-3.5" /> Recibir del taller
+                            </Button>
+                          )}
+                        </>
+                      )}
+
+                      {ret.status === 'sent_to_scrap' && (
+                        <Button size="sm" variant="destructive" onClick={() => handleOpenScrap(ret)}>
+                          <Trash2 className="mr-1.5 size-3.5" /> Confirmar baja
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                </CardHeader>
+
+                <CardContent className="px-5 pb-4 pt-3 space-y-3">
+                  {/* Banner contextual de estado */}
+                  {banner && (
+                    <div className={`rounded-lg border px-3 py-2 text-xs ${banner.color}`}>
+                      {banner.message}
+                    </div>
+                  )}
+
+                  {/* Tabla de ítems */}
+                  <div className="overflow-hidden rounded-lg border">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="bg-muted/40 border-b">
+                          <th className="text-left px-3 py-2 font-medium text-muted-foreground text-xs">Producto</th>
+                          <th className="text-right px-3 py-2 font-medium text-muted-foreground text-xs w-20">Uds.</th>
+                          {inspection && (
+                            <th className="text-left px-3 py-2 font-medium text-muted-foreground text-xs w-32">Condición</th>
+                          )}
+                          {inspection && (
+                            <th className="text-left px-3 py-2 font-medium text-muted-foreground text-xs w-40">Disposición rec.</th>
+                          )}
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y">
+                        {ret.items.map((line) => {
+                          const itemInspection = inspection?.items.find(
+                            (i) => i.returnLineId === line.id
+                          )
+                          return (
+                            <tr key={line.id} className="hover:bg-muted/20 transition-colors">
+                              <td className="px-3 py-2">{productName(line.productId)}</td>
+                              <td className="px-3 py-2 text-right tabular-nums">
+                                {formatNumber(line.requestedQuantity)}
+                              </td>
+                              {inspection && (
+                                <td className="px-3 py-2">
+                                  {itemInspection ? (
+                                    <Badge
+                                      className={CONDITION_COLORS[itemInspection.conditionRating]}
+                                      variant="outline"
+                                    >
+                                      {CONDITION_LABELS[itemInspection.conditionRating]}
+                                    </Badge>
+                                  ) : (
+                                    <span className="text-muted-foreground text-xs">—</span>
+                                  )}
+                                </td>
+                              )}
+                              {inspection && (
+                                <td className="px-3 py-2 text-muted-foreground text-xs">
+                                  {itemInspection
+                                    ? DISPOSITION_LABELS[
+                                        itemInspection.recommendedDisposition as ReturnOrder['disposition']
+                                      ] ?? itemInspection.recommendedDisposition
+                                    : '—'}
+                                </td>
+                              )}
+                            </tr>
+                          )
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Resultado de inspección */}
+                  {inspection && (
+                    <div className={`flex items-center justify-between rounded-lg border px-4 py-2.5 text-sm ${RESULT_STYLES[inspection.overallResult]}`}>
+                      <p className="text-xs font-medium">
+                        Inspección por{' '}
+                        <span className="font-semibold">{inspection.inspectorName}</span>
+                        {inspection.notes && (
+                          <span className="font-normal"> — {inspection.notes}</span>
+                        )}
+                      </p>
+                      <Badge
+                        variant="outline"
+                        className={`shrink-0 font-semibold ${RESULT_STYLES[inspection.overallResult]}`}
+                      >
+                        {RESULT_LABELS[inspection.overallResult]}
+                      </Badge>
+                    </div>
+                  )}
+
+                  {/* Info del ticket de reparación activo */}
+                  {openTicket && ret.status === 'sent_to_repair' && (
+                    <div className="flex items-center justify-between rounded-lg border border-orange-200 bg-orange-50 px-4 py-2.5 text-sm text-orange-800">
+                      <div className="space-y-0.5">
+                        <p className="font-medium text-xs">
+                          Ticket con <span className="font-semibold">{openTicket.vendorName}</span>
+                        </p>
+                        <p className="text-xs opacity-80">
+                          Retorno esperado: {openTicket.expectedReturnDate}
+                        </p>
+                      </div>
+                      <Badge variant="outline" className="border-orange-300 bg-orange-100 text-orange-800 text-xs">
+                        {openTicket.repairType === 'cosmetic' ? 'Cosmética' : openTicket.repairType === 'functional' ? 'Funcional' : 'Garantía'}
+                      </Badge>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )
+          })}
+        </div>
+      )}
+
+      {/* Advance dialog */}
       <Dialog
         open={!!advanceDialog.data}
-        onOpenChange={(o) => {
-          if (!o) advanceDialog.close()
-        }}
+        onOpenChange={(o) => { if (!o) advanceDialog.close() }}
       >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Avanzar devolución</DialogTitle>
+            <DialogDescription className="sr-only">
+              Confirmar avance de estado del RMA
+            </DialogDescription>
           </DialogHeader>
           {advanceDialog.data && (
             <div className="space-y-4 py-2">
-              <div className="text-muted-foreground space-y-1 text-sm">
-                <p>
-                  RMA:{' '}
-                  <span className="text-foreground font-medium">{advanceDialog.data.rmaCode}</span>
-                </p>
-                <p>
-                  Cliente:{' '}
-                  <span className="text-foreground font-medium">
-                    {advanceDialog.data.customerName}
-                  </span>
-                </p>
-                <p>
-                  Disposición:{' '}
-                  <span className="text-foreground font-medium capitalize">
-                    {DISPOSITION_LABELS[
-                      advanceDialog.data.disposition as ReturnOrder['disposition']
-                    ] ?? advanceDialog.data.disposition}
-                  </span>
-                </p>
-              </div>
-              <div className="flex items-center gap-3 rounded-md border p-4">
-                <div className="text-center">
-                  <p className="text-muted-foreground text-xs">Estado actual</p>
-                  <p className="mt-1 text-sm font-medium">
-                    {STATUS_LABELS[advanceDialog.data.currentStatus] ??
-                      advanceDialog.data.currentStatus}
-                  </p>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between rounded-md bg-muted/40 px-3 py-2 text-sm">
+                  <span className="text-muted-foreground">RMA</span>
+                  <span className="font-medium">{advanceDialog.data.rmaCode}</span>
                 </div>
-                <ArrowRight className="text-muted-foreground size-5" />
-                <div className="text-center">
-                  <p className="text-muted-foreground text-xs">Nuevo estado</p>
-                  <p className="text-primary mt-1 text-sm font-medium">
-                    {STATUS_LABELS[advanceDialog.data.nextStatus] ?? advanceDialog.data.nextStatus}
-                  </p>
+                <div className="flex items-center justify-between rounded-md bg-muted/40 px-3 py-2 text-sm">
+                  <span className="text-muted-foreground">Cliente</span>
+                  <span className="font-medium">{advanceDialog.data.customerName}</span>
+                </div>
+                <div className="flex items-center justify-between rounded-md bg-muted/40 px-3 py-2 text-sm">
+                  <span className="text-muted-foreground">Disposición</span>
+                  <Badge
+                    variant="outline"
+                    className={`text-xs ${DISPOSITION_COLORS[advanceDialog.data.disposition as ReturnOrder['disposition']]}`}
+                  >
+                    {DISPOSITION_LABELS[advanceDialog.data.disposition as ReturnOrder['disposition']] ?? advanceDialog.data.disposition}
+                  </Badge>
                 </div>
               </div>
-              {advanceDialog.data.nextStatus === 'reentered' && (
-                <p className="text-muted-foreground text-sm">
-                  Al reingresar se registrará un movimiento de tipo <strong>return</strong> en el
-                  log de auditoría.
-                </p>
-              )}
+
+              <Separator />
+
+              <div className="flex items-center justify-center gap-4 rounded-xl border p-4">
+                <div className="text-center space-y-1">
+                  <p className="text-xs text-muted-foreground">Estado actual</p>
+                  <StatusBadge status={advanceDialog.data.currentStatus} />
+                </div>
+                <ArrowRight className="text-muted-foreground size-5 shrink-0" />
+                <div className="text-center space-y-1">
+                  <p className="text-xs text-muted-foreground">Nuevo estado</p>
+                  <StatusBadge status={advanceDialog.data.nextStatus} />
+                </div>
+              </div>
+
               {advanceDialog.error && (
                 <p className="text-destructive flex items-center gap-1 text-sm">
                   <TriangleAlert className="size-3" /> {advanceDialog.error}
@@ -348,11 +783,95 @@ export default function ReturnsPage() {
               Cancelar
             </Button>
             <Button onClick={handleAdvance}>
-              <CheckCircle2 className="mr-1 size-4" /> Confirmar
+              <CheckCircle2 className="mr-1 size-4" /> Confirmar avance
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Inspect dialog */}
+      {inspectDialog.data && (
+        <InspectReturnDialog
+          open={!!inspectDialog.data}
+          rmaCode={inspectDialog.data.rmaCode}
+          customerName={inspectDialog.data.customerName}
+          items={inspectDialog.data.items}
+          productName={productName}
+          onConfirm={handleInspect}
+          onClose={inspectDialog.close}
+          error={inspectDialog.error}
+        />
+      )}
+
+      {/* Set disposition dialog */}
+      {dispositionDialog.data && (
+        <SetDispositionDialog
+          open={!!dispositionDialog.data}
+          rmaCode={dispositionDialog.data.rmaCode}
+          customerName={dispositionDialog.data.customerName}
+          currentDisposition={dispositionDialog.data.currentDisposition}
+          onConfirm={handleSetDisposition}
+          onClose={dispositionDialog.close}
+          error={dispositionDialog.error}
+        />
+      )}
+
+      {/* Repair dialog */}
+      {repairDialog.data && (
+        <RepairDialog
+          open={!!repairDialog.data}
+          rmaCode={repairDialog.data.rmaCode}
+          customerName={repairDialog.data.customerName}
+          items={repairDialog.data.items}
+          productName={productName}
+          onConfirm={handleCreateRepair}
+          onClose={repairDialog.close}
+          error={repairDialog.error}
+        />
+      )}
+
+      {/* Repair return dialog */}
+      {repairReturnDialog.data && (
+        <RepairReturnDialog
+          open={!!repairReturnDialog.data}
+          ticket={repairReturnDialog.data.ticket}
+          availableLocations={state.locations.filter((l) => !l.isBlocked)}
+          productName={productName}
+          onConfirm={handleReceiveRepair}
+          onClose={repairReturnDialog.close}
+          error={repairReturnDialog.error}
+        />
+      )}
+
+      {/* Scrap dialog */}
+      {scrapDialog.data && (
+        <ScrapDialog
+          open={!!scrapDialog.data}
+          rmaCode={scrapDialog.data.rmaCode}
+          customerName={scrapDialog.data.customerName}
+          items={scrapDialog.data.items}
+          scrapReasons={state.reasons.filter((r) => r.context === 'scrap' && r.active)}
+          productName={productName}
+          onConfirm={handleScrap}
+          onClose={scrapDialog.close}
+          error={scrapDialog.error}
+        />
+      )}
+
+      {/* Reentry dialog */}
+      {reentryDialog.data && (
+        <ReentryDialog
+          open={!!reentryDialog.data}
+          rmaCode={reentryDialog.data.rmaCode}
+          customerName={reentryDialog.data.customerName}
+          items={reentryDialog.data.items}
+          availableLocations={state.locations.filter((l) => !l.isBlocked)}
+          productName={productName}
+          onConfirm={handleReentry}
+          onClose={reentryDialog.close}
+          error={reentryDialog.error}
+        />
+      )}
     </>
   )
 }

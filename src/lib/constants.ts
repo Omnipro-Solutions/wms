@@ -12,7 +12,6 @@ import {
   Package,
   PackageCheck,
   Route,
-  Settings,
   ShoppingCart,
   Tags,
   Truck,
@@ -49,8 +48,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { label: 'Traslados', href: '/transfers' },
       { label: 'Devoluciones', href: '/returns' },
       { label: 'Commerce', href: '/commerce' },
-      { label: 'Tareas de picking', href: '/picking/tasks' },
-      { label: 'Oleadas', href: '/picking/waves' },
+      { label: 'Picking', href: '/picking', icon: ClipboardList },
       { label: 'Packing', href: '/packing' },
       { label: 'Etiquetas', href: '/labels' },
     ],
@@ -60,17 +58,15 @@ export const NAV_GROUPS: NavGroup[] = [
     icon: Truck,
     items: [
       { label: 'Shipping', href: '/shipping' },
-      { label: 'Rutas SAP', href: '/sap-routes' },
       { label: 'Manifiestos', href: '/load-manifests' },
     ],
   },
   {
     title: 'Sistema',
-    icon: Settings,
+    icon: BarChart3,
     items: [
       { label: 'Integraciones', href: '/integrations', icon: Cable },
       { label: 'Reportes', href: '/reports', icon: BarChart3 },
-      { label: 'Administración', href: '/admin', icon: Settings },
     ],
   },
 ]

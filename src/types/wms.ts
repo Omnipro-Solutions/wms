@@ -197,6 +197,97 @@ export type ReturnStatus =
   | 'rejected'
   | 'closed'
 
+export type ItemCondition = 'new' | 'like_new' | 'good' | 'fair' | 'defective'
+
+export interface ReturnItemInspection {
+  returnLineId: string // references OrderLine.id in ReturnOrder.items
+  productId: string
+  inspectedQuantity: number
+  conditionRating: ItemCondition
+  notes: string
+  recommendedDisposition: 'restock' | 'repair' | 'scrap' | 'reject'
+}
+
+export interface ReturnInspection {
+  id: string
+  returnOrderId: string
+  inspectorName: string
+  inspectedAt: string
+  items: ReturnItemInspection[]
+  overallResult: 'pass' | 'partial_pass' | 'fail'
+  notes: string
+}
+
+export type RepairType = 'cosmetic' | 'functional' | 'warranty'
+
+export type RepairTicketStatus =
+  | 'open'
+  | 'in_progress'
+  | 'ready_to_receive'
+  | 'received'
+  | 'completed'
+  | 'failed'
+
+export interface RepairTicketLine {
+  returnLineId: string
+  productId: string
+  quantity: number
+  estimatedCostUsd: number
+  repairNotes?: string
+}
+
+export interface RepairTicket {
+  id: string
+  returnOrderId: string
+  vendorName: string
+  repairType: RepairType
+  lines: RepairTicketLine[]
+  status: RepairTicketStatus
+  operatorName: string
+  createdAt: string
+  expectedReturnDate: string
+  receivedAt?: string
+  finalCostUsd?: number
+  outcome?: 'restock' | 'scrap'
+  outcomeNotes?: string
+}
+
+export type ScrapMethod = 'incinerate' | 'landfill' | 'donate' | 'liquidate' | 'recycle'
+
+export interface ScrapLine {
+  returnLineId: string
+  productId: string
+  quantity: number
+  reasonId: string // references Reason (context: 'scrap')
+}
+
+export interface ScrapRecord {
+  id: string
+  returnOrderId: string
+  operatorName: string
+  createdAt: string
+  disposalMethod: ScrapMethod
+  lines: ScrapLine[]
+  referenceDoc?: string // guía, acta de baja, etc.
+  notes?: string
+}
+
+export interface ReentryLine {
+  returnLineId: string
+  productId: string
+  quantity: number
+  targetLocationId: string
+}
+
+export interface ReentryBatch {
+  id: string
+  returnOrderId: string
+  operatorName: string
+  createdAt: string
+  lines: ReentryLine[]
+  status: 'pending' | 'executed'
+}
+
 export interface ReturnOrder {
   id: string
   rmaCode: string
@@ -213,6 +304,8 @@ export interface ReturnOrder {
   reasonId: string // references a Reason (context: "return")
   disposition: 'restock' | 'scrap' | 'quality_control' | 'repair' | 'rejected'
   items: OrderLine[]
+  inspectionId?: string // references ReturnInspection.id once inspected
+  createdAt: string
 }
 
 export interface CommerceOrder {
@@ -277,17 +370,76 @@ export interface PickingWave {
   orderIds: string[]
 }
 
+export type PackingOrderStatus =
+  | 'pending'
+  | 'in_progress'
+  | 'verified'
+  | 'mismatch'
+  | 'labelled'
+  | 'dispatched'
+
+export interface PackingBoxType {
+  id: string
+  code: string
+  name: string
+  maxWeightKg: number
+  volumeM3: number
+  dimensionsCm: string // e.g. "30x20x15"
+}
+
+export type PackingRuleTrigger =
+  | 'fragile'
+  | 'liquid'
+  | 'heavy'
+  | 'oversized'
+  | 'hazmat'
+  | 'cold_chain'
+  | 'high_value'
+
+export interface PackingRule {
+  id: string
+  code: string
+  name: string
+  trigger: PackingRuleTrigger
+  description: string
+  requiresDoublePacking: boolean
+  requiresBubbleWrap: boolean
+  requiresDryIce: boolean
+  requiresVoidFill: boolean
+  labelNote: string
+  active: boolean
+}
+
+export interface PackingOrderItem {
+  productId: string
+  productName: string
+  requestedQuantity: number
+  scannedQuantity: number
+  lot?: string
+  serial?: string
+}
+
 export interface PackingOrder {
   id: string
   orderId: string
+  orderNumber?: string
   customerName: string
+  channel?: CommerceOrder['channel']
+  status: PackingOrderStatus
   expectedItems: number
   scannedItems: number
   verificationStatus: 'pending' | 'verified' | 'mismatch'
   suggestedBox: string
+  boxTypeId?: string
   weightKg: number
   volumeM3: number
+  appliedRuleIds: string[]
   labelGenerated: boolean
+  labelCode?: string
+  packerName?: string
+  items?: PackingOrderItem[]
+  createdAt: string
+  verifiedAt?: string
 }
 
 export interface WmsLabel {
@@ -300,33 +452,48 @@ export interface WmsLabel {
   createdBy: string
 }
 
+export type CarrierServiceLevel = 'same_day' | 'next_day' | 'two_day' | 'ground' | 'economy'
+
+export interface CarrierService {
+  serviceLevel: CarrierServiceLevel
+  label: string // Spanish UI label e.g. "Mismo día"
+  baseCostUsd: number // base rate before weight surcharge
+  costPerKgUsd: number // variable rate per kg
+  maxWeightKg: number
+  transitDays: number // calendar days from dispatch to delivery
+  availableZones: string[] // zone codes where this service is offered
+}
+
+export interface CarrierRateQuote {
+  carrierId: string
+  carrierName: string
+  serviceLevel: CarrierServiceLevel
+  serviceLabel: string
+  quotedCostUsd: number
+  estimatedTransitDays: number
+  estimatedDeliveryDate: string // ISO date string
+}
+
 export interface Shipment {
   id: string
   orderId: string
+  carrierId?: string // references Carrier.id
   customerName: string
   carrierName: string
   sapRouteId?: string
+  serviceLevel?: CarrierServiceLevel
+  quotedCostUsd?: number
+  destinationCity?: string
+  destinationZone?: string // carrier zone code used for rate calculation
+  promisedDate?: string // ISO date — committed delivery date to customer
+  estimatedDeliveryDate?: string // ISO date — carrier estimated delivery
   status: OperationalStatus
   shippedAt?: string
+  deliveredAt?: string
   packageCount: number
   weightKg: number
   trackingNumber?: string
   otifStatus: 'on_time' | 'at_risk' | 'late'
-}
-
-export interface SapRoute {
-  id: string
-  code: string
-  name: string
-  originId: string
-  destinationIds: string[]
-  carrierName: string
-  routeDate: string
-  status: OperationalStatus
-  truckPlate: string
-  driverName: string
-  capacityKg: number
-  currentLoadKg: number
 }
 
 export interface ManifestStop {
@@ -381,6 +548,94 @@ export interface ReplenishmentTask {
   operatorName?: string
 }
 
+// --- Batch picking ---
+
+// A BatchTask groups multiple PickingTasks for the same product/location so a
+// single picker can collect items for N orders in one trip.
+export interface BatchTask {
+  id: string
+  code: string
+  productId: string
+  locationId: string
+  // IDs of the individual PickingTasks consolidated in this batch.
+  pickingTaskIds: string[]
+  // Total units to collect in one trip (sum of requestedQuantity across tasks).
+  totalRequestedQuantity: number
+  totalPickedQuantity: number
+  status: 'pending' | 'in_progress' | 'completed' | 'partial'
+  operatorName?: string
+  priority: 'low' | 'medium' | 'high'
+  createdAt: string
+}
+
+// --- Cluster picking ---
+
+// A ClusterSlot is one container (tote/bin) within a cluster, mapped to one order.
+export interface ClusterSlot {
+  orderId: string
+  orderNumber: string
+  containerLabel: string // e.g. "Bin A", "Bin B"
+  items: { productId: string; requested: number; deposited: number }[]
+  completed: boolean
+}
+
+// A ClusterTask assigns a picker to carry N containers and fill them while
+// walking a single route through the warehouse.
+export interface ClusterTask {
+  id: string
+  code: string
+  operatorName?: string
+  slots: ClusterSlot[]
+  // Ordered list of location IDs the picker visits.
+  route: string[]
+  status: 'pending' | 'in_progress' | 'completed' | 'partial'
+  priority: 'low' | 'medium' | 'high'
+  createdAt: string
+}
+
+// --- Put-to-store distribution ---
+
+// After bulk picking for a put-to-store wave, quantities are distributed
+// per destination store.
+export interface PutToStoreAllocation {
+  storeId: string
+  storeName: string
+  requestedQuantity: number
+  distributedQuantity: number
+}
+
+export interface PutToStoreTask {
+  id: string
+  code: string
+  // The commerce order that originated the put-to-store requirement.
+  orderId: string
+  productId: string
+  // Total quantity picked before distribution.
+  totalPickedQuantity: number
+  allocations: PutToStoreAllocation[]
+  status: 'pending' | 'in_progress' | 'completed' | 'partial'
+  operatorName?: string
+  createdAt: string
+}
+
+// --- Waveless ---
+
+// Flags an order for immediate (waveless) picking without grouping into a wave.
+// The orderId points to a CommerceOrder; tasks are generated on demand.
+export interface WavelessOrder {
+  id: string
+  orderId: string
+  orderNumber: string
+  customerName: string
+  channel: CommerceOrder['channel']
+  fulfillmentType: CommerceOrder['fulfillmentType']
+  // IDs of the PickingTasks auto-generated for this order.
+  pickingTaskIds: string[]
+  status: 'pending' | 'in_progress' | 'completed' | 'partial'
+  priority: 'low' | 'medium' | 'high'
+  createdAt: string
+}
+
 // --- Slotting domain ---
 
 export type AbcClass = 'A' | 'B' | 'C'
@@ -429,11 +684,23 @@ export interface Reason {
   active: boolean
 }
 
+export type CarrierZone = {
+  code: string // e.g. "Z1", "Z2"
+  label: string // e.g. "Bogotá ciudad"
+  cities: string[] // cities belonging to this zone
+}
+
 export interface Carrier {
   id: string
   code: string
   name: string
+  logoUrl?: string
   active: boolean
+  apiIntegration: boolean // true when carrier has live API rate lookup
+  services: CarrierService[]
+  zones: CarrierZone[]
+  contactEmail?: string
+  contactPhone?: string
 }
 
 export interface WmsSettings {
@@ -478,14 +745,14 @@ export interface InventoryReportRow {
 // Appended each time the user clicks "Capturar estado" on the slotting page.
 export interface SlottingSnapshot {
   id: string
-  capturedAt: string         // ISO timestamp
-  label: string              // user-provided or auto-generated (e.g. "Después de reubicación masiva")
+  capturedAt: string // ISO timestamp
+  label: string // user-provided or auto-generated (e.g. "Después de reubicación masiva")
   misplacedAClassCount: number
   relocationsAvailable: number
   totalDistanceSavedM: number
   totalTimeSavedMin: number
-  aToGoldenCount: number     // A-class items that ARE in golden zone
-  czInGoldenCount: number    // CZ items still occupying golden zone
+  aToGoldenCount: number // A-class items that ARE in golden zone
+  czInGoldenCount: number // CZ items still occupying golden zone
   pendingReplenishment: number
   affinityPairsNeedingAction: number
 }
