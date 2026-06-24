@@ -24,7 +24,6 @@ import { useStoreHelpers } from '@/hooks/use-store-helpers'
 import { useDialogState } from '@/hooks/use-dialog-state'
 import { clusterProgress } from '@/lib/rules/picking'
 import { PageHeader } from '@/components/shared/page-header'
-import { BarcodeScanner } from '@/components/shared/barcode-scanner'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -885,16 +884,16 @@ const PickingPage = () => {
               </div>
               {pickDialog.data.requiresSerial && (
                 <div className="space-y-1">
-                  <Label className="flex items-center gap-1">
+                  <Label htmlFor="pick-serial" className="flex items-center gap-1">
                     <Hash className="size-3" /> Serial del producto
                     <span className="text-destructive ml-0.5">*</span>
-                    {capturedSerial && (
-                      <span className="ml-auto font-mono text-xs text-green-700">{capturedSerial}</span>
-                    )}
                   </Label>
-                  <BarcodeScanner
-                    onScan={(val) => setCapturedSerial(val)}
+                  <Input
+                    id="pick-serial"
                     placeholder="Escanear o ingresar serial…"
+                    value={capturedSerial}
+                    onChange={(e) => setCapturedSerial(e.target.value)}
+                    className="font-mono"
                   />
                 </div>
               )}
