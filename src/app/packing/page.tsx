@@ -56,6 +56,12 @@ import type { PackingOrder, PackingRule } from '@/types/wms'
 
 type TabValue = 'verificacion' | 'reglas' | 'etiquetas'
 
+const PACKING_TABS: SubNavItem[] = [
+  { value: 'verificacion', label: 'Verificación' },
+  { value: 'reglas', label: 'Reglas de empaque' },
+  { value: 'etiquetas', label: 'Etiquetas' },
+]
+
 const TRIGGER_LABELS: Record<string, string> = {
   fragile: 'Frágil',
   liquid: 'Líquido',
@@ -105,12 +111,6 @@ const PackingPage = () => {
   } = useWmsStore()
 
   const activeTab = (searchParams.get('tab') as TabValue) ?? 'verificacion'
-
-  const PACKING_TABS: SubNavItem[] = [
-    { value: 'verificacion', label: 'Verificación' },
-    { value: 'reglas', label: 'Reglas de empaque' },
-    { value: 'etiquetas', label: 'Etiquetas' },
-  ]
 
   // ─── Dialog state ─────────────────────────────────────────────────────────
 

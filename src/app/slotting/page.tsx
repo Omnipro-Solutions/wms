@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useMemo, useCallback } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useRouter, usePathname, useSearchParams } from 'next/navigation'
 import {
   AlertTriangle,
   ArrowRight,
@@ -105,6 +105,7 @@ const SlottingPage = () => {
   } = useWmsStore()
   const { productName, locationCode } = useStoreHelpers()
   const router = useRouter()
+  const pathname = usePathname()
   const searchParams = useSearchParams()
 
   const activeTab = (searchParams.get('tab') as TabValue) ?? 'optimization'
@@ -475,7 +476,7 @@ const SlottingPage = () => {
           sublabel="Fuera de golden zone"
           tone="amber"
           alert={misplaced.length > 0}
-          onClick={misplaced.length > 0 ? () => router.push('?tab=optimization') : undefined}
+          onClick={misplaced.length > 0 ? () => router.push(pathname) : undefined}
         />
         <KpiCard
           icon={MoveRight}
@@ -483,7 +484,7 @@ const SlottingPage = () => {
           label="Reubicaciones sugeridas"
           sublabel="Con impacto positivo en picking"
           tone={impact.relocationsCount > 0 ? 'blue' : 'green'}
-          onClick={() => router.push('?tab=optimization')}
+          onClick={() => router.push(pathname)}
         />
         <KpiCard
           icon={Clock}
@@ -499,7 +500,7 @@ const SlottingPage = () => {
           sublabel="Pick faces bajo mínimo"
           tone={pendingReplenishment > 0 ? 'red' : 'neutral'}
           alert={pendingReplenishment > 0}
-          onClick={pendingReplenishment > 0 ? () => router.push('?tab=replenishment') : undefined}
+          onClick={pendingReplenishment > 0 ? () => router.push(pathname + '?tab=replenishment') : undefined}
         />
       </div>
 

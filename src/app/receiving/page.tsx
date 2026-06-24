@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useCallback, useState } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useRouter, usePathname, useSearchParams } from 'next/navigation'
 import {
   AlertTriangle,
   FileText,
@@ -57,19 +57,11 @@ const ReceivingPage = () => {
   const state = useWmsStore()
   const { productName: getProductName } = useStoreHelpers()
   const router = useRouter()
+  const pathname = usePathname()
   const searchParams = useSearchParams()
   const [poStatusFilter, setPoStatusFilter] = useState<Set<string>>(new Set())
 
   const activeTab = (searchParams.get('tab') as TabValue) ?? 'ordenes'
-
-  const handleTabChange = useCallback(
-    (value: string) => {
-      const params = new URLSearchParams(searchParams.toString())
-      params.set('tab', value)
-      router.replace(`?${params.toString()}`, { scroll: false })
-    },
-    [router, searchParams]
-  )
 
   const abc = useMemo(() => abcByProduct(state), [state])
 
@@ -280,7 +272,7 @@ const ReceivingPage = () => {
           label="Órdenes de compra"
           sublabel="Confirmadas con recepción pendiente"
           tone="neutral"
-          onClick={() => handleTabChange('ordenes')}
+          onClick={() => router.push(pathname)}
         />
         <KpiCard
           icon={Truck}
@@ -288,7 +280,7 @@ const ReceivingPage = () => {
           label="Llegadas programadas"
           sublabel="Pendientes y parciales"
           tone="blue"
-          onClick={() => handleTabChange('citas')}
+          onClick={() => router.push(pathname + '?tab=citas')}
         />
         <KpiCard
           icon={AlertTriangle}
@@ -297,7 +289,7 @@ const ReceivingPage = () => {
           sublabel={overdueCount > 0 ? 'Requieren atención' : 'Sin atrasos'}
           tone={overdueCount > 0 ? 'red' : 'neutral'}
           alert
-          onClick={overdueCount > 0 ? () => handleTabChange('citas') : undefined}
+          onClick={overdueCount > 0 ? () => router.push(pathname + '?tab=citas') : undefined}
         />
         <KpiCard
           icon={ShieldCheck}
@@ -305,7 +297,7 @@ const ReceivingPage = () => {
           label="En inspección de calidad"
           sublabel="Lotes bloqueados hasta aprobación"
           tone={qcRows.length > 0 ? 'amber' : 'neutral'}
-          onClick={qcRows.length > 0 ? () => handleTabChange('qc') : undefined}
+          onClick={qcRows.length > 0 ? () => router.push(pathname + '?tab=qc') : undefined}
         />
         <KpiCard
           icon={PackageCheck}
@@ -313,7 +305,7 @@ const ReceivingPage = () => {
           label="Recepciones cerradas"
           sublabel="Completadas o cerradas con diferencia"
           tone="green"
-          onClick={() => handleTabChange('putaway')}
+          onClick={() => router.push(pathname + '?tab=putaway')}
         />
       </div>
 
