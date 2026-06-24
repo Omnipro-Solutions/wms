@@ -726,7 +726,7 @@ const PickingPage = () => {
 
   // ─── Nav items ────────────────────────────────────────────────────────────
 
-  const pickingTabs: SubNavItem[] = [
+  const pickingTabs = useMemo<SubNavItem[]>(() => [
     { value: 'tasks', label: 'Tareas', icon: ClipboardList, count: pendingTaskCount || undefined },
     { value: 'waves', label: 'Oleadas', icon: Waves, count: activeWaveCount || undefined },
     { value: 'waveless', label: 'Waveless', icon: Zap, count: activeWlCount || undefined },
@@ -734,7 +734,7 @@ const PickingPage = () => {
     { value: 'zone', label: 'Por zona', icon: LayoutGrid, count: consolidationCount || undefined },
     { value: 'cluster', label: 'Cluster', icon: ShoppingCart, count: activeClusterCount || undefined },
     { value: 'put-to-store', label: 'Put-to-store', icon: Store, count: activePtsCount || undefined },
-  ]
+  ], [pendingTaskCount, activeWaveCount, activeWlCount, activeBatchCount, consolidationCount, activeClusterCount, activePtsCount])
 
   // ─── Render ────────────────────────────────────────────────────────────────
 

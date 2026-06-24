@@ -243,13 +243,13 @@ const ReceivingPage = () => {
   }, [])
 
   // ── SubNav items ──────────────────────────────────────────────────────────
-  const RECEIVING_TABS: SubNavItem[] = [
+  const RECEIVING_TABS = useMemo<SubNavItem[]>(() => [
     { value: 'ordenes', label: 'Órdenes de compra', count: pendingPoCount },
     { value: 'citas', label: 'Citas ASN', count: appointmentRows.length },
     { value: 'recibiendo', label: 'Recibiendo activo', count: receivingRows.length },
     { value: 'qc', label: 'Control de calidad', count: qcRows.length },
     { value: 'putaway', label: 'Putaway staging', count: putawayRows.length },
-  ]
+  ], [pendingPoCount, appointmentRows.length, receivingRows.length, qcRows.length, putawayRows.length])
 
   // ── Column definitions (memoized) ─────────────────────────────────────────
   const poCols = useMemo(() => buildPoColumns(sheetState.open), [sheetState.open])
