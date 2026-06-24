@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { TriangleAlert, ClipboardCheck, Info } from 'lucide-react'
+import { TriangleAlert, ClipboardCheck, Info, Hash, CheckCircle2, AlertTriangle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -23,7 +23,7 @@ import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { cn } from '@/lib/utils'
-import type { ItemCondition, ReturnItemInspection, OrderLine } from '@/types/wms'
+import type { ItemCondition, ReturnItemInspection, OrderLine, Product } from '@/types/wms'
 
 const CONDITION_OPTIONS: { value: ItemCondition; label: string; color: string; dot: string }[] = [
   { value: 'new', label: 'Nuevo', color: 'bg-green-100 text-green-800 border-green-200', dot: 'bg-green-500' },
@@ -44,6 +44,7 @@ interface ItemInspectionState {
   conditionRating: ItemCondition
   recommendedDisposition: ReturnItemInspection['recommendedDisposition']
   notes: string
+  serial: string
 }
 
 interface Props {
@@ -52,6 +53,7 @@ interface Props {
   customerName: string
   items: OrderLine[]
   productName: (id: string) => string
+  getProduct?: (id: string) => Product | undefined
   onConfirm: (inspectorName: string, items: ReturnItemInspection[], notes: string) => void
   onClose: () => void
   error?: string
@@ -63,6 +65,7 @@ export const InspectReturnDialog = ({
   customerName,
   items,
   productName,
+  getProduct,
   onConfirm,
   onClose,
   error,
@@ -77,6 +80,7 @@ export const InspectReturnDialog = ({
           conditionRating: 'good' as ItemCondition,
           recommendedDisposition: 'restock' as ReturnItemInspection['recommendedDisposition'],
           notes: '',
+          serial: '',
         },
       ])
     )
@@ -87,14 +91,18 @@ export const InspectReturnDialog = ({
   }
 
   const handleConfirm = () => {
-    const inspectionItems: ReturnItemInspection[] = items.map((line) => ({
-      returnLineId: line.id,
-      productId: line.productId,
-      inspectedQuantity: line.requestedQuantity,
-      conditionRating: itemStates[line.id].conditionRating,
-      recommendedDisposition: itemStates[line.id].recommendedDisposition,
-      notes: itemStates[line.id].notes,
-    }))
+    const inspectionItems: ReturnItemInspection[] = items.map((line) => {
+      const s = itemStates[line.id]
+      return {
+        returnLineId: line.id,
+        productId: line.productId,
+        inspectedQuantity: line.requestedQuantity,
+        conditionRating: s.conditionRating,
+        recommendedDisposition: s.recommendedDisposition,
+        notes: s.notes,
+        ...(s.serial.trim() ? { serial: s.serial.trim() } : {}),
+      }
+    })
     onConfirm(inspectorName, inspectionItems, generalNotes)
   }
 
@@ -254,6 +262,31 @@ export const InspectReturnDialog = ({
                       onChange={(e) => handleItemChange(line.id, 'notes', e.target.value)}
                     />
                   </div>
+
+                  {/* Serial capture — only shown for serialized products */}
+                  {getProduct && getProduct(line.productId)?.trackBy === 'serial' && (
+                    <div className="space-y-1.5">
+                      <Label className="flex items-center gap-1.5 text-xs font-medium">
+                        <Hash className="size-3 text-muted-foreground" />
+                        Número de serie del ítem devuelto
+                      </Label>
+                      <Input
+                        placeholder="Ej: SN-2024-0001"
+                        value={state.serial}
+                        onChange={(e) => handleItemChange(line.id, 'serial', e.target.value)}
+                        className="font-mono text-sm"
+                      />
+                      {state.serial.trim() && (
+                        <p className={cn(
+                          'flex items-center gap-1 text-xs',
+                          'text-muted-foreground'
+                        )}>
+                          <Info className="size-3" />
+                          El serial se verificará contra el historial de despachos al confirmar.
+                        </p>
+                      )}
+                    </div>
+                  )}
                 </div>
               )
             })}

@@ -118,6 +118,7 @@ const ReceivingPage = () => {
             asn.status !== 'putaway_done' &&
             asn.status !== 'cancelled' &&
             asn.status !== 'short_received',
+          requiresSerial: product?.trackBy === 'serial',
         }
       })
     },
@@ -170,6 +171,8 @@ const ReceivingPage = () => {
           deliveryCount: row.deliveryCount,
           requiresQC: row.requiresQualityControl,
           isCrossDocking: row.crossDocking,
+          requiresSerial: row.requiresSerial,
+          productId: row.productId,
         }),
       close: (row) =>
         closeDialogState.open({

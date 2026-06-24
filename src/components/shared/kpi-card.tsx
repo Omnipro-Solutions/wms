@@ -4,7 +4,7 @@ import type { LucideIcon } from 'lucide-react'
 
 interface KpiCardProps {
   icon: LucideIcon
-  value: number
+  value: number | string
   label: string
   sublabel?: string
   tone: 'blue' | 'red' | 'amber' | 'green' | 'neutral'
@@ -71,7 +71,7 @@ export const KpiCard = ({ icon: Icon, value, label, sublabel, tone, alert, onCli
         isClickable && cn('cursor-pointer', styles.ring)
       )}
     >
-      {alert && value > 0 && (
+      {alert && (typeof value === 'number' ? value > 0 : true) && (
         <span className="absolute top-3 right-3 flex size-2">
           <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400 opacity-75" />
           <span className="relative inline-flex size-2 rounded-full bg-red-500" />

@@ -38,6 +38,7 @@ export interface InventoryRow {
   holdQuantity: number
   available: number
   status: string
+  baseUomAbbr?: string
 }
 
 // ── ABC styles ────────────────────────────────────────────────────────────────
@@ -197,9 +198,10 @@ interface StockCellProps {
   reserved: number
   hold: number
   available: number
+  uomAbbr?: string
 }
 
-const StockCell = ({ onHand, reserved, hold, available }: StockCellProps) => {
+const StockCell = ({ onHand, reserved, hold, available, uomAbbr }: StockCellProps) => {
   if (onHand === 0) return <span className="text-muted-foreground text-xs">—</span>
 
   const reservedPct = Math.round((reserved / onHand) * 100)
@@ -232,6 +234,9 @@ const StockCell = ({ onHand, reserved, hold, available }: StockCellProps) => {
             <span className="text-muted-foreground">·</span>
             <span className="text-zinc-500">{formatNumber(onHand)}</span>
             <span className="text-muted-foreground">total</span>
+            {uomAbbr && (
+              <span className="text-muted-foreground/60 ml-auto font-mono text-[10px]">{uomAbbr}</span>
+            )}
           </div>
         </div>
       </TooltipTrigger>
@@ -330,6 +335,7 @@ export const buildInventoryColumns = (onAction: ActionHandler): ColumnDef<Invent
         reserved={row.original.reservedQuantity}
         hold={row.original.holdQuantity}
         available={row.original.available}
+        uomAbbr={row.original.baseUomAbbr}
       />
     ),
   },

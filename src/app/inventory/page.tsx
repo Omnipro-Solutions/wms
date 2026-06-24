@@ -1,10 +1,21 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { Boxes, CalendarClock, PackageSearch, Search, TriangleAlert, Warehouse } from 'lucide-react'
+import {
+  Boxes,
+  CalendarClock,
+  CheckCircle2,
+  ClipboardCheck,
+  PackageSearch,
+  Search,
+  Snowflake,
+  TriangleAlert,
+  Warehouse,
+  XCircle,
+} from 'lucide-react'
 
 import { useWmsStore } from '@/store/wms-store'
-import { availableStock, abcByProduct } from '@/store/selectors'
+import { availableStock, abcByProduct, selectInventoryAccuracy } from '@/store/selectors'
 import { useStoreHelpers } from '@/hooks/use-store-helpers'
 import { useDialogState } from '@/hooks/use-dialog-state'
 import { PageHeader } from '@/components/shared/page-header'
@@ -34,7 +45,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { Badge } from '@/components/ui/badge'
 import { Field, FieldLabel, FieldDescription } from '@/components/ui/field'
+import { Separator } from '@/components/ui/separator'
+import { cn } from '@/lib/utils'
 import { InventoryDetailSheet } from './_components/inventory-detail-sheet'
 import { buildInventoryColumns, daysUntilExpiry, type InventoryRow } from './columns'
 
@@ -78,10 +92,35 @@ export default function InventoryPage() {
     holdByLot,
     holdByLocation,
     locations,
+    products,
+    unitsOfMeasure,
+    adjustmentRequests,
+    approveAdjustment,
+    rejectAdjustment,
+    settings,
   } = state
   const { productName, productSku, locationCode } = useStoreHelpers()
 
   const abc = abcByProduct(state)
+  const accuracy = selectInventoryAccuracy(state)
+
+  const [rejectDialogOpen, setRejectDialogOpen] = useState(false)
+  const [rejectingId, setRejectingId] = useState('')
+  const [rejectNote, setRejectNote] = useState('')
+
+  const handleOpenReject = (id: string) => {
+    setRejectingId(id)
+    setRejectNote('')
+    setRejectDialogOpen(true)
+  }
+
+  const handleConfirmReject = () => {
+    if (!rejectNote.trim()) return
+    rejectAdjustment(rejectingId, 'Supervisor', rejectNote.trim())
+    setRejectDialogOpen(false)
+  }
+
+  const pendingAdj = adjustmentRequests.filter((r) => r.status === 'pending_approval')
 
   const [productFilter, setProductFilter] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
@@ -123,6 +162,7 @@ export default function InventoryPage() {
             holdQuantity: i.holdQuantity,
             available: availableStock(i),
             status: i.status,
+            baseUomAbbr: unitsOfMeasure.find((u) => u.id === product?.baseUomId)?.abbreviation,
           }
         }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -210,7 +250,7 @@ export default function InventoryPage() {
         }
         if (type === 'hold') holdInventory(itemId, n, 'Operador', holdReasonId || undefined)
         else if (type === 'release') releaseInventory(itemId, n, 'Operador')
-        else adjustInventory(itemId, n, 'Operador')
+        else state.requestAdjustment(itemId, n, 'Operador')
       }
       actionDialog.close()
       setQty('')
@@ -341,8 +381,19 @@ export default function InventoryPage() {
         description="Stock en tiempo real. Fuente única de verdad calculada desde el store central."
       />
 
+      {/* ── Freeze banner ────────────────────────────────────────────────── */}
+      {settings.inventoryFreezeActive && (
+        <div className="flex items-center gap-3 rounded-lg border border-blue-300 bg-blue-50 px-4 py-3">
+          <Snowflake className="size-5 shrink-0 text-blue-600" />
+          <div className="flex-1 text-sm text-blue-800">
+            <p className="font-semibold">Inventario congelado</p>
+            <p className="text-blue-700">Los ajustes, bloqueos y liberaciones están deshabilitados. Ve a Administración para desactivar el modo congelado.</p>
+          </div>
+        </div>
+      )}
+
       {/* ── KPI row ─────────────────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-5">
         <KpiCard
           icon={Warehouse}
           value={totalOnHand}
@@ -379,7 +430,76 @@ export default function InventoryPage() {
               : undefined
           }
         />
+        <KpiCard
+          icon={ClipboardCheck}
+          value={`${accuracy.ira}%`}
+          label="IRA"
+          sublabel={`${accuracy.adjustmentsPending} ajuste${accuracy.adjustmentsPending !== 1 ? 's' : ''} pendiente${accuracy.adjustmentsPending !== 1 ? 's' : ''}`}
+          tone={accuracy.ira >= 95 ? 'green' : accuracy.ira >= 80 ? 'amber' : 'red'}
+          alert={accuracy.adjustmentsPending > 0}
+        />
       </div>
+
+      {/* ── Pending adjustments panel ────────────────────────────────────── */}
+      {adjustmentRequests.length > 0 && (
+        <Card>
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between">
+              <CardTitle className="flex items-center gap-2 text-sm">
+                <ClipboardCheck className="size-4" />
+                Solicitudes de ajuste de inventario
+                {pendingAdj.length > 0 && (
+                  <Badge variant="outline" className="border-amber-200 bg-amber-50 text-amber-700">
+                    {pendingAdj.length} pendiente{pendingAdj.length !== 1 ? 's' : ''}
+                  </Badge>
+                )}
+              </CardTitle>
+            </div>
+            <CardDescription>
+              Ajustes con delta &gt; {settings.adjustmentApprovalThreshold} uds que requieren aprobación de supervisor.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="divide-y">
+              {adjustmentRequests.map((req) => {
+                const product = products.find((p) => p.id === req.productId)
+                return (
+                  <div key={req.id} className="flex flex-wrap items-center gap-4 px-4 py-3 text-sm">
+                    <div className="flex-1 min-w-40">
+                      <p className="font-medium truncate">{product?.name ?? req.productId}</p>
+                      <p className="text-xs text-muted-foreground">{req.operatorName} · {req.requestedAt.slice(0, 10)}</p>
+                    </div>
+                    <div className="flex items-center gap-4 tabular-nums text-xs text-muted-foreground">
+                      <span>{req.currentQty} → {req.countedQty}</span>
+                      <span className={cn('font-semibold text-sm', req.delta > 0 ? 'text-emerald-600' : 'text-red-600')}>
+                        {req.delta > 0 ? '+' : ''}{req.delta}
+                      </span>
+                    </div>
+                    <Badge
+                      variant="outline"
+                      className={cn('text-xs shrink-0', req.status === 'pending_approval' ? 'border-amber-200 bg-amber-50 text-amber-700' : req.status === 'approved' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-zinc-200 bg-zinc-50 text-zinc-500')}
+                    >
+                      {req.status === 'pending_approval' ? 'Pendiente' : req.status === 'approved' ? 'Aprobado' : 'Rechazado'}
+                    </Badge>
+                    {req.status === 'pending_approval' && (
+                      <div className="flex gap-1 shrink-0">
+                        <Button variant="ghost" size="sm" className="h-7 px-2 text-emerald-600 hover:text-emerald-700" onClick={() => approveAdjustment(req.id, 'Supervisor')}>
+                          <CheckCircle2 className="size-4" />
+                        </Button>
+                        <Button variant="ghost" size="sm" className="h-7 px-2 text-red-500 hover:text-red-600" onClick={() => handleOpenReject(req.id)}>
+                          <XCircle className="size-4" />
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      <Separator />
 
       {/* ── Inventory table ──────────────────────────────────────────────── */}
       <Card>
@@ -594,6 +714,30 @@ export default function InventoryPage() {
           <DialogFooter>
             <Button variant="outline" onClick={bulkDialog.close}>Cancelar</Button>
             <Button onClick={handleBulkSubmit}>Confirmar hold masivo</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Reject adjustment dialog ────────────────────────────────────── */}
+      <Dialog open={rejectDialogOpen} onOpenChange={setRejectDialogOpen}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Rechazar ajuste</DialogTitle>
+            <DialogDescription>Indica el motivo del rechazo.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-1 py-2">
+            <label htmlFor="inv-reject-note" className="text-sm font-medium">Motivo *</label>
+            <input
+              id="inv-reject-note"
+              className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-zinc-400"
+              placeholder="Ej: Diferencia fuera de rango aceptable…"
+              value={rejectNote}
+              onChange={(e) => setRejectNote(e.target.value)}
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRejectDialogOpen(false)}>Cancelar</Button>
+            <Button variant="destructive" disabled={!rejectNote.trim()} onClick={handleConfirmReject}>Rechazar</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

@@ -18,7 +18,23 @@ export type OperationalStatus =
   | 'synced'
   | 'short_received'
 
-export type UnitOfMeasure = 'unit' | 'box' | 'pallet'
+// Sprint 4: Unit of Measure entity. Every Product has a baseUomId (the
+// smallest countable unit) plus optional conversion rules to larger units.
+export interface UnitOfMeasure {
+  id: string
+  code: string       // e.g. 'UND', 'CAJ', 'PAL'
+  name: string       // e.g. 'Unidad', 'Caja', 'Pallet'
+  abbreviation: string // e.g. 'und', 'caj', 'pal'
+  active: boolean
+}
+
+// One conversion rule: qty units of this UoM = factor × base UoM.
+// E.g.: 1 Caja = 12 Unidades → { fromUomId: 'uom-caj', toUomId: 'uom-und', factor: 12 }
+export interface UomConversion {
+  fromUomId: string
+  toUomId: string
+  factor: number // fromUomId × factor = toUomId quantity
+}
 
 export interface Warehouse {
   id: string
@@ -62,6 +78,11 @@ export interface Product {
   unitVolumeM3: number
   trackBy: 'none' | 'lot' | 'serial'
   imageUrl?: string
+  // Sprint 4: base unit for stock quantities (e.g. 'uom-und').
+  // All onHandQuantity values are stored in this base unit.
+  baseUomId?: string
+  // Conversion rules for receiving/picking in larger units (e.g. boxes, pallets).
+  uomConversions?: UomConversion[]
 }
 
 export interface InventoryItem {
@@ -99,6 +120,8 @@ export interface StockMovement {
     | 'return'
     | 'scrap'
   quantity: number
+  // UoM used at the moment of the transaction (base unit after conversion).
+  uomId?: string
   lot?: string
   serial?: string
   referenceType:
@@ -206,6 +229,8 @@ export interface ReturnItemInspection {
   conditionRating: ItemCondition
   notes: string
   recommendedDisposition: 'restock' | 'repair' | 'scrap' | 'reject'
+  serial?: string // captured during inspection for serialized products
+  serialMatchesDispatch?: boolean // true if the serial was found in the original dispatch pick movement
 }
 
 export interface ReturnInspection {
@@ -710,6 +735,53 @@ export interface WmsSettings {
   xyzCvY: number // e.g. 1.0
   replenishmentHighFactor: number // e.g. 0.5 of min stock
   simulatedLatencyMs: number
+  // Sprint 2: inventory control
+  inventoryFreezeActive: boolean
+  adjustmentApprovalThreshold: number // units delta above which supervisor approval is required
+}
+
+// --- Inventory adjustment requests (Sprint 2 — #56) ---
+
+export type AdjustmentRequestStatus = 'pending_approval' | 'approved' | 'rejected'
+
+export interface InventoryAdjustmentRequest {
+  id: string
+  inventoryItemId: string
+  productId: string
+  warehouseId: string
+  locationId: string
+  currentQty: number
+  countedQty: number
+  delta: number // countedQty - currentQty (can be negative)
+  reasonId?: string
+  operatorName: string
+  requestedAt: string // ISO timestamp
+  status: AdjustmentRequestStatus
+  reviewedBy?: string
+  reviewedAt?: string
+  rejectionNote?: string
+}
+
+// --- Cyclic count plan (Sprint 2 — #54) ---
+
+export type CyclicCountStatus = 'pending' | 'in_progress' | 'completed' | 'cancelled'
+export type CyclicCountMethod = 'by_zone' | 'by_abc' | 'by_rotation'
+
+export interface CyclicCountPlan {
+  id: string
+  code: string
+  name: string
+  method: CyclicCountMethod
+  filterValue: string // zone code, ABC class, or rotation threshold
+  warehouseId: string
+  locationIds: string[]
+  assignedOperatorName?: string
+  scheduledDate: string // ISO date
+  status: CyclicCountStatus
+  createdAt: string
+  completedAt?: string
+  totalLocations: number
+  countedLocations: number
 }
 
 // --- Reports domain (derived aggregations, NOT stored entities) ---

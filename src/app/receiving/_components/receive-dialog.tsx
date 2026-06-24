@@ -3,7 +3,9 @@
 import {
   AlertTriangle,
   CheckCircle2,
+  Hash,
   PackageCheck,
+  Ruler,
   ShieldCheck,
   Zap,
   Minus,
@@ -15,6 +17,7 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
 import {
   Select,
   SelectContent,
@@ -109,6 +112,12 @@ export const ReceiveDialog = ({ state }: Props) => {
     setDiscrepancyReason,
     closeIntent,
     setCloseIntent,
+    serialsRaw,
+    setSerialsRaw,
+    parsedSerials,
+    serialsMismatch,
+    serialsDuplicated,
+    requiresSerial,
     goodQtyNum,
     damagedQtyNum,
     totalCounted,
@@ -117,6 +126,11 @@ export const ReceiveDialog = ({ state }: Props) => {
     isDiscrepancy,
     missingInForm,
     canSubmit,
+    selectedUomId,
+    setSelectedUomId,
+    selectableUoms,
+    hasUomChoice,
+    baseUomId,
   } = state
 
   const data = dialog.data
@@ -291,6 +305,37 @@ export const ReceiveDialog = ({ state }: Props) => {
                 Conteo físico
               </p>
 
+              {/* UoM selector — shown only when product has multiple options */}
+              {hasUomChoice && (
+                <div className="space-y-1.5 rounded-lg border bg-white p-4">
+                  <Label className="flex items-center gap-2 text-sm font-semibold">
+                    <Ruler className="text-muted-foreground size-4" />
+                    Unidad de medida de recepción
+                  </Label>
+                  <Select value={selectedUomId} onValueChange={setSelectedUomId}>
+                    <SelectTrigger className="h-11">
+                      <SelectValue placeholder="Selecciona unidad" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {selectableUoms.map((uom) => (
+                        <SelectItem key={uom.id} value={uom.id}>
+                          <span className="font-mono font-semibold">{uom.code}</span>
+                          <span className="text-muted-foreground ml-1.5">{uom.name}</span>
+                          {uom.id === baseUomId && (
+                            <span className="text-muted-foreground ml-1 text-xs">(base)</span>
+                          )}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {selectedUomId && selectedUomId !== baseUomId && (
+                    <p className="text-muted-foreground text-xs">
+                      Las cantidades se convertirán automáticamente a la UM base al ingresar al stock.
+                    </p>
+                  )}
+                </div>
+              )}
+
               <div className="space-y-3">
                 {/* Buen estado */}
                 <div className="space-y-3 rounded-lg border bg-white p-4">
@@ -334,6 +379,58 @@ export const ReceiveDialog = ({ state }: Props) => {
                   </p>
                 </div>
               </div>
+
+              {/* Serial capture */}
+              {requiresSerial && goodQtyNum > 0 && (
+                <div className="space-y-2 rounded-lg border bg-white p-4">
+                  <Label
+                    htmlFor="rcv-serials"
+                    className="flex items-center gap-2 text-sm font-semibold"
+                  >
+                    <Hash className="text-muted-foreground size-4" />
+                    Números de serie{' '}
+                    <Badge
+                      variant="outline"
+                      className={cn(
+                        'ml-auto text-xs',
+                        serialsDuplicated
+                          ? 'border-destructive text-destructive'
+                          : serialsMismatch
+                            ? 'border-amber-400 text-amber-600'
+                            : parsedSerials.length === goodQtyNum && goodQtyNum > 0
+                              ? 'border-green-400 text-green-700'
+                              : 'text-muted-foreground'
+                      )}
+                    >
+                      {parsedSerials.length}/{goodQtyNum}
+                    </Badge>
+                  </Label>
+                  <Textarea
+                    id="rcv-serials"
+                    placeholder={`Ingresa ${goodQtyNum} número(s) de serie, uno por línea o separados por coma`}
+                    value={serialsRaw}
+                    onChange={(e) => setSerialsRaw(e.target.value)}
+                    rows={Math.min(6, goodQtyNum + 1)}
+                    className={cn(
+                      'font-mono text-sm',
+                      serialsDuplicated || serialsMismatch ? 'border-destructive' : ''
+                    )}
+                  />
+                  {serialsDuplicated && (
+                    <p className="text-destructive text-xs">Hay números de serie duplicados.</p>
+                  )}
+                  {!serialsDuplicated && serialsMismatch && (
+                    <p className="text-amber-600 text-xs">
+                      Se esperan {goodQtyNum} series — ingresadas {parsedSerials.length}.
+                    </p>
+                  )}
+                  {!serialsDuplicated && parsedSerials.length === goodQtyNum && goodQtyNum > 0 && (
+                    <p className="text-green-700 text-xs flex items-center gap-1">
+                      <CheckCircle2 className="size-3" /> {goodQtyNum} series capturadas correctamente.
+                    </p>
+                  )}
+                </div>
+              )}
 
               {/* Motivo de diferencia */}
               {isDiscrepancy && (
@@ -431,7 +528,9 @@ export const ReceiveDialog = ({ state }: Props) => {
               <span>
                 Total contado:{' '}
                 <span className="text-foreground font-semibold tabular-nums">{totalCounted}</span>{' '}
-                uds
+                <span className="font-mono text-xs">
+                  {selectableUoms.find((u) => u.id === selectedUomId)?.abbreviation ?? 'und'}
+                </span>
                 {goodQtyNum > 0 && <span className="text-foreground"> · {goodQtyNum} OK</span>}
                 {damagedQtyNum > 0 && (
                   <span className="text-destructive"> · {damagedQtyNum} dañadas</span>

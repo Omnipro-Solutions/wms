@@ -13,9 +13,11 @@ export function useStoreHelpers() {
 
   const productSku = (id: string): string => products.find((p) => p.id === id)?.sku ?? id
 
+  const getProduct = (id: string) => products.find((p) => p.id === id)
+
   const locationCode = (id: string): string => locations.find((l) => l.id === id)?.code ?? id
 
   const warehouseName = (id: string): string => warehouses.find((w) => w.id === id)?.name ?? id
 
-  return { productName, productSku, locationCode, warehouseName }
+  return { productName, productSku, getProduct, locationCode, warehouseName }
 }

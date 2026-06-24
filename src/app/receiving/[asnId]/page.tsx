@@ -78,6 +78,8 @@ export default function AsnDetailPage({ params }: PageProps) {
       deliveryCount: asn.deliveryCount,
       requiresQC: asn.requiresQualityControl,
       isCrossDocking: asn.crossDocking ?? false,
+      requiresSerial: product.trackBy === 'serial',
+      productId: product.id,
     })
 
   const handleOpenQc = () =>

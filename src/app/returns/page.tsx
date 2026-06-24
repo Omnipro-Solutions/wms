@@ -5,6 +5,7 @@ import {
   ArrowRight,
   CheckCircle2,
   ClipboardCheck,
+  Hash,
   PackageCheck,
   Settings2,
   Trash2,
@@ -188,7 +189,7 @@ export default function ReturnsPage() {
     createRepairTicket,
     receiveRepairReturn,
   } = state
-  const { warehouseName, productName } = useStoreHelpers()
+  const { warehouseName, productName, getProduct } = useStoreHelpers()
 
   const [dispositionFilter, setDispositionFilter] = useState('all')
   const [statusFilter, setStatusFilter] = useState('all')
@@ -683,20 +684,47 @@ export default function ReturnsPage() {
 
                   {/* Resultado de inspección */}
                   {inspection && (
-                    <div className={`flex items-center justify-between rounded-lg border px-4 py-2.5 text-sm ${RESULT_STYLES[inspection.overallResult]}`}>
-                      <p className="text-xs font-medium">
-                        Inspección por{' '}
-                        <span className="font-semibold">{inspection.inspectorName}</span>
-                        {inspection.notes && (
-                          <span className="font-normal"> — {inspection.notes}</span>
-                        )}
-                      </p>
-                      <Badge
-                        variant="outline"
-                        className={`shrink-0 font-semibold ${RESULT_STYLES[inspection.overallResult]}`}
-                      >
-                        {RESULT_LABELS[inspection.overallResult]}
-                      </Badge>
+                    <div className="space-y-2">
+                      <div className={`flex items-center justify-between rounded-lg border px-4 py-2.5 text-sm ${RESULT_STYLES[inspection.overallResult]}`}>
+                        <p className="text-xs font-medium">
+                          Inspección por{' '}
+                          <span className="font-semibold">{inspection.inspectorName}</span>
+                          {inspection.notes && (
+                            <span className="font-normal"> — {inspection.notes}</span>
+                          )}
+                        </p>
+                        <Badge
+                          variant="outline"
+                          className={`shrink-0 font-semibold ${RESULT_STYLES[inspection.overallResult]}`}
+                        >
+                          {RESULT_LABELS[inspection.overallResult]}
+                        </Badge>
+                      </div>
+                      {/* Serial validation results */}
+                      {inspection.items.some((i) => i.serial) && (
+                        <div className="space-y-1">
+                          {inspection.items.filter((i) => i.serial).map((item) => (
+                            <div
+                              key={item.returnLineId}
+                              className={`flex items-center gap-2 rounded-md border px-3 py-1.5 text-xs ${
+                                item.serialMatchesDispatch === false
+                                  ? 'border-red-200 bg-red-50 text-red-700'
+                                  : item.serialMatchesDispatch === true
+                                    ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                                    : 'border-border bg-muted/30 text-muted-foreground'
+                              }`}
+                            >
+                              <Hash className="size-3 shrink-0" />
+                              <span className="font-mono font-semibold">{item.serial}</span>
+                              <span className="text-[10px]">
+                                {item.serialMatchesDispatch === true && '✓ Serial verificado contra despacho'}
+                                {item.serialMatchesDispatch === false && '⚠ Serial NO encontrado en historial de despachos'}
+                                {item.serialMatchesDispatch === undefined && '— Sin verificación de despacho'}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   )}
 
@@ -797,6 +825,7 @@ export default function ReturnsPage() {
           customerName={inspectDialog.data.customerName}
           items={inspectDialog.data.items}
           productName={productName}
+          getProduct={getProduct}
           onConfirm={handleInspect}
           onClose={inspectDialog.close}
           error={inspectDialog.error}

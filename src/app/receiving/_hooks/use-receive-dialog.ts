@@ -15,16 +15,21 @@ export interface ReceiveDialogData {
   deliveryCount: number
   requiresQC: boolean
   isCrossDocking: boolean
+  requiresSerial: boolean
+  productId: string
 }
 
 export const useReceiveDialog = () => {
-  const { receiveAsn, closeAsnWithDiscrepancy } = useWmsStore()
+  const { receiveAsn, closeAsnWithDiscrepancy, products, unitsOfMeasure } = useWmsStore()
 
   const dialog = useDialogState<ReceiveDialogData>()
   const [goodQty, setGoodQty] = useState('')
   const [damagedQty, setDamagedQty] = useState('')
   const [discrepancyReason, setDiscrepancyReason] = useState('')
   const [closeIntent, setCloseIntent] = useState<'leave_open' | 'close_now'>('leave_open')
+  // Serial input: one entry per line, or comma-separated
+  const [serialsRaw, setSerialsRaw] = useState('')
+  const [selectedUomId, setSelectedUomId] = useState<string | undefined>(undefined)
 
   const goodQtyNum = parseInt(goodQty, 10) || 0
   const damagedQtyNum = parseInt(damagedQty, 10) || 0
@@ -33,7 +38,35 @@ export const useReceiveDialog = () => {
   const isOverCount = totalCounted > pendingQty
   const isDiscrepancy = totalCounted > 0 && totalCounted < pendingQty
   const missingInForm = pendingQty - totalCounted
-  const canSubmit = totalCounted > 0 && !isOverCount && (!isDiscrepancy || !!discrepancyReason)
+  const requiresSerial = dialog.data?.requiresSerial ?? false
+
+  // UoM: derive available UoMs for the product
+  const product = products.find((p) => p.id === dialog.data?.productId)
+  const baseUomId = product?.baseUomId
+  const activeUoms = unitsOfMeasure.filter((u) => u.active)
+  // Selectable UoMs = base + any that appear in uomConversions
+  const selectableUomIds = new Set([
+    baseUomId,
+    ...(product?.uomConversions?.map((c) => c.fromUomId) ?? []),
+  ].filter(Boolean) as string[])
+  const selectableUoms = activeUoms.filter((u) => selectableUomIds.has(u.id))
+  const hasUomChoice = selectableUoms.length > 1
+  const effectiveUomId = selectedUomId ?? baseUomId
+
+  const parsedSerials = serialsRaw
+    .split(/[\n,]/)
+    .map((s) => s.trim())
+    .filter(Boolean)
+
+  const serialsCount = requiresSerial ? parsedSerials.length : goodQtyNum
+  const serialsMismatch = requiresSerial && goodQtyNum > 0 && serialsCount !== goodQtyNum
+  const serialsDuplicated = requiresSerial && new Set(parsedSerials).size !== parsedSerials.length
+
+  const canSubmit =
+    totalCounted > 0 &&
+    !isOverCount &&
+    (!isDiscrepancy || !!discrepancyReason) &&
+    (!requiresSerial || (parsedSerials.length === goodQtyNum && !serialsDuplicated))
 
   const open = (data: ReceiveDialogData) => {
     dialog.open(data)
@@ -41,6 +74,9 @@ export const useReceiveDialog = () => {
     setDamagedQty('0')
     setDiscrepancyReason('')
     setCloseIntent('leave_open')
+    setSerialsRaw('')
+    const p = products.find((pr) => pr.id === data.productId)
+    setSelectedUomId(p?.baseUomId)
   }
 
   const handleSubmit = () => {
@@ -72,8 +108,23 @@ export const useReceiveDialog = () => {
       dialog.setError('Faltan unidades. Selecciona el motivo de la diferencia.')
       return
     }
+    if (requiresSerial && good > 0 && parsedSerials.length !== good) {
+      dialog.setError(`Ingresa exactamente ${good} número(s) de serie para las unidades en buen estado.`)
+      return
+    }
+    if (requiresSerial && serialsDuplicated) {
+      dialog.setError('Hay números de serie duplicados. Revisa la lista.')
+      return
+    }
     try {
-      receiveAsn(dialog.data.asnId, good, 'Operador', damaged)
+      receiveAsn(
+        dialog.data.asnId,
+        good,
+        'Operador',
+        damaged,
+        requiresSerial && parsedSerials.length > 0 ? parsedSerials : undefined,
+        effectiveUomId
+      )
       if (closeIntent === 'close_now' && total < pending && discrepancyReason) {
         closeAsnWithDiscrepancy(dialog.data.asnId, discrepancyReason, 'Operador')
       }
@@ -82,6 +133,8 @@ export const useReceiveDialog = () => {
       setDamagedQty('')
       setDiscrepancyReason('')
       setCloseIntent('leave_open')
+      setSerialsRaw('')
+      setSelectedUomId(undefined)
     } catch (e: unknown) {
       dialog.setError(e instanceof Error ? e.message : 'Error inesperado. Intenta de nuevo.')
     }
@@ -108,6 +161,16 @@ export const useReceiveDialog = () => {
     },
     closeIntent,
     setCloseIntent,
+    serialsRaw,
+    setSerialsRaw: (v: string) => {
+      setSerialsRaw(v)
+      dialog.clearError?.()
+    },
+    parsedSerials,
+    serialsCount,
+    serialsMismatch,
+    serialsDuplicated,
+    requiresSerial,
     goodQtyNum,
     damagedQtyNum,
     totalCounted,
@@ -116,5 +179,11 @@ export const useReceiveDialog = () => {
     isDiscrepancy,
     missingInForm,
     canSubmit,
+    // UoM
+    selectedUomId: effectiveUomId,
+    setSelectedUomId,
+    selectableUoms,
+    hasUomChoice,
+    baseUomId,
   }
 }

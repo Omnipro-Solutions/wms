@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { persist, createJSONStorage } from 'zustand/middleware'
 import * as seed from '@/data/seed'
 import {
   applyAdjustment,
@@ -33,7 +34,9 @@ import type {
   CarrierRateQuote,
   ClusterTask,
   CommerceOrder,
+  CyclicCountPlan,
   IntegrationConnection,
+  InventoryAdjustmentRequest,
   InventoryItem,
   LoadManifest,
   Operator,
@@ -61,11 +64,13 @@ import type {
   StockMovement,
   StorageLocation,
   TransferOrder,
+  UnitOfMeasure,
   Warehouse,
   WmsLabel,
   WmsSettings,
   WavelessOrder,
 } from '@/types/wms'
+import { toBaseQty } from '@/lib/rules/uom'
 
 let movementCounter = seed.stockMovements.length
 
@@ -109,6 +114,9 @@ export interface WmsState {
   reasons: Reason[]
   carriers: Carrier[]
   settings: WmsSettings
+  adjustmentRequests: InventoryAdjustmentRequest[]
+  cyclicCountPlans: CyclicCountPlan[]
+  unitsOfMeasure: UnitOfMeasure[]
 
   // Purchase Orders
   confirmPurchaseOrder: (poId: string) => PurchaseOrder
@@ -129,13 +137,13 @@ export interface WmsState {
   holdByLocation: (locationId: string, operatorName: string, reasonId?: string) => void
   // Receiving
   confirmArrival: (asnId: string) => Asn
-  receiveAsn: (asnId: string, receivedQty: number, operatorName: string, damagedQty?: number) => Asn
+  receiveAsn: (asnId: string, receivedQty: number, operatorName: string, damagedQty?: number, serials?: string[], uomId?: string) => Asn
   closeAsnWithDiscrepancy: (asnId: string, closeReason: string, operatorName: string) => Asn
   putawayItem: (asnId: string, locationId: string, operatorName: string) => void
   approveQc: (asnId: string, operatorName: string) => void
   rejectQc: (asnId: string, operatorName: string) => void
   // Inventory
-  adjustInventory: (itemId: string, countedQty: number, operatorName: string) => void
+  adjustInventory: (itemId: string, countedQty: number, operatorName: string, uomId?: string) => void
   relocateInventory: (itemId: string, toLocationId: string, operatorName: string) => void
   // Picking
   startPicking: (taskId: string, operatorName: string) => PickingTask
@@ -143,7 +151,8 @@ export interface WmsState {
     taskId: string,
     pickedQty: number,
     reasonId?: string,
-    capturedSerial?: string
+    capturedSerial?: string,
+    uomId?: string
   ) => PickingTask
   approvePart: (taskId: string) => PickingTask
   rejectPart: (taskId: string) => PickingTask
@@ -263,6 +272,15 @@ export interface WmsState {
   toggleCarrier: (id: string) => Carrier
   // Admin — Settings
   updateSettings: (data: Partial<WmsSettings>) => WmsSettings
+  // Inventory — Adjustment requests (#56)
+  requestAdjustment: (itemId: string, countedQty: number, operatorName: string, reasonId?: string) => InventoryAdjustmentRequest
+  approveAdjustment: (requestId: string, reviewerName: string) => InventoryAdjustmentRequest
+  rejectAdjustment: (requestId: string, reviewerName: string, note: string) => InventoryAdjustmentRequest
+  // Inventory — Cyclic count (#54)
+  createCyclicCount: (data: Omit<CyclicCountPlan, 'id' | 'code' | 'createdAt' | 'status' | 'countedLocations'>) => CyclicCountPlan
+  startCyclicCount: (planId: string) => CyclicCountPlan
+  completeCyclicCount: (planId: string) => CyclicCountPlan
+  cancelCyclicCount: (planId: string) => CyclicCountPlan
   // Admin — Warehouses
   createWarehouse: (data: Omit<Warehouse, 'id'>) => Warehouse
   updateWarehouse: (id: string, data: Partial<Omit<Warehouse, 'id'>>) => Warehouse
@@ -274,6 +292,10 @@ export interface WmsState {
   // Admin — Products
   createProduct: (data: Omit<Product, 'id'>) => Product
   updateProduct: (id: string, data: Partial<Omit<Product, 'id'>>) => Product
+  // Admin — Units of Measure (#3)
+  createUom: (data: Omit<UnitOfMeasure, 'id'>) => UnitOfMeasure
+  updateUom: (id: string, data: Partial<Omit<UnitOfMeasure, 'id'>>) => UnitOfMeasure
+  toggleUom: (id: string) => UnitOfMeasure
 }
 
 const recordMovement = (partial: Omit<StockMovement, 'id' | 'createdAt'>): StockMovement => ({
@@ -282,7 +304,8 @@ const recordMovement = (partial: Omit<StockMovement, 'id' | 'createdAt'>): Stock
   createdAt: seed.seedTimestamp,
 })
 
-export const useWmsStore = create<WmsState>((set, get) => ({
+// Seed state factory — called only when localStorage has no prior session data.
+const buildSeedState = () => ({
   warehouses: seed.warehouses,
   locations: seed.locations,
   products: seed.products,
@@ -294,9 +317,9 @@ export const useWmsStore = create<WmsState>((set, get) => ({
   transfers: seed.transfers,
   returnOrders: seed.returnOrders,
   returnInspections: seed.returnInspections,
-  reentryBatches: [],
-  scrapRecords: [],
-  repairTickets: [],
+  reentryBatches: [] as ReentryBatch[],
+  scrapRecords: [] as ScrapRecord[],
+  repairTickets: [] as RepairTicket[],
   commerceOrders: seed.commerceOrders,
   pickingTasks: seed.pickingTasks,
   pickingWaves: seed.pickingWaves,
@@ -312,11 +335,28 @@ export const useWmsStore = create<WmsState>((set, get) => ({
   labels: seed.labels,
   integrations: seed.integrations,
   replenishmentTasks: seed.replenishmentTasks,
-  slottingSnapshots: [],
+  slottingSnapshots: [] as SlottingSnapshot[],
   operators: seed.operators,
   reasons: seed.reasons,
   carriers: seed.carriers,
   settings: seed.settings,
+  adjustmentRequests: [] as InventoryAdjustmentRequest[],
+  cyclicCountPlans: [] as CyclicCountPlan[],
+  unitsOfMeasure: seed.unitsOfMeasure,
+})
+
+// Exported so the Admin page can trigger a full demo reset.
+export const resetStore = () => {
+  if (typeof window !== 'undefined') {
+    localStorage.removeItem('wms-store-v1')
+    window.location.reload()
+  }
+}
+
+export const useWmsStore = create<WmsState>()(
+  persist(
+    (set, get) => ({
+      ...buildSeedState(),
 
   confirmPurchaseOrder: (poId) => {
     const state = get()
@@ -434,6 +474,7 @@ export const useWmsStore = create<WmsState>((set, get) => ({
 
   holdInventory: (itemId, qty, operatorName, reasonId) => {
     const state = get()
+    if (state.settings.inventoryFreezeActive) throw new Error('Inventario en modo congelado. No se permiten bloqueos.')
     const item = state.inventoryItems.find((i) => i.id === itemId)
     if (!item) throw new Error('inventory item not found')
     const held = applyHold(item, qty)
@@ -576,7 +617,7 @@ export const useWmsStore = create<WmsState>((set, get) => ({
     return updated
   },
 
-  receiveAsn: (asnId, receivedQty, operatorName, damagedQty = 0) => {
+  receiveAsn: (asnId, receivedQty, operatorName, damagedQty = 0, serials, uomId) => {
     const state = get()
     const asn = state.asnRecords.find((a) => a.id === asnId)
     if (!asn) throw new Error('ASN not found')
@@ -587,18 +628,33 @@ export const useWmsStore = create<WmsState>((set, get) => ({
     if (!canReceive) throw new Error(`No se puede recibir desde el estado ${asn.status}`)
     if (receivedQty <= 0 && damagedQty <= 0) throw new Error('Ingresa una cantidad válida.')
 
-    // goodQty = units going to stock; damagedQty = counted but not stocked
-    const goodQty = receivedQty
+    const product = state.products.find((p) => p.id === asn.productId)
+    const requiresSerial = product?.trackBy === 'serial'
+
+    // UoM conversion: if a non-base uomId is provided, convert qty to base units before stocking
+    const baseUomId = product?.baseUomId
+    const effectiveQty =
+      uomId && baseUomId && uomId !== baseUomId && product?.uomConversions?.length
+        ? toBaseQty(receivedQty, uomId, baseUomId, product.uomConversions)
+        : receivedQty
+
+    // Validate serials when product requires tracking (use raw receivedQty — serial count is per physical unit, not converted)
+    if (requiresSerial && receivedQty > 0) {
+      if (!serials || serials.length === 0)
+        throw new Error('Este producto requiere captura de número de serie en recepción')
+      if (serials.length !== receivedQty)
+        throw new Error(`Se esperan ${receivedQty} números de serie (se recibieron ${serials.length})`)
+      const trimmed = serials.map((s) => s.trim())
+      if (new Set(trimmed).size !== trimmed.length)
+        throw new Error('Hay números de serie duplicados en esta entrega')
+    }
+
+    // goodQty = base-unit quantity going to stock; damagedQty stays in input units
+    const goodQty = effectiveQty
     const totalCounted = goodQty + damagedQty
 
     // Find or create inventory item in staging/QC location
     const targetLocationId = asn.requiresQualityControl ? 'loc-qc' : 'loc-stageout'
-    const existingItemIdx = state.inventoryItems.findIndex(
-      (i) =>
-        i.productId === asn.productId &&
-        i.warehouseId === 'wh-bog' &&
-        i.locationId === targetLocationId
-    )
 
     const newTotal = asn.receivedQuantity + totalCounted
     const newDamaged = asn.damagedQuantity + damagedQty
@@ -613,45 +669,90 @@ export const useWmsStore = create<WmsState>((set, get) => ({
 
     // Only goodQty enters available/hold stock — damaged units are tracked on the ASN but not stocked.
     let updatedItems = [...state.inventoryItems]
+    const movements: StockMovement[] = []
+
     if (goodQty > 0) {
-      if (existingItemIdx >= 0) {
-        const existing = updatedItems[existingItemIdx]
-        updatedItems[existingItemIdx] = {
-          ...existing,
-          ...applyReceipt(existing, goodQty),
+      if (requiresSerial && serials && serials.length > 0) {
+        // For serialized products: one InventoryItem per serial number
+        for (const serial of serials.map((s) => s.trim())) {
+          updatedItems = [
+            ...updatedItems,
+            {
+              id: `inv-rcv-${asnId}-${serial.replace(/\s/g, '_')}`,
+              productId: asn.productId,
+              warehouseId: 'wh-bog',
+              locationId: targetLocationId,
+              serial,
+              onHandQuantity: 1,
+              reservedQuantity: 0,
+              holdQuantity: 0,
+              status: asn.requiresQualityControl ? ('on_hold' as const) : ('available' as const),
+            },
+          ]
+          movements.push(
+            recordMovement({
+              productId: asn.productId,
+              warehouseId: 'wh-bog',
+              toLocationId: targetLocationId,
+              type: 'receipt',
+              quantity: 1,
+              serial,
+              uomId: baseUomId,
+              referenceType: 'asn',
+              referenceId: asnId,
+              operatorName,
+            })
+          )
         }
       } else {
-        updatedItems = [
-          ...updatedItems,
-          {
-            id: `inv-new-${asnId}`,
+        // Non-serialized: merge into single item at staging
+        const existingItemIdx = updatedItems.findIndex(
+          (i) =>
+            i.productId === asn.productId &&
+            i.warehouseId === 'wh-bog' &&
+            i.locationId === targetLocationId &&
+            !i.serial
+        )
+        if (existingItemIdx >= 0) {
+          updatedItems[existingItemIdx] = {
+            ...updatedItems[existingItemIdx],
+            ...applyReceipt(updatedItems[existingItemIdx], goodQty),
+          }
+        } else {
+          updatedItems = [
+            ...updatedItems,
+            {
+              id: `inv-new-${asnId}`,
+              productId: asn.productId,
+              warehouseId: 'wh-bog',
+              locationId: targetLocationId,
+              onHandQuantity: goodQty,
+              reservedQuantity: 0,
+              holdQuantity: 0,
+              status: asn.requiresQualityControl ? ('on_hold' as const) : ('available' as const),
+            },
+          ]
+        }
+        movements.push(
+          recordMovement({
             productId: asn.productId,
             warehouseId: 'wh-bog',
-            locationId: targetLocationId,
-            onHandQuantity: goodQty,
-            reservedQuantity: 0,
-            holdQuantity: 0,
-            status: asn.requiresQualityControl ? ('on_hold' as const) : ('available' as const),
-          },
-        ]
+            toLocationId: targetLocationId,
+            type: 'receipt',
+            quantity: goodQty,
+            uomId: baseUomId,
+            referenceType: 'asn',
+            referenceId: asnId,
+            operatorName,
+          })
+        )
       }
     }
-
-    const movement = recordMovement({
-      productId: asn.productId,
-      warehouseId: 'wh-bog',
-      toLocationId: targetLocationId,
-      type: 'receipt',
-      quantity: goodQty,
-      referenceType: 'asn',
-      referenceId: asnId,
-      operatorName,
-    })
 
     set({
       asnRecords: state.asnRecords.map((a) => (a.id === asnId ? updatedAsn : a)),
       inventoryItems: updatedItems,
-      stockMovements: [...state.stockMovements, movement],
+      stockMovements: [...state.stockMovements, ...movements],
     })
     return updatedAsn
   },
@@ -685,71 +786,111 @@ export const useWmsStore = create<WmsState>((set, get) => ({
     const asn = state.asnRecords.find((a) => a.id === asnId)
     if (!asn) throw new Error('ASN not found')
 
+    const product = state.products.find((p) => p.id === asn.productId)
+    const isSerialTracked = product?.trackBy === 'serial'
+
     // After QC approval, stock moves from loc-qc → loc-stageout, so always check
     // loc-stageout first; fall back to loc-qc for ASNs mid-QC (not yet approved).
     const stagingCandidates = asn.requiresQualityControl
       ? ['loc-stageout', 'loc-qc']
       : ['loc-stageout']
-    const stagingItemIdx = state.inventoryItems.findIndex(
-      (i) =>
-        i.productId === asn.productId &&
-        i.warehouseId === 'wh-bog' &&
-        stagingCandidates.includes(i.locationId) &&
-        i.onHandQuantity > 0
-    )
-    if (stagingItemIdx === -1) throw new Error('No hay stock en staging/QC para este ASN')
 
-    const stagingItem = state.inventoryItems[stagingItemIdx]
-    const qtyToMove = stagingItem.onHandQuantity
-
-    // Move from staging to destination
     let updatedItems = [...state.inventoryItems]
-    updatedItems[stagingItemIdx] = { ...stagingItem, onHandQuantity: 0 }
+    const movements: StockMovement[] = []
 
-    // Merge or create at destination
-    const destIdx = updatedItems.findIndex(
-      (i) =>
-        i.productId === asn.productId && i.warehouseId === 'wh-bog' && i.locationId === locationId
-    )
-    if (destIdx >= 0) {
-      updatedItems[destIdx] = {
-        ...updatedItems[destIdx],
-        ...applyReceipt(updatedItems[destIdx], qtyToMove),
-        status: 'available',
+    if (isSerialTracked) {
+      // Move all serialized items individually from staging to destination
+      const stagingSerialItems = updatedItems.filter(
+        (i) =>
+          i.productId === asn.productId &&
+          i.warehouseId === 'wh-bog' &&
+          stagingCandidates.includes(i.locationId) &&
+          i.serial &&
+          i.onHandQuantity > 0
+      )
+      if (stagingSerialItems.length === 0)
+        throw new Error('No hay stock serializado en staging/QC para este ASN')
+
+      for (const item of stagingSerialItems) {
+        const idx = updatedItems.findIndex((i) => i.id === item.id)
+        updatedItems[idx] = { ...updatedItems[idx], locationId, status: 'available' }
+        movements.push(
+          recordMovement({
+            productId: asn.productId,
+            warehouseId: 'wh-bog',
+            fromLocationId: item.locationId,
+            toLocationId: locationId,
+            type: 'putaway',
+            quantity: 1,
+            serial: item.serial,
+            referenceType: 'asn',
+            referenceId: asnId,
+            operatorName,
+          })
+        )
       }
     } else {
-      updatedItems = [
-        ...updatedItems,
-        {
-          id: `inv-pa-${asnId}`,
+      const stagingItemIdx = updatedItems.findIndex(
+        (i) =>
+          i.productId === asn.productId &&
+          i.warehouseId === 'wh-bog' &&
+          stagingCandidates.includes(i.locationId) &&
+          i.onHandQuantity > 0
+      )
+      if (stagingItemIdx === -1) throw new Error('No hay stock en staging/QC para este ASN')
+
+      const stagingItem = updatedItems[stagingItemIdx]
+      const qtyToMove = stagingItem.onHandQuantity
+      updatedItems[stagingItemIdx] = { ...stagingItem, onHandQuantity: 0 }
+
+      const destIdx = updatedItems.findIndex(
+        (i) =>
+          i.productId === asn.productId &&
+          i.warehouseId === 'wh-bog' &&
+          i.locationId === locationId &&
+          !i.serial
+      )
+      if (destIdx >= 0) {
+        updatedItems[destIdx] = {
+          ...updatedItems[destIdx],
+          ...applyReceipt(updatedItems[destIdx], qtyToMove),
+          status: 'available',
+        }
+      } else {
+        updatedItems = [
+          ...updatedItems,
+          {
+            id: `inv-pa-${asnId}`,
+            productId: asn.productId,
+            warehouseId: 'wh-bog',
+            locationId,
+            onHandQuantity: qtyToMove,
+            reservedQuantity: 0,
+            holdQuantity: 0,
+            status: 'available',
+          },
+        ]
+      }
+      movements.push(
+        recordMovement({
           productId: asn.productId,
           warehouseId: 'wh-bog',
-          locationId,
-          onHandQuantity: qtyToMove,
-          reservedQuantity: 0,
-          holdQuantity: 0,
-          status: 'available',
-        },
-      ]
+          fromLocationId: stagingItem.locationId,
+          toLocationId: locationId,
+          type: 'putaway',
+          quantity: qtyToMove,
+          referenceType: 'asn',
+          referenceId: asnId,
+          operatorName,
+        })
+      )
     }
-
-    const movement = recordMovement({
-      productId: asn.productId,
-      warehouseId: 'wh-bog',
-      fromLocationId: stagingItem.locationId,
-      toLocationId: locationId,
-      type: 'putaway',
-      quantity: qtyToMove,
-      referenceType: 'asn',
-      referenceId: asnId,
-      operatorName,
-    })
 
     const updatedAsn: Asn = { ...asn, status: 'putaway_done' }
 
     set({
       inventoryItems: updatedItems,
-      stockMovements: [...state.stockMovements, movement],
+      stockMovements: [...state.stockMovements, ...movements],
       asnRecords: state.asnRecords.map((a) => (a.id === asnId ? updatedAsn : a)),
     })
   },
@@ -845,12 +986,19 @@ export const useWmsStore = create<WmsState>((set, get) => ({
     })
   },
 
-  adjustInventory: (itemId, countedQty, operatorName) => {
+  adjustInventory: (itemId, countedQty, operatorName, uomId) => {
     const state = get()
+    if (state.settings.inventoryFreezeActive) throw new Error('Inventario en modo congelado. Use requestAdjustment cuando el freeze esté activo.')
     const item = state.inventoryItems.find((i) => i.id === itemId)
     if (!item) throw new Error('inventory item not found')
-    const delta = countedQty - item.onHandQuantity
-    const adjusted = applyAdjustment(item, countedQty)
+    const product = state.products.find((p) => p.id === item.productId)
+    const baseUomId = product?.baseUomId
+    const effectiveQty =
+      uomId && baseUomId && uomId !== baseUomId && product?.uomConversions?.length
+        ? toBaseQty(countedQty, uomId, baseUomId, product.uomConversions)
+        : countedQty
+    const delta = effectiveQty - item.onHandQuantity
+    const adjusted = applyAdjustment(item, effectiveQty)
     set({
       inventoryItems: state.inventoryItems.map((i) =>
         i.id === itemId ? { ...i, ...adjusted } : i
@@ -864,6 +1012,7 @@ export const useWmsStore = create<WmsState>((set, get) => ({
           toLocationId: item.locationId,
           type: 'adjustment',
           quantity: Math.abs(delta),
+          uomId: baseUomId,
           referenceType: 'manual',
           referenceId: itemId,
           operatorName,
@@ -930,7 +1079,7 @@ export const useWmsStore = create<WmsState>((set, get) => ({
     return updated
   },
 
-  completePick: (taskId, pickedQty, reasonId, capturedSerial) => {
+  completePick: (taskId, pickedQty, reasonId, capturedSerial, uomId) => {
     const state = get()
     const task = state.pickingTasks.find((t) => t.id === taskId)
     if (!task) throw new Error('picking task not found')
@@ -955,7 +1104,14 @@ export const useWmsStore = create<WmsState>((set, get) => ({
       if (!serialItem) throw new Error(`Serial "${capturedSerial}" no encontrado en inventario`)
     }
 
-    const clamped = Math.min(pickedQty, task.requestedQuantity)
+    // UoM conversion: convert picked qty to base units before deducting stock
+    const baseUomId = product?.baseUomId
+    const effectivePickedQty =
+      uomId && baseUomId && uomId !== baseUomId && product?.uomConversions?.length
+        ? toBaseQty(pickedQty, uomId, baseUomId, product.uomConversions)
+        : pickedQty
+
+    const clamped = Math.min(effectivePickedQty, task.requestedQuantity)
     const isPartial = clamped < task.requestedQuantity
     const nextStatus: PickingTask['status'] = isPartial
       ? clamped === 0
@@ -997,6 +1153,7 @@ export const useWmsStore = create<WmsState>((set, get) => ({
       type: 'pick',
       quantity: clamped,
       serial: capturedSerial?.trim() || undefined,
+      uomId: baseUomId,
       referenceType: 'commerce_order',
       referenceId: task.orderId,
       operatorName: task.operatorName ?? 'Operador',
@@ -1328,7 +1485,29 @@ export const useWmsStore = create<WmsState>((set, get) => ({
       status: nextStatus,
       verifiedAt: seed.seedTimestamp,
     }
-    set({ packingOrders: state.packingOrders.map((p) => (p.id === packingOrderId ? updated : p)) })
+
+    // Emit a StockMovement per serialized item so serial trace is complete at packing stage
+    const serialMovements: StockMovement[] = (order.items ?? [])
+      .filter((item) => !!item.serial)
+      .map((item) =>
+        recordMovement({
+          productId: item.productId,
+          warehouseId: 'wh-bog',
+          type: 'pick',
+          quantity: item.scannedQuantity || item.requestedQuantity,
+          serial: item.serial,
+          referenceType: 'commerce_order',
+          referenceId: order.orderId,
+          operatorName: order.packerName ?? 'Packer',
+        })
+      )
+
+    set({
+      packingOrders: state.packingOrders.map((p) => (p.id === packingOrderId ? updated : p)),
+      ...(serialMovements.length > 0
+        ? { stockMovements: [...state.stockMovements, ...serialMovements] }
+        : {}),
+    })
     return updated
   },
 
@@ -1684,11 +1863,26 @@ export const useWmsStore = create<WmsState>((set, get) => ({
       throw new Error(`Solo se puede inspeccionar desde el estado under_validation`)
     }
 
-    const overallResult: ReturnInspection['overallResult'] = items.every(
+    // For each inspection item that includes a serial, verify it was actually
+    // dispatched — i.e. there's a 'pick' StockMovement for that productId + serial.
+    const enrichedItems = items.map((item) => {
+      if (!item.serial) return item
+      const dispatchedSerials = new Set(
+        state.stockMovements
+          .filter((mv) => mv.type === 'pick' && mv.productId === item.productId && mv.serial)
+          .map((mv) => mv.serial as string)
+      )
+      return {
+        ...item,
+        serialMatchesDispatch: dispatchedSerials.has(item.serial),
+      }
+    })
+
+    const overallResult: ReturnInspection['overallResult'] = enrichedItems.every(
       (i) => i.conditionRating !== 'defective'
     )
       ? 'pass'
-      : items.some((i) => i.conditionRating !== 'defective')
+      : enrichedItems.some((i) => i.conditionRating !== 'defective')
         ? 'partial_pass'
         : 'fail'
 
@@ -1697,7 +1891,7 @@ export const useWmsStore = create<WmsState>((set, get) => ({
       returnOrderId: returnId,
       inspectorName,
       inspectedAt: seed.seedTimestamp,
-      items,
+      items: enrichedItems,
       overallResult,
       notes,
     }
@@ -2297,6 +2491,180 @@ export const useWmsStore = create<WmsState>((set, get) => ({
     return updated
   },
 
+  // ── Adjustment requests (#56) ────────────────────────────────────────────
+
+  requestAdjustment: (itemId, countedQty, operatorName, reasonId) => {
+    const state = get()
+    const item = state.inventoryItems.find((i) => i.id === itemId)
+    if (!item) throw new Error('inventory item not found')
+    if (state.settings.inventoryFreezeActive) throw new Error('Inventario en modo congelado. No se permiten ajustes.')
+    const delta = countedQty - item.onHandQuantity
+    const absDelta = Math.abs(delta)
+    const threshold = state.settings.adjustmentApprovalThreshold
+
+    // Below threshold — apply immediately (same as old adjustInventory)
+    if (absDelta <= threshold) {
+      const adjusted = applyAdjustment(item, countedQty)
+      set({
+        inventoryItems: state.inventoryItems.map((i) => i.id === itemId ? { ...i, ...adjusted } : i),
+        stockMovements: [
+          ...state.stockMovements,
+          recordMovement({
+            productId: item.productId,
+            warehouseId: item.warehouseId,
+            fromLocationId: item.locationId,
+            toLocationId: item.locationId,
+            type: 'adjustment',
+            quantity: absDelta,
+            referenceType: 'manual',
+            referenceId: itemId,
+            operatorName,
+          }),
+        ],
+      })
+      const instant: InventoryAdjustmentRequest = {
+        id: `adj-${Date.now()}`,
+        inventoryItemId: itemId,
+        productId: item.productId,
+        warehouseId: item.warehouseId,
+        locationId: item.locationId,
+        currentQty: item.onHandQuantity,
+        countedQty,
+        delta,
+        reasonId,
+        operatorName,
+        requestedAt: new Date().toISOString(),
+        status: 'approved',
+        reviewedBy: 'sistema',
+        reviewedAt: new Date().toISOString(),
+      }
+      set({ adjustmentRequests: [...get().adjustmentRequests, instant] })
+      return instant
+    }
+
+    // Above threshold — create pending request
+    const request: InventoryAdjustmentRequest = {
+      id: `adj-${Date.now()}`,
+      inventoryItemId: itemId,
+      productId: item.productId,
+      warehouseId: item.warehouseId,
+      locationId: item.locationId,
+      currentQty: item.onHandQuantity,
+      countedQty,
+      delta,
+      reasonId,
+      operatorName,
+      requestedAt: new Date().toISOString(),
+      status: 'pending_approval',
+    }
+    set({ adjustmentRequests: [...state.adjustmentRequests, request] })
+    return request
+  },
+
+  approveAdjustment: (requestId, reviewerName) => {
+    const state = get()
+    const req = state.adjustmentRequests.find((r) => r.id === requestId)
+    if (!req) throw new Error('adjustment request not found')
+    if (req.status !== 'pending_approval') throw new Error('La solicitud ya fue procesada')
+    const item = state.inventoryItems.find((i) => i.id === req.inventoryItemId)
+    if (!item) throw new Error('inventory item not found')
+
+    const adjusted = applyAdjustment(item, req.countedQty)
+    const updated: InventoryAdjustmentRequest = {
+      ...req,
+      status: 'approved',
+      reviewedBy: reviewerName,
+      reviewedAt: new Date().toISOString(),
+    }
+    set({
+      adjustmentRequests: state.adjustmentRequests.map((r) => r.id === requestId ? updated : r),
+      inventoryItems: state.inventoryItems.map((i) => i.id === req.inventoryItemId ? { ...i, ...adjusted } : i),
+      stockMovements: [
+        ...state.stockMovements,
+        recordMovement({
+          productId: item.productId,
+          warehouseId: item.warehouseId,
+          fromLocationId: item.locationId,
+          toLocationId: item.locationId,
+          type: 'adjustment',
+          quantity: Math.abs(req.delta),
+          referenceType: 'manual',
+          referenceId: req.inventoryItemId,
+          operatorName: reviewerName,
+        }),
+      ],
+    })
+    return updated
+  },
+
+  rejectAdjustment: (requestId, reviewerName, note) => {
+    const state = get()
+    const req = state.adjustmentRequests.find((r) => r.id === requestId)
+    if (!req) throw new Error('adjustment request not found')
+    if (req.status !== 'pending_approval') throw new Error('La solicitud ya fue procesada')
+    const updated: InventoryAdjustmentRequest = {
+      ...req,
+      status: 'rejected',
+      reviewedBy: reviewerName,
+      reviewedAt: new Date().toISOString(),
+      rejectionNote: note,
+    }
+    set({ adjustmentRequests: state.adjustmentRequests.map((r) => r.id === requestId ? updated : r) })
+    return updated
+  },
+
+  // ── Cyclic count plans (#54) ─────────────────────────────────────────────
+
+  createCyclicCount: (data) => {
+    const state = get()
+    const idx = state.cyclicCountPlans.length + 1
+    const plan: CyclicCountPlan = {
+      ...data,
+      id: `cc-${Date.now()}`,
+      code: `CC-${String(idx).padStart(3, '0')}`,
+      status: 'pending',
+      countedLocations: 0,
+      createdAt: new Date().toISOString(),
+    }
+    set({ cyclicCountPlans: [...state.cyclicCountPlans, plan] })
+    return plan
+  },
+
+  startCyclicCount: (planId) => {
+    const state = get()
+    const plan = state.cyclicCountPlans.find((p) => p.id === planId)
+    if (!plan) throw new Error('cyclic count plan not found')
+    if (plan.status !== 'pending') throw new Error('El plan no está en estado pendiente')
+    const updated: CyclicCountPlan = { ...plan, status: 'in_progress' }
+    set({ cyclicCountPlans: state.cyclicCountPlans.map((p) => p.id === planId ? updated : p) })
+    return updated
+  },
+
+  completeCyclicCount: (planId) => {
+    const state = get()
+    const plan = state.cyclicCountPlans.find((p) => p.id === planId)
+    if (!plan) throw new Error('cyclic count plan not found')
+    if (plan.status !== 'in_progress') throw new Error('El plan no está en progreso')
+    const updated: CyclicCountPlan = {
+      ...plan,
+      status: 'completed',
+      countedLocations: plan.totalLocations,
+      completedAt: new Date().toISOString(),
+    }
+    set({ cyclicCountPlans: state.cyclicCountPlans.map((p) => p.id === planId ? updated : p) })
+    return updated
+  },
+
+  cancelCyclicCount: (planId) => {
+    const state = get()
+    const plan = state.cyclicCountPlans.find((p) => p.id === planId)
+    if (!plan) throw new Error('cyclic count plan not found')
+    if (plan.status === 'completed') throw new Error('No se puede cancelar un plan completado')
+    const updated: CyclicCountPlan = { ...plan, status: 'cancelled' }
+    set({ cyclicCountPlans: state.cyclicCountPlans.map((p) => p.id === planId ? updated : p) })
+    return updated
+  },
+
   createWarehouse: (data) => {
     const state = get()
     const created: Warehouse = { ...data, id: `wh-${Date.now()}` }
@@ -2362,4 +2730,35 @@ export const useWmsStore = create<WmsState>((set, get) => ({
     set({ products: state.products.map((p) => (p.id === id ? updated : p)) })
     return updated
   },
-}))
+
+  // Admin — Units of Measure (#3)
+  createUom: (data) => {
+    const state = get()
+    const created: UnitOfMeasure = { ...data, id: `uom-${Date.now()}` }
+    set({ unitsOfMeasure: [...state.unitsOfMeasure, created] })
+    return created
+  },
+
+  updateUom: (id, data) => {
+    const state = get()
+    const uom = state.unitsOfMeasure.find((u) => u.id === id)
+    if (!uom) throw new Error('unit of measure not found')
+    const updated: UnitOfMeasure = { ...uom, ...data }
+    set({ unitsOfMeasure: state.unitsOfMeasure.map((u) => (u.id === id ? updated : u)) })
+    return updated
+  },
+
+  toggleUom: (id) => {
+    const state = get()
+    const uom = state.unitsOfMeasure.find((u) => u.id === id)
+    if (!uom) throw new Error('unit of measure not found')
+    const updated: UnitOfMeasure = { ...uom, active: !uom.active }
+    set({ unitsOfMeasure: state.unitsOfMeasure.map((u) => (u.id === id ? updated : u)) })
+    return updated
+  },
+  }),
+  {
+    name: 'wms-store-v1',
+    storage: createJSONStorage(() => localStorage),
+  }
+))

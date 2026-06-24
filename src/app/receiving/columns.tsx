@@ -27,6 +27,7 @@ export interface AsnRow {
   canPutaway: boolean
   canQc: boolean
   isOverdue: boolean
+  requiresSerial: boolean
 }
 
 // ── PO row ────────────────────────────────────────────────────────────────────

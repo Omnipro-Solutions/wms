@@ -9,7 +9,6 @@ import {
   Hash,
   Layers,
   LayoutGrid,
-  MapPin,
   Package,
   Plus,
   ShoppingCart,
@@ -25,10 +24,8 @@ import { useStoreHelpers } from '@/hooks/use-store-helpers'
 import { useDialogState } from '@/hooks/use-dialog-state'
 import { clusterProgress } from '@/lib/rules/picking'
 import { PageHeader } from '@/components/shared/page-header'
-import { KpiCard } from '@/components/shared/kpi-card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Dialog,
   DialogContent,
@@ -38,7 +35,6 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Progress } from '@/components/ui/progress'
 import {
   Select,
   SelectContent,
@@ -46,20 +42,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { DataTable } from '@/components/data-table'
-import { StatusBadge } from '@/components/shared/status-badge'
-import { formatNumber } from '@/lib/formatters'
-import { TabPanel } from '@/app/receiving/_components/tab-panel'
-import { EmptyState } from '@/app/receiving/_components/empty-state'
 import {
   buildTaskColumns,
   buildWaveColumns,
@@ -78,6 +61,13 @@ import type {
   PutToStoreTask,
   WavelessOrder,
 } from '@/types/wms'
+import { TasksTab } from './_components/TasksTab'
+import { WavesTab } from './_components/WavesTab'
+import { WavelessTab } from './_components/WavelessTab'
+import { BatchTab } from './_components/BatchTab'
+import { ZoneTab } from './_components/ZoneTab'
+import { ClusterTab } from './_components/ClusterTab'
+import { PutToStoreTab } from './_components/PutToStoreTab'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -867,744 +857,91 @@ const PickingPage = () => {
 
         {/* ── Tareas ──────────────────────────────────────────────────────── */}
         <TabsContent value="tasks">
-          <TabPanel
-            icon={ClipboardList}
-            iconClass="text-amber-500"
-            title="Tareas de picking"
-            description="Tareas individuales asignadas a operadores. Inicia, registra la cantidad pickeada y aprueba o rechaza parciales."
-          >
-            <div className="mb-4 grid gap-3 sm:grid-cols-3">
-              <KpiCard
-                icon={ClipboardList}
-                value={pendingTaskCount}
-                label="Pendientes / asignadas"
-                sublabel="Por iniciar o en espera"
-                tone="amber"
-              />
-              <KpiCard
-                icon={Package}
-                value={partialTaskCount}
-                label="Picking parcial"
-                sublabel="Requieren aprobación o reintento"
-                tone="blue"
-              />
-              <KpiCard
-                icon={CheckCircle2}
-                value={completedTaskCount}
-                label="Completadas"
-                sublabel="Finalizadas en esta sesión"
-                tone="green"
-              />
-            </div>
-            {state.pickingTasks.length === 0 ? (
-              <EmptyState
-                icon={ClipboardList}
-                title="Sin tareas de picking"
-                description="Las tareas generadas por oleadas o pedidos waveless aparecerán aquí."
-              />
-            ) : (
-              <DataTable
-                columns={taskCols}
-                data={filteredTasks}
-                searchColumn="code"
-                searchPlaceholder="Buscar por código o producto…"
-                emptyMessage="Sin tareas para el filtro seleccionado."
-                filters={
-                  <Select value={statusFilter} onValueChange={setStatusFilter}>
-                    <SelectTrigger className="h-8 w-52">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Todos los estados</SelectItem>
-                      <SelectItem value="pending">Pendiente</SelectItem>
-                      <SelectItem value="assigned">Asignada</SelectItem>
-                      <SelectItem value="in_progress">En progreso</SelectItem>
-                      <SelectItem value="partially_picked">Parcialmente pickeada</SelectItem>
-                      <SelectItem value="partial_with_shortage">Parcial c/faltante</SelectItem>
-                      <SelectItem value="partial_approved">Parcial aprobada</SelectItem>
-                      <SelectItem value="partial_rejected">Parcial rechazada</SelectItem>
-                      <SelectItem value="completed">Completada</SelectItem>
-                      <SelectItem value="with_issue">Con incidencia</SelectItem>
-                    </SelectContent>
-                  </Select>
-                }
-              />
-            )}
-          </TabPanel>
+          <TasksTab
+            pickingTasks={state.pickingTasks}
+            filteredTasks={filteredTasks}
+            pendingTaskCount={pendingTaskCount}
+            partialTaskCount={partialTaskCount}
+            completedTaskCount={completedTaskCount}
+            statusFilter={statusFilter}
+            onStatusFilterChange={setStatusFilter}
+            taskCols={taskCols}
+          />
         </TabsContent>
 
         {/* ── Oleadas ─────────────────────────────────────────────────────── */}
         <TabsContent value="waves">
-          <TabPanel
-            icon={Waves}
-            iconClass="text-blue-500"
-            title="Oleadas de picking"
-            description="Agrupa pedidos en oleadas para optimizar rutas. Libera una oleada para habilitar las tareas asociadas."
-          >
-            <div className="mb-4 grid gap-3 sm:grid-cols-3">
-              <KpiCard
-                icon={Waves}
-                value={activeWaveCount}
-                label="Oleadas activas"
-                sublabel="En progreso ahora"
-                tone="blue"
-              />
-              <KpiCard
-                icon={Layers}
-                value={draftWaveCount}
-                label="En borrador"
-                sublabel="Pendientes de liberar"
-                tone="amber"
-              />
-              <KpiCard
-                icon={Package}
-                value={waveActiveUnits}
-                label="Unidades en oleadas activas"
-                sublabel="Suma de todas en progreso"
-                tone="neutral"
-              />
-            </div>
-            {state.pickingWaves.length === 0 ? (
-              <EmptyState
-                icon={Waves}
-                title="Sin oleadas registradas"
-                description="Crea una oleada para agrupar pedidos pendientes y optimizar el picking."
-              />
-            ) : (
-              <DataTable
-                columns={waveCols}
-                data={state.pickingWaves}
-                searchColumn="name"
-                searchPlaceholder="Buscar oleada…"
-                emptyMessage="No hay oleadas registradas."
-                actions={
-                  <Button onClick={() => setCreateWaveOpen(true)}>
-                    <Plus className="mr-1 size-4" /> Nueva oleada
-                  </Button>
-                }
-              />
-            )}
-            {state.pickingWaves.length > 0 && (
-              <div className="mt-4 flex justify-end">
-                <Button onClick={() => setCreateWaveOpen(true)}>
-                  <Plus className="mr-1 size-4" /> Nueva oleada
-                </Button>
-              </div>
-            )}
-
-            {state.pickingWaves
-              .filter((w) => w.status === 'in_progress')
-              .map((wave) => (
-                <Card key={wave.id} className="mt-4">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2 text-sm">
-                      <Waves className="size-4 text-blue-600" />
-                      {wave.code} — {wave.name}
-                      <Badge variant="secondary" className="ml-2">
-                        En progreso
-                      </Badge>
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Pedido</TableHead>
-                          <TableHead>Cliente</TableHead>
-                          <TableHead>Canal</TableHead>
-                          <TableHead>Estado</TableHead>
-                          <TableHead className="text-right">Líneas</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {wave.orderIds.map((oid) => {
-                          const order = state.commerceOrders.find((o) => o.id === oid)
-                          if (!order) return null
-                          return (
-                            <TableRow key={oid}>
-                              <TableCell className="font-mono text-xs font-semibold">
-                                {order.orderNumber}
-                              </TableCell>
-                              <TableCell className="text-sm">{order.customerName}</TableCell>
-                              <TableCell className="text-muted-foreground text-sm capitalize">
-                                {order.channel}
-                              </TableCell>
-                              <TableCell>
-                                <StatusBadge status={order.status} />
-                              </TableCell>
-                              <TableCell className="text-right tabular-nums">
-                                {order.items.length}
-                              </TableCell>
-                            </TableRow>
-                          )
-                        })}
-                      </TableBody>
-                    </Table>
-                  </CardContent>
-                </Card>
-              ))}
-          </TabPanel>
+          <WavesTab
+            pickingWaves={state.pickingWaves}
+            commerceOrders={state.commerceOrders}
+            activeWaveCount={activeWaveCount}
+            draftWaveCount={draftWaveCount}
+            waveActiveUnits={waveActiveUnits}
+            waveCols={waveCols}
+            onCreateWave={() => setCreateWaveOpen(true)}
+          />
         </TabsContent>
 
         {/* ── Waveless ────────────────────────────────────────────────────── */}
         <TabsContent value="waveless">
-          <TabPanel
-            icon={Zap}
-            iconClass="text-yellow-500"
-            title="Pedidos waveless"
-            description="Pedidos VIP o urgentes que se procesan de forma independiente sin esperar a que se forme una oleada."
-          >
-            <div className="mb-4 grid gap-3 sm:grid-cols-3">
-              <KpiCard
-                icon={Zap}
-                value={pendingWlCount}
-                label="Pendientes"
-                sublabel="Sin operador asignado"
-                tone="amber"
-              />
-              <KpiCard
-                icon={ClipboardList}
-                value={activeWlCount}
-                label="En progreso"
-                sublabel="Operadores activos"
-                tone="blue"
-              />
-              <KpiCard
-                icon={CheckCircle2}
-                value={completedWlCount}
-                label="Completados"
-                sublabel="Finalizados hoy"
-                tone="green"
-              />
-            </div>
-            <Card className="mb-4 border-yellow-200 bg-yellow-50">
-              <CardContent className="flex items-start gap-3 pt-4">
-                <Zap className="mt-0.5 size-4 shrink-0 text-yellow-600" />
-                <div className="text-sm text-yellow-800">
-                  <p className="font-medium">¿Cuándo usar waveless?</p>
-                  <p className="mt-1 text-yellow-700">
-                    Ideal para pedidos VIP, same-day delivery o cualquier pedido urgente que no
-                    puede esperar a que se forme una oleada.
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
-            {state.wavelessOrders.length === 0 ? (
-              <EmptyState
-                icon={Zap}
-                title="Sin pedidos waveless"
-                description="Agrega pedidos urgentes para procesarlos de forma independiente."
-              />
-            ) : (
-              <DataTable
-                columns={wavelessCols}
-                data={state.wavelessOrders}
-                searchColumn="orderNumber"
-                searchPlaceholder="Buscar pedido…"
-                emptyMessage="No hay pedidos waveless."
-                actions={
-                  <Button onClick={() => createWlDialog.open({ placeholder: true })}>
-                    <Plus className="mr-1 size-4" /> Agregar pedido
-                  </Button>
-                }
-              />
-            )}
-            {state.wavelessOrders.length === 0 && (
-              <div className="mt-4 flex justify-end">
-                <Button onClick={() => createWlDialog.open({ placeholder: true })}>
-                  <Plus className="mr-1 size-4" /> Agregar pedido
-                </Button>
-              </div>
-            )}
-          </TabPanel>
+          <WavelessTab
+            wavelessOrders={state.wavelessOrders}
+            pendingWlCount={pendingWlCount}
+            activeWlCount={activeWlCount}
+            completedWlCount={completedWlCount}
+            wavelessCols={wavelessCols}
+            onAddOrder={() => createWlDialog.open({ placeholder: true })}
+          />
         </TabsContent>
 
         {/* ── Batch ───────────────────────────────────────────────────────── */}
         <TabsContent value="batch">
-          <TabPanel
-            icon={Package}
-            iconClass="text-blue-500"
-            title="Batch picking"
-            description="Lotes que agrupan el mismo producto de múltiples pedidos. El picker recoge el total en una visita y distribuye en sorting."
-          >
-            <div className="mb-4 grid gap-3 sm:grid-cols-4">
-              <KpiCard
-                icon={Package}
-                value={pendingBatchCount}
-                label="Pendientes"
-                sublabel="Sin iniciar"
-                tone="amber"
-              />
-              <KpiCard
-                icon={ClipboardList}
-                value={activeBatchCount}
-                label="En progreso"
-                sublabel="En el muelle"
-                tone="blue"
-              />
-              <KpiCard
-                icon={CheckCircle2}
-                value={completedBatchCount}
-                label="Completadas"
-                sublabel="Finalizados"
-                tone="green"
-              />
-              <KpiCard
-                icon={Layers}
-                value={totalBatchUnits}
-                label="Unidades totales"
-                sublabel="Suma de todos los lotes"
-                tone="neutral"
-              />
-            </div>
-            <Card className="mb-4 border-blue-200 bg-blue-50">
-              <CardContent className="flex items-start gap-3 pt-4">
-                <Package className="mt-0.5 size-4 shrink-0 text-blue-600" />
-                <div className="text-sm text-blue-800">
-                  <p className="font-medium">¿Cómo funciona el batch picking?</p>
-                  <p className="mt-1 text-blue-700">
-                    Cada lote agrupa tareas del mismo producto y ubicación de múltiples pedidos. El
-                    picker recoge el total en una sola visita y luego distribuye en sorting.
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
-            {state.batchTasks.length === 0 ? (
-              <EmptyState
-                icon={Package}
-                title="Sin lotes de picking"
-                description="Los lotes se generan automáticamente al liberar oleadas con estrategia batch."
-              />
-            ) : (
-              <DataTable
-                columns={batchCols}
-                data={state.batchTasks}
-                searchColumn="code"
-                searchPlaceholder="Buscar lote…"
-                emptyMessage="No hay lotes de picking registrados."
-              />
-            )}
-            {state.batchTasks
-              .filter((b) => b.status === 'in_progress')
-              .map((batch) => {
-                const tasks = state.pickingTasks.filter((t) => batch.pickingTaskIds.includes(t.id))
-                if (tasks.length === 0) return null
-                return (
-                  <Card key={batch.id} className="mt-4">
-                    <CardContent className="pt-4">
-                      <p className="mb-3 text-sm font-medium">{batch.code} — Pedidos incluidos</p>
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>Tarea</TableHead>
-                            <TableHead>Pedido</TableHead>
-                            <TableHead className="text-right">Solicitado</TableHead>
-                            <TableHead>Estado</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {tasks.map((t) => (
-                            <TableRow key={t.id}>
-                              <TableCell className="font-mono text-xs font-semibold">
-                                {t.code}
-                              </TableCell>
-                              <TableCell className="text-muted-foreground text-sm">
-                                {state.commerceOrders.find((o) => o.id === t.orderId)
-                                  ?.orderNumber ?? t.orderId}
-                              </TableCell>
-                              <TableCell className="text-right tabular-nums">
-                                {t.requestedQuantity}
-                              </TableCell>
-                              <TableCell>
-                                <StatusBadge status={t.status} />
-                              </TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </CardContent>
-                  </Card>
-                )
-              })}
-          </TabPanel>
+          <BatchTab
+            batchTasks={state.batchTasks}
+            pickingTasks={state.pickingTasks}
+            commerceOrders={state.commerceOrders}
+            pendingBatchCount={pendingBatchCount}
+            activeBatchCount={activeBatchCount}
+            completedBatchCount={completedBatchCount}
+            totalBatchUnits={totalBatchUnits}
+            batchCols={batchCols}
+          />
         </TabsContent>
 
         {/* ── Por zona ────────────────────────────────────────────────────── */}
         <TabsContent value="zone">
-          <TabPanel
-            icon={LayoutGrid}
-            iconClass="text-zinc-500"
-            title="Picking por zona"
-            description="Vista de progreso por zona de almacén. Identifica zonas con tareas pendientes y pedidos listos para consolidar."
-          >
-            <div className="mb-4 grid gap-3 sm:grid-cols-4">
-              <KpiCard
-                icon={ClipboardList}
-                value={
-                  tasksWithZone.filter((t) => t.status === 'pending' || t.status === 'assigned')
-                    .length
-                }
-                label="Tareas pendientes"
-                sublabel="Por iniciar o asignar"
-                tone="amber"
-              />
-              <KpiCard
-                icon={Package}
-                value={tasksWithZone.filter((t) => t.status === 'in_progress').length}
-                label="En progreso"
-                sublabel="Siendo pickeadas"
-                tone="blue"
-              />
-              <KpiCard
-                icon={MapPin}
-                value={zones.length}
-                label="Zonas activas"
-                sublabel="Con al menos una tarea"
-                tone="neutral"
-              />
-              <KpiCard
-                icon={CheckCircle2}
-                value={consolidationCount}
-                label="Listos p/ consolidar"
-                sublabel="Todos los items recogidos"
-                tone="green"
-              />
-            </div>
-
-            {consolidationCount > 0 && (
-              <Card className="mb-4 border-green-300 bg-green-50">
-                <CardContent className="flex items-start gap-3 pt-4">
-                  <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-green-700" />
-                  <div className="text-sm text-green-800">
-                    <p className="font-medium">
-                      {consolidationCount} pedido(s) listo(s) para consolidar
-                    </p>
-                    <p className="mt-1 text-green-700">
-                      Todos los ítems han sido recogidos. Trasládalos al área de staging para
-                      empaque.
-                    </p>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
-            <div className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {zoneStats.map(({ zone, completed, total, totalUnits, pickedUnits, operators }) => {
-                const pct = total > 0 ? Math.round((completed / total) * 100) : 0
-                return (
-                  <Card key={zone}>
-                    <CardHeader className="pb-2">
-                      <CardTitle className="flex items-center justify-between text-sm">
-                        <span className="flex items-center gap-2">
-                          <MapPin className="size-4" /> Zona {zone}
-                        </span>
-                        <Badge variant="outline" className={cn('text-xs', ZONE_COLORS[zone] ?? '')}>
-                          {completed}/{total} tareas
-                        </Badge>
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-3">
-                      <Progress value={pct} className="h-2" />
-                      <div className="grid grid-cols-2 gap-2 text-sm">
-                        <div>
-                          <p className="text-muted-foreground text-xs">Unidades</p>
-                          <p className="font-medium tabular-nums">
-                            {formatNumber(pickedUnits)}/{formatNumber(totalUnits)}
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-muted-foreground text-xs">Operadores</p>
-                          <p className="text-xs font-medium">
-                            {operators.length > 0 ? operators.join(', ') : '—'}
-                          </p>
-                        </div>
-                      </div>
-                      {pct === 100 && (
-                        <div className="flex items-center gap-1 text-xs text-green-700">
-                          <CheckCircle2 className="size-3" /> Zona completada
-                        </div>
-                      )}
-                      {pct > 0 && pct < 100 && (
-                        <div className="flex items-center gap-1 text-xs text-amber-700">
-                          <TriangleAlert className="size-3" /> {total - completed} tarea(s)
-                          pendiente(s)
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
-                )
-              })}
-            </div>
-
-            {tasksWithZone.length === 0 ? (
-              <EmptyState
-                icon={LayoutGrid}
-                title="Sin tareas por zona"
-                description="Las tareas de picking aparecerán organizadas por zona cuando sean generadas."
-              />
-            ) : (
-              <DataTable
-                columns={zoneCols}
-                data={tasksWithZone}
-                searchColumn="code"
-                searchPlaceholder="Buscar tarea…"
-                emptyMessage="No hay tareas de picking."
-              />
-            )}
-          </TabPanel>
+          <ZoneTab
+            tasksWithZone={tasksWithZone}
+            zoneStats={zoneStats}
+            zones={zones}
+            consolidationCount={consolidationCount}
+            zoneCols={zoneCols}
+          />
         </TabsContent>
 
         {/* ── Cluster ─────────────────────────────────────────────────────── */}
         <TabsContent value="cluster">
-          <TabPanel
-            icon={ShoppingCart}
-            iconClass="text-purple-500"
-            title="Cluster picking"
-            description="El picker sale con un carrito con N contenedores. Al llegar a cada ubicación deposita las unidades en el contenedor correcto."
-          >
-            <div className="mb-4 grid gap-3 sm:grid-cols-3">
-              <KpiCard
-                icon={ShoppingCart}
-                value={pendingClusterCount}
-                label="Clusters pendientes"
-                sublabel="Sin iniciar"
-                tone="amber"
-              />
-              <KpiCard
-                icon={ClipboardList}
-                value={activeClusterCount}
-                label="En progreso"
-                sublabel="Operadores activos"
-                tone="blue"
-              />
-              <KpiCard
-                icon={CheckCircle2}
-                value={completedClusterCount}
-                label="Completados"
-                sublabel="Clusters finalizados"
-                tone="green"
-              />
-            </div>
-            <Card className="mb-4 border-purple-200 bg-purple-50">
-              <CardContent className="flex items-start gap-3 pt-4">
-                <ShoppingCart className="mt-0.5 size-4 shrink-0 text-purple-600" />
-                <div className="text-sm text-purple-800">
-                  <p className="font-medium">¿Cómo funciona el cluster picking?</p>
-                  <p className="mt-1 text-purple-700">
-                    El picker sale con un carrito con N contenedores (uno por pedido). Al llegar a
-                    cada ubicación deposita las unidades en el contenedor correcto.
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
-            {state.clusterTasks.length === 0 ? (
-              <EmptyState
-                icon={ShoppingCart}
-                title="Sin clusters registrados"
-                description="Los clusters se generan al liberar oleadas con estrategia de cluster picking."
-              />
-            ) : (
-              <DataTable
-                columns={clusterCols}
-                data={state.clusterTasks}
-                searchColumn="code"
-                searchPlaceholder="Buscar cluster…"
-                emptyMessage="No hay clusters registrados."
-              />
-            )}
-            {state.clusterTasks
-              .filter((c) => c.status === 'in_progress')
-              .map((cluster) => (
-                <Card key={cluster.id} className="mt-4">
-                  <CardHeader>
-                    <CardTitle className="flex items-center justify-between text-sm">
-                      <span className="flex items-center gap-2">
-                        <ShoppingCart className="size-4 text-blue-600" />
-                        {cluster.code} — {cluster.operatorName ?? 'Sin operador'}
-                      </span>
-                      <Badge variant="secondary">{clusterProgress(cluster)}% completado</Badge>
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                      {cluster.slots.map((slot) => {
-                        const slotTotal = slot.items.reduce((s, i) => s + i.requested, 0)
-                        const slotDeposited = slot.items.reduce((s, i) => s + i.deposited, 0)
-                        const slotPct =
-                          slotTotal > 0 ? Math.round((slotDeposited / slotTotal) * 100) : 0
-                        return (
-                          <div
-                            key={slot.orderId}
-                            className={cn(
-                              'space-y-2 rounded-lg border p-3',
-                              slot.completed ? 'border-green-300 bg-green-50' : 'border-border'
-                            )}
-                          >
-                            <div className="flex items-center justify-between">
-                              <span className="text-sm font-medium">{slot.containerLabel}</span>
-                              <Badge variant="outline" className="text-xs">
-                                {slot.orderNumber}
-                              </Badge>
-                            </div>
-                            <Progress value={slotPct} className="h-1.5" />
-                            <div className="space-y-1">
-                              {slot.items.map((item) => (
-                                <div key={item.productId} className="flex justify-between text-xs">
-                                  <span className="text-muted-foreground max-w-30 truncate">
-                                    {helpers.productName(item.productId)}
-                                  </span>
-                                  <span
-                                    className={cn(
-                                      'font-medium tabular-nums',
-                                      item.deposited >= item.requested && 'text-green-700'
-                                    )}
-                                  >
-                                    {item.deposited}/{item.requested}
-                                  </span>
-                                </div>
-                              ))}
-                            </div>
-                            {slot.completed && (
-                              <div className="flex items-center gap-1 text-xs text-green-700">
-                                <CheckCircle2 className="size-3" /> Contenedor completo
-                              </div>
-                            )}
-                          </div>
-                        )
-                      })}
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-          </TabPanel>
+          <ClusterTab
+            clusterTasks={state.clusterTasks}
+            pendingClusterCount={pendingClusterCount}
+            activeClusterCount={activeClusterCount}
+            completedClusterCount={completedClusterCount}
+            clusterCols={clusterCols}
+            getProductName={helpers.productName}
+          />
         </TabsContent>
 
         {/* ── Put-to-store ─────────────────────────────────────────────────── */}
         <TabsContent value="put-to-store">
-          <TabPanel
-            icon={Store}
-            iconClass="text-teal-500"
-            title="Put-to-store"
-            description="Se recoge el total de un SKU y luego se distribuye a cada tienda según su cuota. Reduce el tiempo de picking en 40-60% para reposiciones."
-          >
-            <div className="mb-4 grid gap-3 sm:grid-cols-4">
-              <KpiCard
-                icon={Store}
-                value={pendingPtsCount}
-                label="Pendientes"
-                sublabel="Sin iniciar"
-                tone="amber"
-              />
-              <KpiCard
-                icon={Building2}
-                value={activePtsCount}
-                label="En distribución"
-                sublabel="Asignando a tiendas"
-                tone="blue"
-              />
-              <KpiCard
-                icon={CheckCircle2}
-                value={completedPtsCount}
-                label="Completadas"
-                sublabel="Distribución finalizada"
-                tone="green"
-              />
-              <KpiCard
-                icon={Package}
-                value={totalPtsUnits}
-                label="Unidades totales"
-                sublabel="Suma de todas las tareas"
-                tone="neutral"
-              />
-            </div>
-            <Card className="mb-4 border-teal-200 bg-teal-50">
-              <CardContent className="flex items-start gap-3 pt-4">
-                <Store className="mt-0.5 size-4 shrink-0 text-teal-600" />
-                <div className="text-sm text-teal-800">
-                  <p className="font-medium">¿Cómo funciona put-to-store?</p>
-                  <p className="mt-1 text-teal-700">
-                    Se recoge el total de un SKU (ej: 180 pares de medias) y luego se distribuye a
-                    cada tienda según su cuota. Reduce el tiempo en 40-60%.
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
-            {state.putToStoreTasks.length === 0 ? (
-              <EmptyState
-                icon={Store}
-                title="Sin tareas put-to-store"
-                description="Las tareas de distribución a tiendas aparecerán aquí al ser generadas."
-              />
-            ) : (
-              <DataTable
-                columns={putToStoreCols}
-                data={state.putToStoreTasks}
-                searchColumn="code"
-                searchPlaceholder="Buscar tarea PTS…"
-                emptyMessage="No hay tareas put-to-store registradas."
-              />
-            )}
-            {state.putToStoreTasks
-              .filter((t) => t.status === 'in_progress')
-              .map((task) => {
-                const totalDistributed = task.allocations.reduce(
-                  (s, a) => s + a.distributedQuantity,
-                  0
-                )
-                const totalRequested = task.allocations.reduce((s, a) => s + a.requestedQuantity, 0)
-                const globalPct =
-                  totalRequested > 0 ? Math.round((totalDistributed / totalRequested) * 100) : 0
-                return (
-                  <Card key={task.id} className="mt-4">
-                    <CardHeader>
-                      <CardTitle className="flex items-center justify-between text-sm">
-                        <span className="flex items-center gap-2">
-                          <Building2 className="size-4 text-blue-600" />
-                          {task.code} — {helpers.productName(task.productId)}
-                        </span>
-                        <Badge variant="secondary">{globalPct}% distribuido</Badge>
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <Progress value={globalPct} className="mb-4 h-2" />
-                      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                        {task.allocations.map((alloc) => {
-                          const allocPct =
-                            alloc.requestedQuantity > 0
-                              ? Math.round(
-                                  (alloc.distributedQuantity / alloc.requestedQuantity) * 100
-                                )
-                              : 0
-                          return (
-                            <div
-                              key={alloc.storeId}
-                              className={cn(
-                                'space-y-2 rounded-lg border p-3',
-                                allocPct === 100 ? 'border-green-300 bg-green-50' : 'border-border'
-                              )}
-                            >
-                              <div className="flex items-center justify-between">
-                                <span className="truncate text-sm font-medium">
-                                  {alloc.storeName}
-                                </span>
-                                {allocPct === 100 && (
-                                  <CheckCircle2 className="size-3 text-green-600" />
-                                )}
-                              </div>
-                              <Progress value={allocPct} className="h-1.5" />
-                              <p className="text-muted-foreground text-xs tabular-nums">
-                                {formatNumber(alloc.distributedQuantity)} /{' '}
-                                {formatNumber(alloc.requestedQuantity)} uds
-                              </p>
-                            </div>
-                          )
-                        })}
-                      </div>
-                    </CardContent>
-                  </Card>
-                )
-              })}
-          </TabPanel>
+          <PutToStoreTab
+            putToStoreTasks={state.putToStoreTasks}
+            pendingPtsCount={pendingPtsCount}
+            activePtsCount={activePtsCount}
+            completedPtsCount={completedPtsCount}
+            totalPtsUnits={totalPtsUnits}
+            putToStoreCols={putToStoreCols}
+            getProductName={helpers.productName}
+          />
         </TabsContent>
       </Tabs>
 

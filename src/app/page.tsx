@@ -3,16 +3,18 @@
 import {
   AlertTriangle,
   Boxes,
+  ClipboardCheck,
   ClipboardList,
   Grid3x3,
   PackageCheck,
   ShoppingCart,
+  Snowflake,
   TrendingUp,
   Undo2,
   Waves,
 } from 'lucide-react'
 import { useWmsStore } from '@/store/wms-store'
-import { selectDashboardKpis, selectSlottingRecommendations } from '@/store/selectors'
+import { selectDashboardKpis, selectInventoryAccuracy, selectSlottingRecommendations } from '@/store/selectors'
 import { useStoreHelpers } from '@/hooks/use-store-helpers'
 import { KpiCard } from '@/components/shared/kpi-card'
 import { PageHeader } from '@/components/shared/page-header'
@@ -32,6 +34,7 @@ export default function DashboardPage() {
   const state = useWmsStore()
   const { productName, locationCode } = useStoreHelpers()
   const kpis = selectDashboardKpis(state)
+  const accuracy = selectInventoryAccuracy(state)
   const recommendations = selectSlottingRecommendations(state).slice(0, 4)
   const recentOrders = [...state.commerceOrders]
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
@@ -43,6 +46,26 @@ export default function DashboardPage() {
         title="Dashboard operativo"
         description="Visión general de la operación de bodega y logística."
       />
+
+      {/* ── Freeze banner ────────────────────────────────────────────────── */}
+      {kpis.inventoryFreezeActive && (
+        <div className="flex items-center gap-3 rounded-lg border border-blue-300 bg-blue-50 px-4 py-3">
+          <Snowflake className="size-5 shrink-0 text-blue-600" />
+          <p className="flex-1 text-sm font-semibold text-blue-800">
+            Modo congelado de inventario activo — ajustes y bloqueos deshabilitados.
+          </p>
+        </div>
+      )}
+
+      {/* ── Pending adjustments alert ────────────────────────────────────── */}
+      {kpis.pendingAdjustments > 0 && (
+        <div className="flex items-center gap-3 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3">
+          <AlertTriangle className="size-5 shrink-0 text-amber-600" />
+          <p className="text-sm text-amber-800">
+            <span className="font-semibold">{kpis.pendingAdjustments} ajuste{kpis.pendingAdjustments !== 1 ? 's' : ''} de inventario</span> {kpis.pendingAdjustments !== 1 ? 'esperan' : 'espera'} aprobación de supervisor.
+          </p>
+        </div>
+      )}
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <KpiCard
@@ -105,6 +128,14 @@ export default function DashboardPage() {
           icon={AlertTriangle}
           tone="red"
           alert
+        />
+        <KpiCard
+          label="IRA — Exactitud"
+          value={`${kpis.ira}%`}
+          icon={ClipboardCheck}
+          tone={kpis.ira >= 95 ? 'green' : kpis.ira >= 80 ? 'amber' : 'red'}
+          sublabel={`${accuracy.adjustmentsPending} ajuste${accuracy.adjustmentsPending !== 1 ? 's' : ''} pendiente${accuracy.adjustmentsPending !== 1 ? 's' : ''}`}
+          alert={accuracy.adjustmentsPending > 0}
         />
       </div>
 

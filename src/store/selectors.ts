@@ -24,6 +24,10 @@ export interface DashboardKpis {
   otif: number
   misplacedAClassSkus: number
   criticalAlerts: number
+  // Sprint 2
+  pendingAdjustments: number
+  inventoryFreezeActive: boolean
+  ira: number
 }
 
 // ABC class per product, computed from demand stats (picking frequency).
@@ -88,7 +92,9 @@ export function selectDashboardKpis(state: WmsState): DashboardKpis {
   const otif = otifPercentage(state.shipments)
   const misplaced = misplacedAClassItems(state).length
   const integrationErrors = state.integrations.filter((i) => i.status === 'error').length
-  const criticalAlerts = integrationErrors + (otif < 90 ? 1 : 0) + misplaced
+  const pendingAdjustments = state.adjustmentRequests.filter((r) => r.status === 'pending_approval').length
+  const accuracy = selectInventoryAccuracy(state)
+  const criticalAlerts = integrationErrors + (otif < 90 ? 1 : 0) + misplaced + pendingAdjustments
 
   return {
     pendingOrders,
@@ -101,6 +107,9 @@ export function selectDashboardKpis(state: WmsState): DashboardKpis {
     otif,
     misplacedAClassSkus: misplaced,
     criticalAlerts,
+    pendingAdjustments,
+    inventoryFreezeActive: state.settings.inventoryFreezeActive,
+    ira: accuracy.ira,
   }
 }
 
@@ -446,6 +455,46 @@ export function selectSlottingTrends(state: WmsState): SlottingTrend {
     distanceSavedDelta: curr.totalDistanceSavedM - prev.totalDistanceSavedM,
     pendingReplenishmentDelta: curr.pendingReplenishment - prev.pendingReplenishment,
     misplacedPct,
+  }
+}
+
+// ── Inventory Accuracy (IRA) — Sprint 2 #60 ─────────────────────────────────
+//
+// IRA = 1 - (sum of |delta| from approved adjustments / theoretical stock at time of count)
+// Ranges 0–100%. 100% = perfect accuracy (no deviations found in cycle counts).
+// Uses approved InventoryAdjustmentRequests as the source of truth for deviations.
+
+export interface InventoryAccuracy {
+  ira: number          // 0–100
+  totalCounted: number // units counted across all approved adjustments
+  totalDeviation: number // sum of absolute deltas
+  adjustmentsApproved: number
+  adjustmentsPending: number
+  adjustmentsRejected: number
+}
+
+export function selectInventoryAccuracy(state: WmsState): InventoryAccuracy {
+  const approved = state.adjustmentRequests.filter((r) => r.status === 'approved')
+  const pending = state.adjustmentRequests.filter((r) => r.status === 'pending_approval')
+  const rejected = state.adjustmentRequests.filter((r) => r.status === 'rejected')
+
+  const totalCounted = approved.reduce((s, r) => s + r.countedQty, 0)
+  const totalDeviation = approved.reduce((s, r) => s + Math.abs(r.delta), 0)
+
+  // IRA formula: (totalCounted - totalDeviation) / totalCounted * 100
+  // If no counts yet, return 100% (assumed accurate until proven otherwise)
+  const ira =
+    totalCounted === 0
+      ? 100
+      : Math.max(0, Math.round(((totalCounted - totalDeviation) / totalCounted) * 100))
+
+  return {
+    ira,
+    totalCounted,
+    totalDeviation,
+    adjustmentsApproved: approved.length,
+    adjustmentsPending: pending.length,
+    adjustmentsRejected: rejected.length,
   }
 }
 
