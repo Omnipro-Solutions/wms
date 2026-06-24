@@ -6,9 +6,6 @@ import {
   Cable,
   ClipboardList,
   Grid3x3,
-  // LayoutDashboard,
-  GitBranch,
-  Hash,
   Layers,
   ListChecks,
   MapPinned,
@@ -23,7 +20,6 @@ import {
   Undo2,
   Warehouse,
   Waves,
-  Zap,
 } from 'lucide-react'
 import type { NavGroup } from '@/types/navigation'
 
@@ -74,25 +70,3 @@ export const NAV_GROUPS: NavGroup[] = [
 export const ALERTS_ICON = AlertTriangle
 export const TASKS_ICON = ListChecks
 
-// Individual icons kept for direct use elsewhere
-export {
-  ArrowRightLeft,
-  BarChart3,
-  Boxes,
-  Cable,
-  GitBranch,
-  Grid3x3,
-  Hash,
-  Layers,
-  MapPinned,
-  Package,
-  Route,
-  ScanLine,
-  Settings2,
-  ShoppingCart,
-  Tags,
-  Undo2,
-  Warehouse,
-  Waves,
-  Zap,
-}
