@@ -38,7 +38,6 @@ import { useDialogState } from '@/hooks/use-dialog-state'
 import { demandCv, validateRelocation } from '@/lib/rules/slotting'
 import { PageHeader } from '@/components/shared/page-header'
 import { KpiCard } from '@/components/shared/kpi-card'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -57,7 +56,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { SubNav, type SubNavItem } from '@/components/shared/sub-nav'
 import { cn } from '@/lib/utils'
 import { formatNumber } from '@/lib/formatters'
 import type { AbcClass, XyzClass, SlottingRecommendation } from '@/types/wms'
@@ -110,14 +109,13 @@ const SlottingPage = () => {
 
   const activeTab = (searchParams.get('tab') as TabValue) ?? 'optimization'
 
-  const handleTabChange = useCallback(
-    (value: string) => {
-      const params = new URLSearchParams(searchParams.toString())
-      params.set('tab', value)
-      router.replace(`?${params.toString()}`, { scroll: false })
-    },
-    [router, searchParams]
-  )
+  const SLOTTING_TABS: SubNavItem[] = [
+    { value: 'optimization', label: 'Recomendaciones' },
+    { value: 'classification', label: 'Clasificación ABC/XYZ' },
+    { value: 'replenishment', label: 'Reposición' },
+    { value: 'affinity', label: 'Afinidad' },
+    { value: 'history', label: 'Historial' },
+  ]
 
   const abc = useMemo(() => abcByProduct(state), [state])
   const xyz = useMemo(() => xyzByProduct(state), [state])
@@ -477,7 +475,7 @@ const SlottingPage = () => {
           sublabel="Fuera de golden zone"
           tone="amber"
           alert={misplaced.length > 0}
-          onClick={misplaced.length > 0 ? () => handleTabChange('optimization') : undefined}
+          onClick={misplaced.length > 0 ? () => router.push('?tab=optimization') : undefined}
         />
         <KpiCard
           icon={MoveRight}
@@ -485,7 +483,7 @@ const SlottingPage = () => {
           label="Reubicaciones sugeridas"
           sublabel="Con impacto positivo en picking"
           tone={impact.relocationsCount > 0 ? 'blue' : 'green'}
-          onClick={() => handleTabChange('optimization')}
+          onClick={() => router.push('?tab=optimization')}
         />
         <KpiCard
           icon={Clock}
@@ -501,88 +499,16 @@ const SlottingPage = () => {
           sublabel="Pick faces bajo mínimo"
           tone={pendingReplenishment > 0 ? 'red' : 'neutral'}
           alert={pendingReplenishment > 0}
-          onClick={pendingReplenishment > 0 ? () => handleTabChange('replenishment') : undefined}
+          onClick={pendingReplenishment > 0 ? () => router.push('?tab=replenishment') : undefined}
         />
       </div>
 
-      {/* ── Tabs ── */}
-      <Tabs value={activeTab} onValueChange={handleTabChange}>
-        <TabsList className="bg-muted/60 mb-4 h-auto flex-wrap gap-1">
-          <TabsTrigger
-            value="optimization"
-            className="gap-2 data-[state=active]:bg-white data-[state=active]:shadow-sm"
-          >
-            <Zap className="size-4" />
-            Optimización
-            {activeRecs.length > 0 && (
-              <Badge
-                variant="outline"
-                className="ml-1 h-5 min-w-5 border-blue-200 bg-blue-50 px-1.5 text-xs text-blue-600"
-              >
-                {activeRecs.length}
-              </Badge>
-            )}
-          </TabsTrigger>
+      {/* ── SubNav ── */}
+      <SubNav items={SLOTTING_TABS} defaultValue="optimization" className="mb-4" />
 
-          <TabsTrigger
-            value="classification"
-            className="gap-2 data-[state=active]:bg-white data-[state=active]:shadow-sm"
-          >
-            <Grid3x3 className="size-4" />
-            Clasificación ABC/XYZ
-          </TabsTrigger>
-
-          <TabsTrigger
-            value="replenishment"
-            className="gap-2 data-[state=active]:bg-white data-[state=active]:shadow-sm"
-          >
-            <PackageCheck className="size-4" />
-            Reabastecimiento
-            {pendingReplenishment > 0 && (
-              <Badge
-                variant="outline"
-                className="ml-1 h-5 min-w-5 border-red-200 bg-red-50 px-1.5 text-xs text-red-600"
-              >
-                {pendingReplenishment}
-              </Badge>
-            )}
-          </TabsTrigger>
-
-          <TabsTrigger
-            value="affinity"
-            className="gap-2 data-[state=active]:bg-white data-[state=active]:shadow-sm"
-          >
-            <GitMerge className="size-4" />
-            Afinidad
-            {affinityPending.length > 0 && (
-              <Badge
-                variant="outline"
-                className="ml-1 h-5 min-w-5 border-violet-200 bg-violet-50 px-1.5 text-xs text-violet-600"
-              >
-                {affinityPending.length}
-              </Badge>
-            )}
-          </TabsTrigger>
-
-          <TabsTrigger
-            value="history"
-            className="gap-2 data-[state=active]:bg-white data-[state=active]:shadow-sm"
-          >
-            <History className="size-4" />
-            Historial
-            {state.slottingSnapshots.length > 0 && (
-              <Badge
-                variant="outline"
-                className="ml-1 h-5 min-w-5 border-zinc-300 bg-zinc-100 px-1.5 text-xs text-zinc-600"
-              >
-                {state.slottingSnapshots.length}
-              </Badge>
-            )}
-          </TabsTrigger>
-        </TabsList>
-
-        {/* ════════ Tab: Optimización ════════ */}
-        <TabsContent value="optimization" className="space-y-4">
+      {/* ════════ Tab: Optimización ════════ */}
+      {activeTab === 'optimization' && (
+        <div className="space-y-4">
           <TabPanel
             icon={Zap}
             iconClass="text-blue-500"
@@ -656,10 +582,12 @@ const SlottingPage = () => {
               />
             )}
           </TabPanel>
-        </TabsContent>
+        </div>
+      )}
 
-        {/* ════════ Tab: Clasificación ABC/XYZ ════════ */}
-        <TabsContent value="classification">
+      {/* ════════ Tab: Clasificación ABC/XYZ ════════ */}
+      {activeTab === 'classification' && (
+        <div>
           <TabPanel
             icon={Grid3x3}
             iconClass="text-zinc-500"
@@ -708,10 +636,12 @@ const SlottingPage = () => {
               />
             )}
           </TabPanel>
-        </TabsContent>
+        </div>
+      )}
 
-        {/* ════════ Tab: Reabastecimiento ════════ */}
-        <TabsContent value="replenishment" className="space-y-4">
+      {/* ════════ Tab: Reabastecimiento ════════ */}
+      {activeTab === 'replenishment' && (
+        <div className="space-y-4">
           <TabPanel
             icon={PackageCheck}
             iconClass="text-blue-500"
@@ -777,10 +707,12 @@ const SlottingPage = () => {
               />
             )}
           </TabPanel>
-        </TabsContent>
+        </div>
+      )}
 
-        {/* ════════ Tab: Afinidad ════════ */}
-        <TabsContent value="affinity" className="space-y-4">
+      {/* ════════ Tab: Afinidad ════════ */}
+      {activeTab === 'affinity' && (
+        <div className="space-y-4">
           <TabPanel
             icon={GitMerge}
             iconClass="text-violet-500"
@@ -851,10 +783,12 @@ const SlottingPage = () => {
               </CardContent>
             </Card>
           )}
-        </TabsContent>
+        </div>
+      )}
 
-        {/* ════════ Tab: Historial ════════ */}
-        <TabsContent value="history" className="space-y-4">
+      {/* ════════ Tab: Historial ════════ */}
+      {activeTab === 'history' && (
+        <div className="space-y-4">
           <TabPanel
             icon={History}
             iconClass="text-zinc-500"
@@ -974,8 +908,8 @@ const SlottingPage = () => {
               />
             )}
           </TabPanel>
-        </TabsContent>
-      </Tabs>
+        </div>
+      )}
 
       {/* ════════ Simulation dialog ════════ */}
       <Dialog

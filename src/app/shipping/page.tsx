@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { CheckCircle2, Clock, DollarSign, Truck, TriangleAlert, TrendingUp } from 'lucide-react'
 
 import { useWmsStore } from '@/store/wms-store'
@@ -24,7 +25,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { SubNav, type SubNavItem } from '@/components/shared/sub-nav'
 import { formatNumber } from '@/lib/formatters'
 import { otifPercentage, otifAlerts, rateShop } from '@/lib/rules/shipping'
 import { RateShoppingDialog } from './_components/rate-shopping-dialog'
@@ -49,13 +50,19 @@ interface RateShopContext {
   packageCount: number
 }
 
+const SHIPPING_TABS: SubNavItem[] = [
+  { value: 'shipments', label: 'Envíos' },
+  { value: 'otif', label: 'OTIF' },
+]
+
 export default function ShippingPage() {
   const today = new Date().toISOString().slice(0, 10)
 
   const state = useWmsStore()
   const { shipOrder, deliverShipment } = state
 
-  const [activeTab, setActiveTab] = useState('shipments')
+  const searchParams = useSearchParams()
+  const activeTab = searchParams.get('tab') ?? 'shipments'
   const [otifFilter, setOtifFilter] = useState('all')
   const [statusFilter, setStatusFilter] = useState('all')
   const [carrierFilter, setCarrierFilter] = useState('all')
@@ -302,48 +309,29 @@ export default function ShippingPage() {
         />
       </div>
 
-      {/* Tabs */}
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList>
-          <TabsTrigger value="shipments" className="flex items-center gap-1.5">
-            <Truck className="size-3.5" /> Envíos
-            {filteredRows.length > 0 && (
-              <span className="bg-muted text-muted-foreground ml-1 rounded px-1.5 py-0.5 text-xs tabular-nums">
-                {filteredRows.length}
-              </span>
-            )}
-          </TabsTrigger>
-          <TabsTrigger value="otif" className="flex items-center gap-1.5">
-            <TrendingUp className="size-3.5" /> Dashboard OTIF
-            {alerts.length > 0 && (
-              <span className="ml-1 rounded bg-red-100 px-1.5 py-0.5 text-xs font-medium text-red-700 tabular-nums">
-                {alerts.length}
-              </span>
-            )}
-          </TabsTrigger>
-        </TabsList>
+      {/* SubNav */}
+      <SubNav items={SHIPPING_TABS} defaultValue="shipments" className="mb-4" />
 
-        {/* Shipments table */}
-        <TabsContent value="shipments" className="mt-4">
-          <Card>
-            <CardContent className="pt-4">
-              <DataTable
-                columns={columns}
-                data={filteredRows}
-                searchColumn="customerName"
-                searchPlaceholder="Buscar cliente..."
-                filters={filtersNode}
-                emptyMessage="No hay envíos con los filtros seleccionados."
-              />
-            </CardContent>
-          </Card>
-        </TabsContent>
+      {/* Shipments table */}
+      {activeTab === 'shipments' && (
+        <Card>
+          <CardContent className="pt-4">
+            <DataTable
+              columns={columns}
+              data={filteredRows}
+              searchColumn="customerName"
+              searchPlaceholder="Buscar cliente..."
+              filters={filtersNode}
+              emptyMessage="No hay envíos con los filtros seleccionados."
+            />
+          </CardContent>
+        </Card>
+      )}
 
-        {/* OTIF dashboard */}
-        <TabsContent value="otif" className="mt-4">
-          <OtifDashboard shipments={state.shipments} alerts={alerts} today={today} />
-        </TabsContent>
-      </Tabs>
+      {/* OTIF dashboard */}
+      {activeTab === 'otif' && (
+        <OtifDashboard shipments={state.shipments} alerts={alerts} today={today} />
+      )}
 
       {/* Rate shopping dialog */}
       <RateShoppingDialog

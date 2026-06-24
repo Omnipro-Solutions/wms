@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useCallback, useState } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useSearchParams } from 'next/navigation'
 import {
   AlertTriangle,
   Box,
@@ -43,7 +43,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { SubNav, type SubNavItem } from '@/components/shared/sub-nav'
 import { type ColumnDef } from '@tanstack/react-table'
 import { DataTableColumnHeader } from '@/components/data-table'
 import { StatusBadge } from '@/components/shared/status-badge'
@@ -91,7 +91,6 @@ interface BoxDialogData {
 const PackingPage = () => {
   const state = useWmsStore()
   const { productName: getProductName } = useStoreHelpers()
-  const router = useRouter()
   const searchParams = useSearchParams()
 
   const {
@@ -107,14 +106,11 @@ const PackingPage = () => {
 
   const activeTab = (searchParams.get('tab') as TabValue) ?? 'verificacion'
 
-  const handleTabChange = useCallback(
-    (value: string) => {
-      const params = new URLSearchParams(searchParams.toString())
-      params.set('tab', value)
-      router.replace(`?${params.toString()}`, { scroll: false })
-    },
-    [router, searchParams]
-  )
+  const PACKING_TABS: SubNavItem[] = [
+    { value: 'verificacion', label: 'Verificación' },
+    { value: 'reglas', label: 'Reglas de empaque' },
+    { value: 'etiquetas', label: 'Etiquetas' },
+  ]
 
   // ─── Dialog state ─────────────────────────────────────────────────────────
 
@@ -698,34 +694,11 @@ const PackingPage = () => {
         />
       </div>
 
-      {/* Tabs */}
-      <Tabs value={activeTab} onValueChange={handleTabChange}>
-        <TabsList className="h-auto flex-wrap gap-1">
-          <TabsTrigger value="verificacion" className="gap-2">
-            <ClipboardCheck className="size-4" />
-            Verificación
-            <Badge variant="secondary" className="ml-1 bg-blue-100 text-blue-700">
-              {state.packingOrders.length}
-            </Badge>
-          </TabsTrigger>
-          <TabsTrigger value="reglas" className="gap-2">
-            <ShieldAlert className="size-4" />
-            Reglas de empaque
-            <Badge variant="secondary" className="ml-1 bg-amber-100 text-amber-700">
-              {state.packingRules.filter((r) => r.active).length}
-            </Badge>
-          </TabsTrigger>
-          <TabsTrigger value="etiquetas" className="gap-2">
-            <Tag className="size-4" />
-            Etiquetas
-            <Badge variant="secondary" className="ml-1 bg-purple-100 text-purple-700">
-              {labelledOrders.length}
-            </Badge>
-          </TabsTrigger>
-        </TabsList>
+      {/* SubNav */}
+      <SubNav items={PACKING_TABS} defaultValue="verificacion" className="mb-4" />
 
-        {/* ── Tab: Verificación ─────────────────────────────────────────── */}
-        <TabsContent value="verificacion">
+      {/* ── Tab: Verificación ─────────────────────────────────────────── */}
+      {activeTab === 'verificacion' && (
           <TabPanel
             icon={ClipboardCheck}
             iconClass="text-blue-500"
@@ -748,10 +721,10 @@ const PackingPage = () => {
               />
             )}
           </TabPanel>
-        </TabsContent>
+      )}
 
-        {/* ── Tab: Reglas de empaque ────────────────────────────────────── */}
-        <TabsContent value="reglas">
+      {/* ── Tab: Reglas de empaque ────────────────────────────────────── */}
+      {activeTab === 'reglas' && (
           <TabPanel
             icon={ShieldAlert}
             iconClass="text-amber-500"
@@ -779,10 +752,10 @@ const PackingPage = () => {
               />
             )}
           </TabPanel>
-        </TabsContent>
+      )}
 
-        {/* ── Tab: Etiquetas ────────────────────────────────────────────── */}
-        <TabsContent value="etiquetas">
+      {/* ── Tab: Etiquetas ────────────────────────────────────────────── */}
+      {activeTab === 'etiquetas' && (
           <TabPanel
             icon={Tag}
             iconClass="text-purple-500"
@@ -805,8 +778,7 @@ const PackingPage = () => {
               />
             )}
           </TabPanel>
-        </TabsContent>
-      </Tabs>
+      )}
 
       {/* ── Dialog: Iniciar packing ───────────────────────────────────────── */}
       <Dialog open={!!startDialog} onOpenChange={(o) => { if (!o) setStartDialog(null) }}>

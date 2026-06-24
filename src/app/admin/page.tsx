@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useSearchParams } from 'next/navigation'
 import {
   AlertTriangle,
   Box,
@@ -25,6 +26,7 @@ import {
 import { useWmsStore, resetStore } from '@/store/wms-store'
 import { selectInventoryAccuracy } from '@/store/selectors'
 import { PageHeader } from '@/components/shared/page-header'
+import { OperatorGate } from '@/components/shared/operator-gate'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -55,7 +57,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { SubNav, type SubNavItem } from '@/components/shared/sub-nav'
 import { cn } from '@/lib/utils'
 import type { CyclicCountMethod, UnitOfMeasure } from '@/types/wms'
 
@@ -88,7 +90,19 @@ const COUNT_STATUS_COLORS: Record<string, string> = {
   cancelled: 'bg-zinc-50 text-zinc-500 border-zinc-200',
 }
 
+const ADMIN_TABS: SubNavItem[] = [
+  { value: 'operators', label: 'Operadores' },
+  { value: 'reasons', label: 'Razones' },
+  { value: 'carriers', label: 'Carriers' },
+  { value: 'inventory-control', label: 'Control inventario' },
+  { value: 'cyclic-counts', label: 'Conteos cíclicos' },
+  { value: 'uom', label: 'Unidades de medida' },
+  { value: 'settings', label: 'Configuración' },
+]
+
 const AdminPage = () => {
+  const searchParams = useSearchParams()
+  const activeTab = searchParams.get('tab') ?? 'operators'
   const state = useWmsStore()
   const {
     warehouses,
@@ -330,26 +344,10 @@ const AdminPage = () => {
         </CardContent>
       </Card>
 
-      <Tabs defaultValue="operators">
-        <TabsList className="flex-wrap">
-          <TabsTrigger value="operators">Operadores</TabsTrigger>
-          <TabsTrigger value="reasons">Razones</TabsTrigger>
-          <TabsTrigger value="carriers">Carriers</TabsTrigger>
-          <TabsTrigger value="inventory-control">
-            Control Inventario
-            {pendingAdj.length > 0 && (
-              <Badge variant="outline" className="ml-1.5 h-4 min-w-4 border-amber-300 bg-amber-50 px-1 text-[10px] text-amber-700">
-                {pendingAdj.length}
-              </Badge>
-            )}
-          </TabsTrigger>
-          <TabsTrigger value="cyclic-counts">Conteos cíclicos</TabsTrigger>
-          <TabsTrigger value="uom">Unidades de medida</TabsTrigger>
-          <TabsTrigger value="settings">Configuración</TabsTrigger>
-        </TabsList>
+      <SubNav items={ADMIN_TABS} defaultValue="operators" className="mb-4" />
 
-        {/* ── Operators ── */}
-        <TabsContent value="operators">
+      {/* ── Operators ── */}
+      {activeTab === 'operators' && (
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-sm">
@@ -392,10 +390,10 @@ const AdminPage = () => {
               </Table>
             </CardContent>
           </Card>
-        </TabsContent>
+      )}
 
-        {/* ── Reasons ── */}
-        <TabsContent value="reasons">
+      {/* ── Reasons ── */}
+      {activeTab === 'reasons' && (
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-sm">
@@ -436,10 +434,10 @@ const AdminPage = () => {
               </Table>
             </CardContent>
           </Card>
-        </TabsContent>
+      )}
 
-        {/* ── Carriers ── */}
-        <TabsContent value="carriers">
+      {/* ── Carriers ── */}
+      {activeTab === 'carriers' && (
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-sm">
@@ -484,10 +482,11 @@ const AdminPage = () => {
               </Table>
             </CardContent>
           </Card>
-        </TabsContent>
+      )}
 
-        {/* ── Inventory Control ── */}
-        <TabsContent value="inventory-control" className="space-y-4">
+      {/* ── Inventory Control ── */}
+      {activeTab === 'inventory-control' && (
+        <div className="space-y-4">
 
           {/* IRA KPI + Freeze toggle */}
           <div className="grid gap-4 sm:grid-cols-3">
@@ -510,11 +509,16 @@ const AdminPage = () => {
                   <p className="font-medium text-sm">Modo congelado</p>
                   <p className="text-xs text-muted-foreground mt-0.5">Bloquea ajustes, bloqueos y liberaciones de stock.</p>
                   <div className="mt-3 flex items-center gap-2">
-                    <Switch
-                      checked={settings.inventoryFreezeActive}
-                      onCheckedChange={handleToggleFreeze}
-                    />
-                    <span className="text-sm">{settings.inventoryFreezeActive ? 'Activo' : 'Inactivo'}</span>
+                    <OperatorGate
+                      capability="freeze_inventory"
+                      fallback={<span className="text-xs text-muted-foreground">Solo supervisor puede cambiar esto.</span>}
+                    >
+                      <Switch
+                        checked={settings.inventoryFreezeActive}
+                        onCheckedChange={handleToggleFreeze}
+                      />
+                      <span className="text-sm">{settings.inventoryFreezeActive ? 'Activo' : 'Inactivo'}</span>
+                    </OperatorGate>
                   </div>
                 </div>
               </CardContent>
@@ -585,14 +589,19 @@ const AdminPage = () => {
                           </TableCell>
                           <TableCell className="text-right">
                             {req.status === 'pending_approval' && (
-                              <div className="flex justify-end gap-1">
-                                <Button variant="ghost" size="sm" className="text-emerald-600 hover:text-emerald-700" onClick={() => approveAdjustment(req.id, 'Supervisor')}>
-                                  <CheckCircle2 className="size-4" />
-                                </Button>
-                                <Button variant="ghost" size="sm" className="text-red-500 hover:text-red-600" onClick={() => handleOpenReject(req.id)}>
-                                  <XCircle className="size-4" />
-                                </Button>
-                              </div>
+                              <OperatorGate
+                                capability="approve_adjustment"
+                                fallback={<span className="text-xs text-muted-foreground">Solo supervisor</span>}
+                              >
+                                <div className="flex justify-end gap-1">
+                                  <Button variant="ghost" size="sm" className="text-emerald-600 hover:text-emerald-700" onClick={() => approveAdjustment(req.id, 'Supervisor')}>
+                                    <CheckCircle2 className="size-4" />
+                                  </Button>
+                                  <Button variant="ghost" size="sm" className="text-red-500 hover:text-red-600" onClick={() => handleOpenReject(req.id)}>
+                                    <XCircle className="size-4" />
+                                  </Button>
+                                </div>
+                              </OperatorGate>
                             )}
                           </TableCell>
                         </TableRow>
@@ -603,10 +612,12 @@ const AdminPage = () => {
               )}
             </CardContent>
           </Card>
-        </TabsContent>
+        </div>
+      )}
 
-        {/* ── Cyclic Counts ── */}
-        <TabsContent value="cyclic-counts" className="space-y-4">
+      {/* ── Cyclic Counts ── */}
+      {activeTab === 'cyclic-counts' && (
+        <div className="space-y-4">
           <div className="flex justify-end">
             <Button onClick={() => setCountFormOpen(true)}>
               <CalendarClock className="mr-1.5 size-4" /> Nuevo plan de conteo
@@ -684,10 +695,12 @@ const AdminPage = () => {
               </CardContent>
             </Card>
           )}
-        </TabsContent>
+        </div>
+      )}
 
-        {/* ── Units of Measure ── */}
-        <TabsContent value="uom">
+      {/* ── Units of Measure ── */}
+      {activeTab === 'uom' && (
+        <>
           <Card>
             <CardHeader>
               <div className="flex items-start justify-between">
@@ -816,10 +829,11 @@ const AdminPage = () => {
               </DialogFooter>
             </DialogContent>
           </Dialog>
-        </TabsContent>
+        </>
+      )}
 
-        {/* ── Settings ── */}
-        <TabsContent value="settings">
+      {/* ── Settings ── */}
+      {activeTab === 'settings' && (
           <Card>
             <CardHeader>
               <div className="flex items-start justify-between">
@@ -868,12 +882,61 @@ const AdminPage = () => {
                 <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-zinc-500">Control de inventario</p>
                 <div className="grid gap-4 sm:grid-cols-2">
                   <SettingField label="Umbral aprobación ajuste (uds)" description="Delta absoluto en unidades por encima del cual el ajuste requiere aprobación de supervisor." value={localSettings.adjustmentApprovalThreshold} min={1} max={500} step={1} onChange={(v) => handleSettingChange('adjustmentApprovalThreshold', v)} />
+                  <SettingField label="Umbral stock crítico (uds)" description="SKUs con stock disponible ≤ a este valor aparecen como alerta crítica en el dashboard." value={localSettings.stockAlertThreshold} min={1} max={200} step={1} onChange={(v) => handleSettingChange('stockAlertThreshold', v)} />
+                  <SettingField label="Días alerta vencimiento" description="Ítems que vencen dentro de este número de días activan la alerta de vencimiento próximo." value={localSettings.expirationAlertDays} min={1} max={365} step={1} onChange={(v) => handleSettingChange('expirationAlertDays', v)} />
+                </div>
+              </div>
+
+              <Separator />
+
+              <div>
+                <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-zinc-500">SLA por canal / tipo de despacho</p>
+                <div className="space-y-2">
+                  {localSettings.slaConfigs.map((sla, idx) => (
+                    <div key={sla.id} className="flex items-center gap-3 rounded-md border p-3">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate">{sla.label}</p>
+                        <p className="text-xs text-muted-foreground">{sla.channel} · {sla.fulfillmentType}</p>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <Label className="text-xs">Máx. horas</Label>
+                        <Input
+                          type="number"
+                          min={1}
+                          max={168}
+                          className="h-7 w-16 text-xs"
+                          value={sla.maxHours}
+                          onChange={(e) => {
+                            const updated = localSettings.slaConfigs.map((s, i) =>
+                              i === idx ? { ...s, maxHours: Math.max(1, Number(e.target.value)) } : s
+                            )
+                            setLocalSettings((prev) => ({ ...prev, slaConfigs: updated }))
+                            updateSettings({ slaConfigs: updated })
+                          }}
+                        />
+                        <Label className="text-xs">Alerta %</Label>
+                        <Input
+                          type="number"
+                          min={10}
+                          max={100}
+                          className="h-7 w-16 text-xs"
+                          value={sla.alertAtPercent}
+                          onChange={(e) => {
+                            const updated = localSettings.slaConfigs.map((s, i) =>
+                              i === idx ? { ...s, alertAtPercent: Math.max(10, Number(e.target.value)) } : s
+                            )
+                            setLocalSettings((prev) => ({ ...prev, slaConfigs: updated }))
+                            updateSettings({ slaConfigs: updated })
+                          }}
+                        />
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
             </CardContent>
           </Card>
-        </TabsContent>
-      </Tabs>
+      )}
 
       {/* Reset confirmation dialog */}
       <Dialog open={resetDialogOpen} onOpenChange={setResetDialogOpen}>
