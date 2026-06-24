@@ -7,6 +7,9 @@ import {
   ClipboardList,
   Grid3x3,
   // LayoutDashboard,
+  GitBranch,
+  Hash,
+  Layers,
   ListChecks,
   MapPinned,
   Package,
@@ -20,48 +23,41 @@ import {
   Undo2,
   Warehouse,
   Waves,
+  Zap,
 } from 'lucide-react'
 import type { NavGroup } from '@/types/navigation'
 
 export const NAV_GROUPS: NavGroup[] = [
-  // {
-  //   title: "General",
-  //   icon: LayoutDashboard,
-  //   isActive: true,
-  //   items: [
-  //     { label: "Dashboard", href: "/" },
-  //   ],
-  // },
   {
     title: 'Entrada',
     icon: PackageCheck,
     items: [
-      { label: 'Recepción', href: '/receiving' },
-      { label: 'Inventario', href: '/inventory' },
-      { label: 'Trazabilidad lotes', href: '/inventory/lot-trace' },
+      { label: 'Recepción', href: '/receiving', icon: PackageCheck },
+      { label: 'Inventario', href: '/inventory', icon: Boxes },
+      { label: 'Trazabilidad lotes', href: '/inventory/lot-trace', icon: Layers },
       { label: 'Trazabilidad N/S', href: '/serial-trace', icon: ScanLine },
-      { label: 'Ubicaciones', href: '/locations' },
-      { label: 'Slotting', href: '/slotting' },
+      { label: 'Ubicaciones', href: '/locations', icon: MapPinned },
+      { label: 'Slotting', href: '/slotting', icon: Grid3x3 },
     ],
   },
   {
     title: 'Operación',
     icon: ClipboardList,
     items: [
-      { label: 'Traslados', href: '/transfers' },
-      { label: 'Devoluciones', href: '/returns' },
-      { label: 'Commerce', href: '/commerce' },
+      { label: 'Traslados', href: '/transfers', icon: ArrowRightLeft },
+      { label: 'Devoluciones', href: '/returns', icon: Undo2 },
+      { label: 'Commerce', href: '/commerce', icon: ShoppingCart },
       { label: 'Picking', href: '/picking', icon: ClipboardList },
-      { label: 'Packing', href: '/packing' },
-      { label: 'Etiquetas', href: '/labels' },
+      { label: 'Packing', href: '/packing', icon: Package },
+      { label: 'Etiquetas', href: '/labels', icon: Tags },
     ],
   },
   {
     title: 'Despacho',
     icon: Truck,
     items: [
-      { label: 'Shipping', href: '/shipping' },
-      { label: 'Manifiestos', href: '/load-manifests' },
+      { label: 'Shipping', href: '/shipping', icon: Truck },
+      { label: 'Manifiestos', href: '/load-manifests', icon: Route },
     ],
   },
   {
@@ -84,7 +80,10 @@ export {
   BarChart3,
   Boxes,
   Cable,
+  GitBranch,
   Grid3x3,
+  Hash,
+  Layers,
   MapPinned,
   Package,
   Route,
@@ -95,4 +94,5 @@ export {
   Undo2,
   Warehouse,
   Waves,
+  Zap,
 }

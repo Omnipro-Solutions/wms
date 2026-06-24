@@ -4,6 +4,7 @@ import type { ReactNode } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { AppSidebar } from '@/components/app-sidebar'
+import { BottomNav } from '@/components/layout/bottom-nav'
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -37,27 +38,35 @@ export const AppShell = ({ children }: { children: ReactNode }) => {
     <SidebarProvider>
       <AppSidebar />
       <SidebarInset>
-        <header className="flex h-12 shrink-0 items-center gap-2">
-          <div className="flex items-center gap-2 px-4">
-            <SidebarTrigger className="-ml-1" />
-            <Separator orientation="vertical" className="mr-2 data-[orientation=vertical]:h-6" />
-            <Breadcrumb>
-              <BreadcrumbList>
-                <BreadcrumbItem className="hidden md:block">
-                  <BreadcrumbLink href="#">Home</BreadcrumbLink>
-                </BreadcrumbItem>
-                <BreadcrumbSeparator className="hidden md:block" />
-                <BreadcrumbItem>
-                  <BreadcrumbPage>{crumb?.label}</BreadcrumbPage>
-                </BreadcrumbItem>
-              </BreadcrumbList>
-            </Breadcrumb>
-          </div>
+        <header className="flex h-12 shrink-0 items-center gap-2 border-b px-4">
+          <SidebarTrigger className="-ml-1" />
+          <Separator orientation="vertical" className="mr-2 data-[orientation=vertical]:h-4" />
+          <Breadcrumb>
+            <BreadcrumbList>
+              {crumb?.group && (
+                <>
+                  <BreadcrumbItem className="hidden md:block">
+                    <BreadcrumbLink asChild>
+                      <Link href="/">{crumb.group}</Link>
+                    </BreadcrumbLink>
+                  </BreadcrumbItem>
+                  <BreadcrumbSeparator className="hidden md:block" />
+                </>
+              )}
+              <BreadcrumbItem>
+                <BreadcrumbPage>{crumb?.label ?? 'Dashboard'}</BreadcrumbPage>
+              </BreadcrumbItem>
+            </BreadcrumbList>
+          </Breadcrumb>
         </header>
 
-        <main className="flex-1 overflow-y-auto p-6">
-          <div className="flex flex-1 flex-col gap-4 p-4 pt-0">{children}</div>
+        <main className="flex flex-1 flex-col overflow-y-auto">
+          <div className="flex flex-1 flex-col gap-4 p-6 pb-20 md:pb-6">
+            {children}
+          </div>
         </main>
+
+        <BottomNav />
       </SidebarInset>
     </SidebarProvider>
   )

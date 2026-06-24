@@ -67,7 +67,8 @@ export const NavMain = ({ groups, label, className }: Props) => {
                       return (
                         <SidebarMenuSubItem key={item.href}>
                           <SidebarMenuSubButton asChild isActive={isActive}>
-                            <Link href={item.href}>
+                            <Link href={item.href} className="flex items-center gap-2">
+                              {item.icon && <item.icon className="size-3.5 shrink-0 text-muted-foreground" />}
                               <span>{item.label}</span>
                             </Link>
                           </SidebarMenuSubButton>

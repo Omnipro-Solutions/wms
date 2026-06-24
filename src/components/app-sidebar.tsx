@@ -4,7 +4,6 @@ import * as React from 'react'
 import Link from 'next/link'
 import { TerminalIcon } from 'lucide-react'
 import { NavMain } from '@/components/nav-main'
-import { NavSecondary } from '@/components/nav-secondary'
 import { NavUser } from '@/components/nav-user'
 import {
   Sidebar,
@@ -17,21 +16,9 @@ import {
 } from '@/components/ui/sidebar'
 import { NAV_GROUPS } from '@/lib/constants'
 
-const user = {
-  name: 'Carlos Granados',
-  email: 'carlos.granados@omni.pro',
-  avatar: '/avatars/user.jpg',
-}
-
-const MAIN_GROUPS = ['General', 'Entrada', 'Operación', 'Despacho']
-const SECONDARY_GROUPS = ['Sistema']
-
 export const AppSidebar = ({ ...props }: React.ComponentProps<typeof Sidebar>) => {
-  const mainGroups = NAV_GROUPS.filter((g) => MAIN_GROUPS.includes(g.title))
-  const secondaryGroups = NAV_GROUPS.filter((g) => SECONDARY_GROUPS.includes(g.title))
-
   return (
-    <Sidebar variant="inset" {...props}>
+    <Sidebar variant="sidebar" collapsible="offcanvas" {...props}>
       <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem>
@@ -41,8 +28,8 @@ export const AppSidebar = ({ ...props }: React.ComponentProps<typeof Sidebar>) =
                   <TerminalIcon className="size-4" />
                 </div>
                 <div className="grid flex-1 text-left text-sm leading-tight">
-                  <span className="truncate font-medium">WMS Platform</span>
-                  <span className="truncate text-xs">Enterprise</span>
+                  <span className="truncate font-semibold">WMS Platform</span>
+                  <span className="truncate text-xs text-muted-foreground">Enterprise</span>
                 </div>
               </Link>
             </SidebarMenuButton>
@@ -50,11 +37,10 @@ export const AppSidebar = ({ ...props }: React.ComponentProps<typeof Sidebar>) =
         </SidebarMenu>
       </SidebarHeader>
       <SidebarContent>
-        <NavMain groups={mainGroups} label="Platform" />
-        <NavSecondary groups={secondaryGroups} label="Sistema" className="mt-auto" />
+        <NavMain groups={NAV_GROUPS} />
       </SidebarContent>
       <SidebarFooter>
-        <NavUser user={user} />
+        <NavUser />
       </SidebarFooter>
     </Sidebar>
   )
