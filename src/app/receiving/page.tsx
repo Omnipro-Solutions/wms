@@ -17,10 +17,9 @@ import { abcByProduct } from '@/store/selectors'
 import { useStoreHelpers } from '@/hooks/use-store-helpers'
 import { PageHeader } from '@/components/shared/page-header'
 import { KpiCard } from '@/components/shared/kpi-card'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { DataTable } from '@/components/data-table'
+import { SubNav, type SubNavItem } from '@/components/shared/sub-nav'
 import {
   buildAppointmentColumns,
   buildPoColumns,
@@ -251,6 +250,15 @@ const ReceivingPage = () => {
     })
   }, [])
 
+  // ── SubNav items ──────────────────────────────────────────────────────────
+  const RECEIVING_TABS: SubNavItem[] = [
+    { value: 'ordenes', label: 'Órdenes de compra', count: pendingPoCount },
+    { value: 'citas', label: 'Citas ASN', count: appointmentRows.length },
+    { value: 'recibiendo', label: 'Recibiendo activo', count: receivingRows.length },
+    { value: 'qc', label: 'Control de calidad', count: qcRows.length },
+    { value: 'putaway', label: 'Putaway staging', count: putawayRows.length },
+  ]
+
   // ── Column definitions (memoized) ─────────────────────────────────────────
   const poCols = useMemo(() => buildPoColumns(sheetState.open), [sheetState.open])
   const appointmentCols = useMemo(() => buildAppointmentColumns(handleAction), [handleAction])
@@ -309,75 +317,9 @@ const ReceivingPage = () => {
         />
       </div>
 
-      <Tabs value={activeTab} onValueChange={handleTabChange}>
-        <TabsList className="bg-muted/60 mb-4 h-auto flex-wrap gap-1">
-          <TabsTrigger
-            value="ordenes"
-            className="gap-2 data-[state=active]:bg-white data-[state=active]:shadow-sm"
-          >
-            <FileText className="size-4" />
-            Órdenes de compra
-            {pendingPoCount > 0 && (
-              <Badge variant="outline" className="ml-1 h-5 min-w-5 border-zinc-300 bg-zinc-100 px-1.5 text-xs text-zinc-600">
-                {pendingPoCount}
-              </Badge>
-            )}
-          </TabsTrigger>
+      <SubNav items={RECEIVING_TABS} defaultValue="ordenes" className="mb-4" />
 
-          <TabsTrigger
-            value="citas"
-            className="gap-2 data-[state=active]:bg-white data-[state=active]:shadow-sm"
-          >
-            <Truck className="size-4" />
-            Llegadas programadas
-            {appointmentRows.length > 0 && (
-              <Badge variant="outline" className="ml-1 h-5 min-w-5 border-blue-200 bg-blue-50 px-1.5 text-xs text-blue-600">
-                {appointmentRows.length}
-              </Badge>
-            )}
-          </TabsTrigger>
-
-          <TabsTrigger
-            value="recibiendo"
-            className="gap-2 data-[state=active]:bg-white data-[state=active]:shadow-sm"
-          >
-            <PackageCheck className="size-4" />
-            Conteo físico
-            {receivingRows.length > 0 && (
-              <Badge variant="outline" className="ml-1 h-5 min-w-5 border-blue-200 bg-blue-50 px-1.5 text-xs text-blue-600">
-                {receivingRows.length}
-              </Badge>
-            )}
-          </TabsTrigger>
-
-          <TabsTrigger
-            value="qc"
-            className="gap-2 data-[state=active]:bg-white data-[state=active]:shadow-sm"
-          >
-            <ShieldCheck className="size-4" />
-            Inspección de calidad
-            {qcRows.length > 0 && (
-              <Badge variant="outline" className="ml-1 h-5 min-w-5 border-amber-300 bg-amber-50 px-1.5 text-xs text-amber-700">
-                {qcRows.length}
-              </Badge>
-            )}
-          </TabsTrigger>
-
-          <TabsTrigger
-            value="putaway"
-            className="gap-2 data-[state=active]:bg-white data-[state=active]:shadow-sm"
-          >
-            <MapPin className="size-4" />
-            Ubicación en almacén
-            {putawayRows.length > 0 && (
-              <Badge variant="outline" className="ml-1 h-5 min-w-5 border-emerald-200 bg-emerald-50 px-1.5 text-xs text-emerald-700">
-                {putawayRows.length}
-              </Badge>
-            )}
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="ordenes">
+      {activeTab === 'ordenes' && (
           <TabPanel
             icon={FileText}
             iconClass="text-zinc-500"
@@ -430,9 +372,9 @@ const ReceivingPage = () => {
               />
             )}
           </TabPanel>
-        </TabsContent>
+      )}
 
-        <TabsContent value="citas">
+      {activeTab === 'citas' && (
           <TabPanel
             icon={Truck}
             iconClass="text-blue-500"
@@ -455,9 +397,9 @@ const ReceivingPage = () => {
               />
             )}
           </TabPanel>
-        </TabsContent>
+      )}
 
-        <TabsContent value="recibiendo">
+      {activeTab === 'recibiendo' && (
           <TabPanel
             icon={PackageCheck}
             iconClass="text-blue-500"
@@ -480,9 +422,9 @@ const ReceivingPage = () => {
               />
             )}
           </TabPanel>
-        </TabsContent>
+      )}
 
-        <TabsContent value="qc">
+      {activeTab === 'qc' && (
           <TabPanel
             icon={ShieldCheck}
             iconClass="text-amber-500"
@@ -505,9 +447,9 @@ const ReceivingPage = () => {
               />
             )}
           </TabPanel>
-        </TabsContent>
+      )}
 
-        <TabsContent value="putaway">
+      {activeTab === 'putaway' && (
           <TabPanel
             icon={MapPin}
             iconClass="text-emerald-600"
@@ -533,8 +475,7 @@ const ReceivingPage = () => {
               />
             )}
           </TabPanel>
-        </TabsContent>
-      </Tabs>
+      )}
 
       <ReceiveDialog state={receiveDialogState} />
       <CloseAsnDialog state={closeDialogState} />
