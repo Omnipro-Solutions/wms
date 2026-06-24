@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useCallback, useState } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useSearchParams } from 'next/navigation'
 import {
   Building2,
   CheckCircle2,
@@ -24,7 +24,7 @@ import { useStoreHelpers } from '@/hooks/use-store-helpers'
 import { useDialogState } from '@/hooks/use-dialog-state'
 import { clusterProgress } from '@/lib/rules/picking'
 import { PageHeader } from '@/components/shared/page-header'
-import { Badge } from '@/components/ui/badge'
+import { BarcodeScanner } from '@/components/shared/barcode-scanner'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -42,7 +42,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { SubNav, type SubNavItem } from '@/components/shared/sub-nav'
 import {
   buildTaskColumns,
   buildWaveColumns,
@@ -70,8 +70,6 @@ import { ClusterTab } from './_components/ClusterTab'
 import { PutToStoreTab } from './_components/PutToStoreTab'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-
-type TabValue = 'tasks' | 'waves' | 'waveless' | 'batch' | 'zone' | 'cluster' | 'put-to-store'
 
 const GROUP_BY_LABELS: Record<PickingWave['groupBy'], string> = {
   zone: 'Zona',
@@ -151,19 +149,9 @@ const PickingPage = () => {
   const { startClusterTask, depositToSlot, completeClusterTask } = useWmsStore()
   const { startPutToStore, distributeToStore, completePutToStore } = useWmsStore()
   const helpers = useStoreHelpers()
-  const router = useRouter()
   const searchParams = useSearchParams()
 
-  const activeTab = (searchParams.get('tab') as TabValue) ?? 'tasks'
-
-  const handleTabChange = useCallback(
-    (value: string) => {
-      const params = new URLSearchParams(searchParams.toString())
-      params.set('tab', value)
-      router.replace(`?${params.toString()}`, { scroll: false })
-    },
-    [router, searchParams]
-  )
+  const activeTab = searchParams.get('tab') ?? 'tasks'
 
   // ── Task dialog ────────────────────────────────────────────────────────────
   const [pickedQty, setPickedQty] = useState('')
@@ -737,6 +725,18 @@ const PickingPage = () => {
     [helpers.productName, startPutToStore, openDistributeDialog]
   )
 
+  // ─── Nav items ────────────────────────────────────────────────────────────
+
+  const pickingTabs: SubNavItem[] = [
+    { value: 'tasks', label: 'Tareas', icon: ClipboardList, count: pendingTaskCount || undefined },
+    { value: 'waves', label: 'Oleadas', icon: Waves, count: activeWaveCount || undefined },
+    { value: 'waveless', label: 'Waveless', icon: Zap, count: activeWlCount || undefined },
+    { value: 'batch', label: 'Batch', icon: Package, count: activeBatchCount || undefined },
+    { value: 'zone', label: 'Por zona', icon: LayoutGrid, count: consolidationCount || undefined },
+    { value: 'cluster', label: 'Cluster', icon: ShoppingCart, count: activeClusterCount || undefined },
+    { value: 'put-to-store', label: 'Put-to-store', icon: Store, count: activePtsCount || undefined },
+  ]
+
   // ─── Render ────────────────────────────────────────────────────────────────
 
   return (
@@ -746,117 +746,10 @@ const PickingPage = () => {
         description="Gestión completa del proceso de picking: tareas individuales, oleadas, estrategias de optimización y distribución a tiendas."
       />
 
-      <Tabs value={activeTab} onValueChange={handleTabChange}>
-        <TabsList className="bg-muted/60 mb-4 h-auto flex-wrap gap-1">
-          <TabsTrigger
-            value="tasks"
-            className="gap-2 data-[state=active]:bg-white data-[state=active]:shadow-sm"
-          >
-            <ClipboardList className="size-4" />
-            Tareas
-            {pendingTaskCount > 0 && (
-              <Badge
-                variant="outline"
-                className="ml-1 h-5 min-w-5 border-amber-300 bg-amber-50 px-1.5 text-xs text-amber-700"
-              >
-                {pendingTaskCount}
-              </Badge>
-            )}
-          </TabsTrigger>
-          <TabsTrigger
-            value="waves"
-            className="gap-2 data-[state=active]:bg-white data-[state=active]:shadow-sm"
-          >
-            <Waves className="size-4" />
-            Oleadas
-            {activeWaveCount > 0 && (
-              <Badge
-                variant="outline"
-                className="ml-1 h-5 min-w-5 border-blue-200 bg-blue-50 px-1.5 text-xs text-blue-600"
-              >
-                {activeWaveCount}
-              </Badge>
-            )}
-          </TabsTrigger>
-          <TabsTrigger
-            value="waveless"
-            className="gap-2 data-[state=active]:bg-white data-[state=active]:shadow-sm"
-          >
-            <Zap className="size-4" />
-            Waveless
-            {activeWlCount > 0 && (
-              <Badge
-                variant="outline"
-                className="ml-1 h-5 min-w-5 border-blue-200 bg-blue-50 px-1.5 text-xs text-blue-600"
-              >
-                {activeWlCount}
-              </Badge>
-            )}
-          </TabsTrigger>
-          <TabsTrigger
-            value="batch"
-            className="gap-2 data-[state=active]:bg-white data-[state=active]:shadow-sm"
-          >
-            <Package className="size-4" />
-            Batch
-            {activeBatchCount > 0 && (
-              <Badge
-                variant="outline"
-                className="ml-1 h-5 min-w-5 border-blue-200 bg-blue-50 px-1.5 text-xs text-blue-600"
-              >
-                {activeBatchCount}
-              </Badge>
-            )}
-          </TabsTrigger>
-          <TabsTrigger
-            value="zone"
-            className="gap-2 data-[state=active]:bg-white data-[state=active]:shadow-sm"
-          >
-            <LayoutGrid className="size-4" />
-            Por zona
-            {consolidationCount > 0 && (
-              <Badge
-                variant="outline"
-                className="ml-1 h-5 min-w-5 border-emerald-200 bg-emerald-50 px-1.5 text-xs text-emerald-700"
-              >
-                {consolidationCount}
-              </Badge>
-            )}
-          </TabsTrigger>
-          <TabsTrigger
-            value="cluster"
-            className="gap-2 data-[state=active]:bg-white data-[state=active]:shadow-sm"
-          >
-            <ShoppingCart className="size-4" />
-            Cluster
-            {activeClusterCount > 0 && (
-              <Badge
-                variant="outline"
-                className="ml-1 h-5 min-w-5 border-blue-200 bg-blue-50 px-1.5 text-xs text-blue-600"
-              >
-                {activeClusterCount}
-              </Badge>
-            )}
-          </TabsTrigger>
-          <TabsTrigger
-            value="put-to-store"
-            className="gap-2 data-[state=active]:bg-white data-[state=active]:shadow-sm"
-          >
-            <Store className="size-4" />
-            Put-to-store
-            {activePtsCount > 0 && (
-              <Badge
-                variant="outline"
-                className="ml-1 h-5 min-w-5 border-blue-200 bg-blue-50 px-1.5 text-xs text-blue-600"
-              >
-                {activePtsCount}
-              </Badge>
-            )}
-          </TabsTrigger>
-        </TabsList>
+      <SubNav items={pickingTabs} defaultValue="tasks" className="mb-4" />
 
         {/* ── Tareas ──────────────────────────────────────────────────────── */}
-        <TabsContent value="tasks">
+        {activeTab === 'tasks' && (
           <TasksTab
             pickingTasks={state.pickingTasks}
             filteredTasks={filteredTasks}
@@ -867,10 +760,10 @@ const PickingPage = () => {
             onStatusFilterChange={setStatusFilter}
             taskCols={taskCols}
           />
-        </TabsContent>
+        )}
 
         {/* ── Oleadas ─────────────────────────────────────────────────────── */}
-        <TabsContent value="waves">
+        {activeTab === 'waves' && (
           <WavesTab
             pickingWaves={state.pickingWaves}
             commerceOrders={state.commerceOrders}
@@ -880,10 +773,10 @@ const PickingPage = () => {
             waveCols={waveCols}
             onCreateWave={() => setCreateWaveOpen(true)}
           />
-        </TabsContent>
+        )}
 
         {/* ── Waveless ────────────────────────────────────────────────────── */}
-        <TabsContent value="waveless">
+        {activeTab === 'waveless' && (
           <WavelessTab
             wavelessOrders={state.wavelessOrders}
             pendingWlCount={pendingWlCount}
@@ -892,10 +785,10 @@ const PickingPage = () => {
             wavelessCols={wavelessCols}
             onAddOrder={() => createWlDialog.open({ placeholder: true })}
           />
-        </TabsContent>
+        )}
 
         {/* ── Batch ───────────────────────────────────────────────────────── */}
-        <TabsContent value="batch">
+        {activeTab === 'batch' && (
           <BatchTab
             batchTasks={state.batchTasks}
             pickingTasks={state.pickingTasks}
@@ -906,10 +799,10 @@ const PickingPage = () => {
             totalBatchUnits={totalBatchUnits}
             batchCols={batchCols}
           />
-        </TabsContent>
+        )}
 
         {/* ── Por zona ────────────────────────────────────────────────────── */}
-        <TabsContent value="zone">
+        {activeTab === 'zone' && (
           <ZoneTab
             tasksWithZone={tasksWithZone}
             zoneStats={zoneStats}
@@ -917,10 +810,10 @@ const PickingPage = () => {
             consolidationCount={consolidationCount}
             zoneCols={zoneCols}
           />
-        </TabsContent>
+        )}
 
         {/* ── Cluster ─────────────────────────────────────────────────────── */}
-        <TabsContent value="cluster">
+        {activeTab === 'cluster' && (
           <ClusterTab
             clusterTasks={state.clusterTasks}
             pendingClusterCount={pendingClusterCount}
@@ -929,10 +822,10 @@ const PickingPage = () => {
             clusterCols={clusterCols}
             getProductName={helpers.productName}
           />
-        </TabsContent>
+        )}
 
         {/* ── Put-to-store ─────────────────────────────────────────────────── */}
-        <TabsContent value="put-to-store">
+        {activeTab === 'put-to-store' && (
           <PutToStoreTab
             putToStoreTasks={state.putToStoreTasks}
             pendingPtsCount={pendingPtsCount}
@@ -942,8 +835,7 @@ const PickingPage = () => {
             putToStoreCols={putToStoreCols}
             getProductName={helpers.productName}
           />
-        </TabsContent>
-      </Tabs>
+        )}
 
       {/* ── Pick dialog ────────────────────────────────────────────────────── */}
       <Dialog
@@ -993,16 +885,16 @@ const PickingPage = () => {
               </div>
               {pickDialog.data.requiresSerial && (
                 <div className="space-y-1">
-                  <Label htmlFor="pick-serial" className="flex items-center gap-1">
+                  <Label className="flex items-center gap-1">
                     <Hash className="size-3" /> Serial del producto
                     <span className="text-destructive ml-0.5">*</span>
+                    {capturedSerial && (
+                      <span className="ml-auto font-mono text-xs text-green-700">{capturedSerial}</span>
+                    )}
                   </Label>
-                  <Input
-                    id="pick-serial"
+                  <BarcodeScanner
+                    onScan={(val) => setCapturedSerial(val)}
                     placeholder="Escanear o ingresar serial…"
-                    value={capturedSerial}
-                    onChange={(e) => setCapturedSerial(e.target.value)}
-                    className="font-mono"
                   />
                 </div>
               )}
