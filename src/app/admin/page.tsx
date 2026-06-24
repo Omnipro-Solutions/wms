@@ -26,7 +26,6 @@ import {
 import { useWmsStore, resetStore } from '@/store/wms-store'
 import { selectInventoryAccuracy } from '@/store/selectors'
 import { PageHeader } from '@/components/shared/page-header'
-import { OperatorGate } from '@/components/shared/operator-gate'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -509,16 +508,11 @@ const AdminPage = () => {
                   <p className="font-medium text-sm">Modo congelado</p>
                   <p className="text-xs text-muted-foreground mt-0.5">Bloquea ajustes, bloqueos y liberaciones de stock.</p>
                   <div className="mt-3 flex items-center gap-2">
-                    <OperatorGate
-                      capability="freeze_inventory"
-                      fallback={<span className="text-xs text-muted-foreground">Solo supervisor puede cambiar esto.</span>}
-                    >
-                      <Switch
-                        checked={settings.inventoryFreezeActive}
-                        onCheckedChange={handleToggleFreeze}
-                      />
-                      <span className="text-sm">{settings.inventoryFreezeActive ? 'Activo' : 'Inactivo'}</span>
-                    </OperatorGate>
+                    <Switch
+                      checked={settings.inventoryFreezeActive}
+                      onCheckedChange={handleToggleFreeze}
+                    />
+                    <span className="text-sm">{settings.inventoryFreezeActive ? 'Activo' : 'Inactivo'}</span>
                   </div>
                 </div>
               </CardContent>
@@ -589,19 +583,14 @@ const AdminPage = () => {
                           </TableCell>
                           <TableCell className="text-right">
                             {req.status === 'pending_approval' && (
-                              <OperatorGate
-                                capability="approve_adjustment"
-                                fallback={<span className="text-xs text-muted-foreground">Solo supervisor</span>}
-                              >
-                                <div className="flex justify-end gap-1">
-                                  <Button variant="ghost" size="sm" className="text-emerald-600 hover:text-emerald-700" onClick={() => approveAdjustment(req.id, 'Supervisor')}>
-                                    <CheckCircle2 className="size-4" />
-                                  </Button>
-                                  <Button variant="ghost" size="sm" className="text-red-500 hover:text-red-600" onClick={() => handleOpenReject(req.id)}>
-                                    <XCircle className="size-4" />
-                                  </Button>
-                                </div>
-                              </OperatorGate>
+                              <div className="flex justify-end gap-1">
+                                <Button variant="ghost" size="sm" className="text-emerald-600 hover:text-emerald-700" onClick={() => approveAdjustment(req.id, 'Supervisor')}>
+                                  <CheckCircle2 className="size-4" />
+                                </Button>
+                                <Button variant="ghost" size="sm" className="text-red-500 hover:text-red-600" onClick={() => handleOpenReject(req.id)}>
+                                  <XCircle className="size-4" />
+                                </Button>
+                              </div>
                             )}
                           </TableCell>
                         </TableRow>
@@ -882,56 +871,6 @@ const AdminPage = () => {
                 <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-zinc-500">Control de inventario</p>
                 <div className="grid gap-4 sm:grid-cols-2">
                   <SettingField label="Umbral aprobación ajuste (uds)" description="Delta absoluto en unidades por encima del cual el ajuste requiere aprobación de supervisor." value={localSettings.adjustmentApprovalThreshold} min={1} max={500} step={1} onChange={(v) => handleSettingChange('adjustmentApprovalThreshold', v)} />
-                  <SettingField label="Umbral stock crítico (uds)" description="SKUs con stock disponible ≤ a este valor aparecen como alerta crítica en el dashboard." value={localSettings.stockAlertThreshold} min={1} max={200} step={1} onChange={(v) => handleSettingChange('stockAlertThreshold', v)} />
-                  <SettingField label="Días alerta vencimiento" description="Ítems que vencen dentro de este número de días activan la alerta de vencimiento próximo." value={localSettings.expirationAlertDays} min={1} max={365} step={1} onChange={(v) => handleSettingChange('expirationAlertDays', v)} />
-                </div>
-              </div>
-
-              <Separator />
-
-              <div>
-                <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-zinc-500">SLA por canal / tipo de despacho</p>
-                <div className="space-y-2">
-                  {localSettings.slaConfigs.map((sla, idx) => (
-                    <div key={sla.id} className="flex items-center gap-3 rounded-md border p-3">
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium truncate">{sla.label}</p>
-                        <p className="text-xs text-muted-foreground">{sla.channel} · {sla.fulfillmentType}</p>
-                      </div>
-                      <div className="flex items-center gap-2 shrink-0">
-                        <Label className="text-xs">Máx. horas</Label>
-                        <Input
-                          type="number"
-                          min={1}
-                          max={168}
-                          className="h-7 w-16 text-xs"
-                          value={sla.maxHours}
-                          onChange={(e) => {
-                            const updated = localSettings.slaConfigs.map((s, i) =>
-                              i === idx ? { ...s, maxHours: Math.max(1, Number(e.target.value)) } : s
-                            )
-                            setLocalSettings((prev) => ({ ...prev, slaConfigs: updated }))
-                            updateSettings({ slaConfigs: updated })
-                          }}
-                        />
-                        <Label className="text-xs">Alerta %</Label>
-                        <Input
-                          type="number"
-                          min={10}
-                          max={100}
-                          className="h-7 w-16 text-xs"
-                          value={sla.alertAtPercent}
-                          onChange={(e) => {
-                            const updated = localSettings.slaConfigs.map((s, i) =>
-                              i === idx ? { ...s, alertAtPercent: Math.max(10, Number(e.target.value)) } : s
-                            )
-                            setLocalSettings((prev) => ({ ...prev, slaConfigs: updated }))
-                            updateSettings({ slaConfigs: updated })
-                          }}
-                        />
-                      </div>
-                    </div>
-                  ))}
                 </div>
               </div>
             </CardContent>
