@@ -61,7 +61,6 @@ export const NAV_GROUPS: NavGroup[] = [
     icon: BarChart3,
     items: [
       { label: 'Integraciones', href: '/integrations', icon: Cable },
-      { label: 'Reportes', href: '/reports', icon: BarChart3 },
       { label: 'Administración', href: '/admin', icon: Settings2 },
     ],
   },

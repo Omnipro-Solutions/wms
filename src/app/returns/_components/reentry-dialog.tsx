@@ -70,7 +70,11 @@ export const ReentryDialog = ({
     )
   )
 
-  const handleLineChange = (lineId: string, field: keyof LineState, value: string | number | boolean) => {
+  const handleLineChange = (
+    lineId: string,
+    field: keyof LineState,
+    value: string | number | boolean
+  ) => {
     setLineStates((prev) => ({ ...prev, [lineId]: { ...prev[lineId], [field]: value } }))
   }
 
@@ -96,8 +100,13 @@ export const ReentryDialog = ({
   }
 
   return (
-    <Dialog open={open} onOpenChange={(o) => { if (!o) onClose() }}>
-      <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
+    <Dialog
+      open={open}
+      onOpenChange={(o) => {
+        if (!o) onClose()
+      }}
+    >
+      <DialogContent className="max-h-[90vh] max-w-2xl! overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <PackageCheck className="size-5 text-green-600" />
@@ -111,11 +120,11 @@ export const ReentryDialog = ({
         <div className="space-y-5 py-1">
           {/* Info del RMA */}
           <div className="grid grid-cols-2 gap-2">
-            <div className="flex items-center justify-between rounded-md bg-muted/40 px-3 py-2 text-sm">
+            <div className="bg-muted/40 flex items-center justify-between rounded-md px-3 py-2 text-sm">
               <span className="text-muted-foreground">RMA</span>
               <span className="font-medium">{rmaCode}</span>
             </div>
-            <div className="flex items-center justify-between rounded-md bg-muted/40 px-3 py-2 text-sm">
+            <div className="bg-muted/40 flex items-center justify-between rounded-md px-3 py-2 text-sm">
               <span className="text-muted-foreground">Cliente</span>
               <span className="font-medium">{customerName}</span>
             </div>
@@ -126,8 +135,8 @@ export const ReentryDialog = ({
             <Info className="mt-0.5 size-4 shrink-0 text-blue-600" />
             <p>
               El stock pasará de la zona de devoluciones a la ubicación seleccionada y quedará
-              disponible para picking. Se registrará un movimiento de tipo{' '}
-              <strong>return</strong> en el log de auditoría.
+              disponible para picking. Se registrará un movimiento de tipo <strong>return</strong>{' '}
+              en el log de auditoría.
             </p>
           </div>
 
@@ -166,8 +175,10 @@ export const ReentryDialog = ({
                 <div
                   key={line.id}
                   className={cn(
-                    'rounded-xl border-2 p-4 space-y-4 transition-all',
-                    s.include ? 'border-border bg-card' : 'border-dashed border-muted-foreground/30 bg-muted/20 opacity-60'
+                    'space-y-4 rounded-xl border-2 p-4 transition-all',
+                    s.include
+                      ? 'border-border bg-card'
+                      : 'border-muted-foreground/30 bg-muted/20 border-dashed opacity-60'
                   )}
                 >
                   {/* Checkbox + nombre */}
@@ -175,20 +186,19 @@ export const ReentryDialog = ({
                     <Checkbox
                       id={`include-${line.id}`}
                       checked={s.include}
-                      onCheckedChange={(checked) =>
-                        handleLineChange(line.id, 'include', !!checked)
-                      }
+                      onCheckedChange={(checked) => handleLineChange(line.id, 'include', !!checked)}
                       className="mt-0.5"
                     />
                     <label
                       htmlFor={`include-${line.id}`}
                       className="flex-1 cursor-pointer space-y-0.5"
                     >
-                      <p className="text-sm font-semibold leading-tight">
+                      <p className="text-sm leading-tight font-semibold">
                         {idx + 1}. {productName(line.productId)}
                       </p>
                       <p className="text-muted-foreground text-xs">
-                        {line.requestedQuantity} ud. devuelta{line.requestedQuantity !== 1 ? 's' : ''}
+                        {line.requestedQuantity} ud. devuelta
+                        {line.requestedQuantity !== 1 ? 's' : ''}
                       </p>
                     </label>
                   </div>

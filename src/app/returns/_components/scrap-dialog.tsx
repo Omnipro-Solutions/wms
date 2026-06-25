@@ -1,15 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import {
-  Trash2,
-  TriangleAlert,
-  Flame,
-  Recycle,
-  Heart,
-  DollarSign,
-  Leaf,
-} from 'lucide-react'
+import { Trash2, TriangleAlert, Flame, Heart, DollarSign, Leaf } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -42,11 +34,41 @@ const DISPOSAL_METHODS: {
   icon: LucideIcon
   accent: 'red' | 'neutral' | 'blue' | 'emerald' | 'amber'
 }[] = [
-  { value: 'incinerate', label: 'Incineración', description: 'Destrucción térmica controlada.', icon: Flame, accent: 'red' },
-  { value: 'landfill', label: 'Vertedero', description: 'Disposición en relleno sanitario.', icon: Trash2, accent: 'neutral' },
-  { value: 'donate', label: 'Donación', description: 'Entrega a entidad sin ánimo de lucro.', icon: Heart, accent: 'blue' },
-  { value: 'liquidate', label: 'Liquidación', description: 'Venta por debajo del costo.', icon: DollarSign, accent: 'amber' },
-  { value: 'recycle', label: 'Reciclaje', description: 'Proceso de reciclaje de materiales.', icon: Leaf, accent: 'emerald' },
+  {
+    value: 'incinerate',
+    label: 'Incineración',
+    description: 'Destrucción térmica controlada.',
+    icon: Flame,
+    accent: 'red',
+  },
+  {
+    value: 'landfill',
+    label: 'Vertedero',
+    description: 'Disposición en relleno sanitario.',
+    icon: Trash2,
+    accent: 'neutral',
+  },
+  {
+    value: 'donate',
+    label: 'Donación',
+    description: 'Entrega a entidad sin ánimo de lucro.',
+    icon: Heart,
+    accent: 'blue',
+  },
+  {
+    value: 'liquidate',
+    label: 'Liquidación',
+    description: 'Venta por debajo del costo.',
+    icon: DollarSign,
+    accent: 'amber',
+  },
+  {
+    value: 'recycle',
+    label: 'Reciclaje',
+    description: 'Proceso de reciclaje de materiales.',
+    icon: Leaf,
+    accent: 'emerald',
+  },
 ]
 
 interface LineState {
@@ -129,8 +151,13 @@ export const ScrapDialog = ({
   }
 
   return (
-    <Dialog open={open} onOpenChange={(o) => { if (!o) onClose() }}>
-      <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
+    <Dialog
+      open={open}
+      onOpenChange={(o) => {
+        if (!o) onClose()
+      }}
+    >
+      <DialogContent className="max-h-[90vh] max-w-2xl! overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Trash2 className="size-5 text-red-600" />
@@ -143,12 +170,12 @@ export const ScrapDialog = ({
 
         <div className="space-y-6 py-1">
           {/* Info del RMA */}
-          <div className="flex items-center gap-6 rounded-lg bg-muted/40 px-4 py-3 text-sm">
+          <div className="bg-muted/40 flex items-center gap-6 rounded-lg px-4 py-3 text-sm">
             <div className="flex items-center gap-2">
               <span className="text-muted-foreground">RMA</span>
               <span className="font-semibold">{rmaCode}</span>
             </div>
-            <div className="h-4 w-px bg-border" />
+            <div className="bg-border h-4 w-px" />
             <div className="flex items-center gap-2">
               <span className="text-muted-foreground">Cliente</span>
               <span className="font-semibold">{customerName}</span>
@@ -160,8 +187,8 @@ export const ScrapDialog = ({
             <TriangleAlert className="mt-0.5 size-4 shrink-0 text-red-600" />
             <p>
               <strong>Acción irreversible.</strong> El inventario se dará de baja de forma
-              permanente. Se registrará un movimiento de tipo <strong>scrap</strong> en el log
-              de auditoría y el RMA quedará cerrado.
+              permanente. Se registrará un movimiento de tipo <strong>scrap</strong> en el log de
+              auditoría y el RMA quedará cerrado.
             </p>
           </div>
 
@@ -173,7 +200,7 @@ export const ScrapDialog = ({
             <ChoiceCardGroup
               value={disposalMethod}
               onValueChange={(v) => setDisposalMethod(v as ScrapMethod)}
-              className="grid grid-cols-2 sm:grid-cols-3 gap-2"
+              className="grid grid-cols-2 gap-2 sm:grid-cols-3"
             >
               {DISPOSAL_METHODS.map((m) => (
                 <ChoiceCard
@@ -210,30 +237,29 @@ export const ScrapDialog = ({
                 <div
                   key={line.id}
                   className={cn(
-                    'rounded-xl border-2 p-4 space-y-4 transition-all',
+                    'space-y-4 rounded-xl border-2 p-4 transition-all',
                     s.include
                       ? 'border-red-200 bg-red-50/30'
-                      : 'border-dashed border-muted-foreground/30 bg-muted/20 opacity-60'
+                      : 'border-muted-foreground/30 bg-muted/20 border-dashed opacity-60'
                   )}
                 >
                   <div className="flex items-start gap-3">
                     <Checkbox
                       id={`include-scrap-${line.id}`}
                       checked={s.include}
-                      onCheckedChange={(checked) =>
-                        handleLineChange(line.id, 'include', !!checked)
-                      }
+                      onCheckedChange={(checked) => handleLineChange(line.id, 'include', !!checked)}
                       className="mt-0.5"
                     />
                     <label
                       htmlFor={`include-scrap-${line.id}`}
                       className="flex-1 cursor-pointer space-y-0.5"
                     >
-                      <p className="text-sm font-semibold leading-tight">
+                      <p className="text-sm leading-tight font-semibold">
                         {idx + 1}. {productName(line.productId)}
                       </p>
                       <p className="text-muted-foreground text-xs">
-                        {line.requestedQuantity} ud. devuelta{line.requestedQuantity !== 1 ? 's' : ''}
+                        {line.requestedQuantity} ud. devuelta
+                        {line.requestedQuantity !== 1 ? 's' : ''}
                       </p>
                     </label>
                   </div>

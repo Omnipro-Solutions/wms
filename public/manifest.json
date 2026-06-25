@@ -1,0 +1,52 @@
+{
+  "name": "WMS — Sistema de Gestión de Almacenes",
+  "short_name": "WMS",
+  "description": "Sistema de gestión de almacenes para centros de distribución y tiendas en Colombia.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#0f172a",
+  "orientation": "portrait-primary",
+  "scope": "/",
+  "lang": "es-CO",
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Picking",
+      "short_name": "Picking",
+      "description": "Abrir módulo de picking",
+      "url": "/picking",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Recepción",
+      "short_name": "Recepción",
+      "description": "Abrir módulo de recepción",
+      "url": "/receiving",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Inventario",
+      "short_name": "Inventario",
+      "description": "Consultar inventario",
+      "url": "/inventory",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+    }
+  ],
+  "categories": ["productivity", "business"],
+  "related_applications": [],
+  "prefer_related_applications": false
+}

@@ -117,6 +117,10 @@ export interface WmsState {
   adjustmentRequests: InventoryAdjustmentRequest[]
   cyclicCountPlans: CyclicCountPlan[]
   unitsOfMeasure: UnitOfMeasure[]
+  currentOperatorId: string | null
+
+  // Sprint 6: operator session
+  setCurrentOperator: (operatorId: string | null) => void
 
   // Purchase Orders
   confirmPurchaseOrder: (poId: string) => PurchaseOrder
@@ -131,6 +135,8 @@ export interface WmsState {
 
   // Actions (more added per module in later phases)
   reserveInventory: (orderId: string) => CommerceOrder
+  markReadyForPickup: (orderId: string, operatorName: string) => CommerceOrder
+  confirmPickup: (orderId: string, operatorName: string) => CommerceOrder
   holdInventory: (itemId: string, qty: number, operatorName: string, reasonId?: string) => void
   releaseInventory: (itemId: string, qty: number, operatorName: string) => void
   holdByLot: (lot: string, warehouseId: string, operatorName: string, reasonId?: string) => void
@@ -343,12 +349,13 @@ const buildSeedState = () => ({
   adjustmentRequests: [] as InventoryAdjustmentRequest[],
   cyclicCountPlans: [] as CyclicCountPlan[],
   unitsOfMeasure: seed.unitsOfMeasure,
+  currentOperatorId: 'op-0' as string | null,
 })
 
 // Exported so the Admin page can trigger a full demo reset.
 export const resetStore = () => {
   if (typeof window !== 'undefined') {
-    localStorage.removeItem('wms-store-v1')
+    localStorage.removeItem('wms-store-v2')
     window.location.reload()
   }
 }
@@ -470,6 +477,30 @@ export const useWmsStore = create<WmsState>()(
       commerceOrders: state.commerceOrders.map((o) => (o.id === orderId ? updatedOrder : o)),
     })
     return updatedOrder
+  },
+
+  markReadyForPickup: (orderId, operatorName) => {
+    const state = get()
+    const order = state.commerceOrders.find((o) => o.id === orderId)
+    if (!order) throw new Error('order not found')
+    if (!canTransition(commerceTransitions, order.status, 'ready_for_pickup')) {
+      throw new Error(`No se puede marcar listo para recoger desde el estado ${order.status}`)
+    }
+    const updated: CommerceOrder = { ...order, status: 'ready_for_pickup' }
+    set({ commerceOrders: state.commerceOrders.map((o) => (o.id === orderId ? updated : o)) })
+    return updated
+  },
+
+  confirmPickup: (orderId, operatorName) => {
+    const state = get()
+    const order = state.commerceOrders.find((o) => o.id === orderId)
+    if (!order) throw new Error('order not found')
+    if (!canTransition(commerceTransitions, order.status, 'completed')) {
+      throw new Error(`No se puede confirmar recogida desde el estado ${order.status}`)
+    }
+    const updated: CommerceOrder = { ...order, status: 'completed' }
+    set({ commerceOrders: state.commerceOrders.map((o) => (o.id === orderId ? updated : o)) })
+    return updated
   },
 
   holdInventory: (itemId, qty, operatorName, reasonId) => {
@@ -2756,9 +2787,12 @@ export const useWmsStore = create<WmsState>()(
     set({ unitsOfMeasure: state.unitsOfMeasure.map((u) => (u.id === id ? updated : u)) })
     return updated
   },
+
+  setCurrentOperator: (operatorId) => set({ currentOperatorId: operatorId }),
   }),
   {
-    name: 'wms-store-v1',
+    name: 'wms-store-v2',
     storage: createJSONStorage(() => localStorage),
+    partialize: (state) => ({ currentOperatorId: state.currentOperatorId }),
   }
 ))

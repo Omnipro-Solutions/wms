@@ -1,7 +1,7 @@
 'use client'
 
 import { type ColumnDef } from '@tanstack/react-table'
-import { Download, RefreshCw } from 'lucide-react'
+import { Download, Printer, RefreshCw } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { StatusBadge } from '@/components/shared/status-badge'
@@ -36,7 +36,7 @@ export const TYPE_COLORS: Record<WmsLabel['type'], string> = {
   return: 'bg-red-100 text-red-700 border-red-200',
 }
 
-export const buildLabelColumns = (): ColumnDef<LabelRow>[] => [
+export const buildLabelColumns = (onPreview?: (row: LabelRow) => void): ColumnDef<LabelRow>[] => [
   {
     accessorKey: 'code',
     header: ({ column }) => <DataTableColumnHeader column={column} title="Código" />,
@@ -90,9 +90,14 @@ export const buildLabelColumns = (): ColumnDef<LabelRow>[] => [
       const { status } = row.original
       if (status === 'completed') {
         return (
-          <Button size="sm" variant="outline">
-            <Download className="mr-1 size-3" /> Reimprimir
-          </Button>
+          <div className="flex items-center gap-1">
+            <Button size="sm" variant="outline" onClick={() => onPreview?.(row.original)}>
+              <Printer className="mr-1 size-3" /> ZPL
+            </Button>
+            <Button size="sm" variant="ghost" onClick={() => onPreview?.(row.original)}>
+              <Download className="size-3" />
+            </Button>
+          </div>
         )
       }
       if (status === 'pending') {

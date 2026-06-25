@@ -1,4 +1,4 @@
-import { availableStock } from '@/lib/rules/inventory'
+import { availableStock, isNearExpiration } from '@/lib/rules/inventory'
 import {
   buildAffinityMatrix,
   classifyAbc,
@@ -28,6 +28,12 @@ export interface DashboardKpis {
   pendingAdjustments: number
   inventoryFreezeActive: boolean
   ira: number
+  // Sprint 6
+  expiringItems: number
+  criticalStockItems: number
+  // Sprint 7
+  slaBreaches: number
+  slaAtRisk: number
 }
 
 // ABC class per product, computed from demand stats (picking frequency).
@@ -75,6 +81,16 @@ export function misplacedAClassItems(state: WmsState) {
   })
 }
 
+export const selectExpiringItems = (state: WmsState) =>
+  state.inventoryItems.filter(
+    (item) => availableStock(item) > 0 && isNearExpiration(item, state.settings.expirationAlertDays)
+  )
+
+export const selectCriticalStockItems = (state: WmsState) =>
+  state.inventoryItems.filter(
+    (item) => availableStock(item) > 0 && availableStock(item) <= state.settings.stockAlertThreshold
+  )
+
 export function selectDashboardKpis(state: WmsState): DashboardKpis {
   const pendingOrders = state.commerceOrders.filter((o) => o.status === 'pending').length
   const ordersInPicking = state.commerceOrders.filter((o) => o.status === 'in_progress').length
@@ -94,7 +110,19 @@ export function selectDashboardKpis(state: WmsState): DashboardKpis {
   const integrationErrors = state.integrations.filter((i) => i.status === 'error').length
   const pendingAdjustments = state.adjustmentRequests.filter((r) => r.status === 'pending_approval').length
   const accuracy = selectInventoryAccuracy(state)
-  const criticalAlerts = integrationErrors + (otif < 90 ? 1 : 0) + misplaced + pendingAdjustments
+  const expiringItems = selectExpiringItems(state).length
+  const criticalStockItems = selectCriticalStockItems(state).length
+  const slaData = selectSlaBreaches(state, Date.now())
+  const slaBreaches = slaData.filter((s) => s.isBreached).length
+  const slaAtRisk = slaData.filter((s) => s.isAtRisk && !s.isBreached).length
+  const criticalAlerts =
+    integrationErrors +
+    (otif < 90 ? 1 : 0) +
+    misplaced +
+    pendingAdjustments +
+    (expiringItems > 0 ? 1 : 0) +
+    (criticalStockItems > 0 ? 1 : 0) +
+    slaBreaches
 
   return {
     pendingOrders,
@@ -110,6 +138,10 @@ export function selectDashboardKpis(state: WmsState): DashboardKpis {
     pendingAdjustments,
     inventoryFreezeActive: state.settings.inventoryFreezeActive,
     ira: accuracy.ira,
+    expiringItems,
+    criticalStockItems,
+    slaBreaches,
+    slaAtRisk,
   }
 }
 
@@ -499,3 +531,84 @@ export function selectInventoryAccuracy(state: WmsState): InventoryAccuracy {
 }
 
 export { availableStock }
+
+// ── ATP (Available-to-Promise) per product per warehouse — Sprint 7 #96 ───────
+//
+// ATP = sum of available stock across all locations for a product in a warehouse.
+// Available = onHand - reserved - hold (already computed by availableStock).
+
+export interface AtpRecord {
+  productId: string
+  warehouseId: string
+  available: number
+}
+
+export const selectAtp = (state: WmsState): AtpRecord[] => {
+  const map = new Map<string, number>()
+  for (const item of state.inventoryItems) {
+    const key = `${item.productId}|${item.warehouseId}`
+    map.set(key, (map.get(key) ?? 0) + availableStock(item))
+  }
+  return Array.from(map.entries()).map(([key, available]) => {
+    const [productId, warehouseId] = key.split('|')
+    return { productId, warehouseId, available }
+  })
+}
+
+// ── SLA breach detection — Sprint 7 #97/98 ───────────────────────────────────
+
+export interface SlaBreachRecord {
+  orderId: string
+  orderNumber: string
+  channel: string
+  fulfillmentType: string
+  createdAt: string
+  maxHours: number
+  elapsedHours: number
+  breachPercent: number  // elapsed / maxHours * 100
+  isBreached: boolean    // elapsed >= maxHours
+  isAtRisk: boolean      // elapsed >= maxHours * (alertAtPercent/100)
+  slaLabel: string
+}
+
+// nowMs must be passed in by the caller (e.g. Date.now()) — keeps Date.now() out of the selector
+// so Zustand can compare results by reference without spurious re-renders.
+export const selectSlaBreaches = (state: WmsState, nowMs = 0): SlaBreachRecord[] => {
+  const activeOrders = state.commerceOrders.filter(
+    (o) => !['completed', 'cancelled'].includes(o.status)
+  )
+  const now = new Date(nowMs || Date.now())
+  const results: SlaBreachRecord[] = []
+
+  for (const order of activeOrders) {
+    const sla = state.settings.slaConfigs.find(
+      (s) =>
+        (s.channel === order.channel || s.channel === 'all') &&
+        (s.fulfillmentType === order.fulfillmentType || s.fulfillmentType === 'all')
+    )
+    if (!sla) continue
+
+    const created = new Date(order.createdAt)
+    const elapsedMs = now.getTime() - created.getTime()
+    const elapsedHours = elapsedMs / (1000 * 60 * 60)
+    const breachPercent = Math.round((elapsedHours / sla.maxHours) * 100)
+    const alertThresholdHours = sla.maxHours * (sla.alertAtPercent / 100)
+
+    if (elapsedHours >= alertThresholdHours) {
+      results.push({
+        orderId: order.id,
+        orderNumber: order.orderNumber,
+        channel: order.channel,
+        fulfillmentType: order.fulfillmentType,
+        createdAt: order.createdAt,
+        maxHours: sla.maxHours,
+        elapsedHours: Math.round(elapsedHours * 10) / 10,
+        breachPercent,
+        isBreached: elapsedHours >= sla.maxHours,
+        isAtRisk: elapsedHours >= alertThresholdHours,
+        slaLabel: sla.label,
+      })
+    }
+  }
+  return results.sort((a, b) => b.breachPercent - a.breachPercent)
+}

@@ -14,6 +14,13 @@ export function isExpired(item: Pick<StockLevels, 'expirationDate'>): boolean {
   return new Date(item.expirationDate) < new Date()
 }
 
+export function isNearExpiration(item: Pick<StockLevels, 'expirationDate'>, days: number): boolean {
+  if (!item.expirationDate) return false
+  const cutoff = new Date()
+  cutoff.setDate(cutoff.getDate() + days)
+  return new Date(item.expirationDate) <= cutoff && !isExpired(item)
+}
+
 export function availableStock(item: StockLevels): number {
   return Math.max(0, item.onHandQuantity - item.reservedQuantity - item.holdQuantity)
 }

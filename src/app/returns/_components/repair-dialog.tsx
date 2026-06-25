@@ -130,8 +130,13 @@ export const RepairDialog = ({
   }
 
   return (
-    <Dialog open={open} onOpenChange={(o) => { if (!o) onClose() }}>
-      <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
+    <Dialog
+      open={open}
+      onOpenChange={(o) => {
+        if (!o) onClose()
+      }}
+    >
+      <DialogContent className="max-h-[90vh] max-w-2xl! overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Wrench className="size-5 text-orange-600" />
@@ -145,11 +150,11 @@ export const RepairDialog = ({
         <div className="space-y-5 py-1">
           {/* Info RMA */}
           <div className="grid grid-cols-2 gap-2">
-            <div className="flex items-center justify-between rounded-md bg-muted/40 px-3 py-2 text-sm">
+            <div className="bg-muted/40 flex items-center justify-between rounded-md px-3 py-2 text-sm">
               <span className="text-muted-foreground">RMA</span>
               <span className="font-medium">{rmaCode}</span>
             </div>
-            <div className="flex items-center justify-between rounded-md bg-muted/40 px-3 py-2 text-sm">
+            <div className="bg-muted/40 flex items-center justify-between rounded-md px-3 py-2 text-sm">
               <span className="text-muted-foreground">Cliente</span>
               <span className="font-medium">{customerName}</span>
             </div>
@@ -242,30 +247,29 @@ export const RepairDialog = ({
                 <div
                   key={line.id}
                   className={cn(
-                    'rounded-xl border-2 p-4 space-y-4 transition-all',
+                    'space-y-4 rounded-xl border-2 p-4 transition-all',
                     s.include
                       ? 'border-orange-200 bg-orange-50/30'
-                      : 'border-dashed border-muted-foreground/30 bg-muted/20 opacity-60'
+                      : 'border-muted-foreground/30 bg-muted/20 border-dashed opacity-60'
                   )}
                 >
                   <div className="flex items-start gap-3">
                     <Checkbox
                       id={`include-repair-${line.id}`}
                       checked={s.include}
-                      onCheckedChange={(checked) =>
-                        handleLineChange(line.id, 'include', !!checked)
-                      }
+                      onCheckedChange={(checked) => handleLineChange(line.id, 'include', !!checked)}
                       className="mt-0.5"
                     />
                     <label
                       htmlFor={`include-repair-${line.id}`}
                       className="flex-1 cursor-pointer space-y-0.5"
                     >
-                      <p className="text-sm font-semibold leading-tight">
+                      <p className="text-sm leading-tight font-semibold">
                         {idx + 1}. {productName(line.productId)}
                       </p>
                       <p className="text-muted-foreground text-xs">
-                        {line.requestedQuantity} ud. devuelta{line.requestedQuantity !== 1 ? 's' : ''}
+                        {line.requestedQuantity} ud. devuelta
+                        {line.requestedQuantity !== 1 ? 's' : ''}
                       </p>
                     </label>
                   </div>

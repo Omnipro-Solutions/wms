@@ -24,10 +24,11 @@ export const transferTransitions: Record<string, OperationalStatus[]> = {
 }
 
 export const commerceTransitions: Record<string, OperationalStatus[]> = {
-  pending: ['assigned', 'cancelled'], // new -> reserved
-  assigned: ['in_progress', 'cancelled'], // reserved -> pending picking
-  in_progress: ['partial', 'completed', 'cancelled'],
-  partial: ['completed', 'cancelled'],
+  pending: ['assigned', 'cancelled'],
+  assigned: ['in_progress', 'cancelled'],
+  in_progress: ['partial', 'completed', 'ready_for_pickup', 'cancelled'],
+  partial: ['completed', 'ready_for_pickup', 'cancelled'],
+  ready_for_pickup: ['completed', 'cancelled'], // BOPIS/Ship-from-Store: customer confirms pickup
   completed: [],
   cancelled: [],
 }

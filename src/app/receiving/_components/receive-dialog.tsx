@@ -27,6 +27,7 @@ import {
 } from '@/components/ui/select'
 import { Field, FieldLabel } from '@/components/ui/field'
 import { Progress } from '@/components/ui/progress'
+import { BarcodeScanner } from '@/components/shared/barcode-scanner'
 import type { useReceiveDialog } from '../_hooks/use-receive-dialog'
 
 const DISCREPANCY_REASONS = [
@@ -405,6 +406,12 @@ export const ReceiveDialog = ({ state }: Props) => {
                       {parsedSerials.length}/{goodQtyNum}
                     </Badge>
                   </Label>
+                  <BarcodeScanner
+                    onScan={(val) =>
+                      setSerialsRaw(serialsRaw ? `${serialsRaw}\n${val}` : val)
+                    }
+                    placeholder="Escanear serial con cámara o RF..."
+                  />
                   <Textarea
                     id="rcv-serials"
                     placeholder={`Ingresa ${goodQtyNum} número(s) de serie, uno por línea o separados por coma`}

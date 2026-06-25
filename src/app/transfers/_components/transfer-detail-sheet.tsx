@@ -187,6 +187,7 @@ export const TransferDetailSheet = ({
                         <TableCell>
                           <div className="flex items-center gap-2.5">
                             {product?.imageUrl ? (
+                              // eslint-disable-next-line @next/next/no-img-element
                               <img
                                 src={product.imageUrl}
                                 alt={product.name}

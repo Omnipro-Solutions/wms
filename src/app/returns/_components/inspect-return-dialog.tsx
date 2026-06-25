@@ -1,7 +1,14 @@
 'use client'
 
 import { useState } from 'react'
-import { TriangleAlert, ClipboardCheck, Info, Hash, CheckCircle2, AlertTriangle } from 'lucide-react'
+import {
+  TriangleAlert,
+  ClipboardCheck,
+  Info,
+  Hash,
+  CheckCircle2,
+  AlertTriangle,
+} from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -26,14 +33,42 @@ import { cn } from '@/lib/utils'
 import type { ItemCondition, ReturnItemInspection, OrderLine, Product } from '@/types/wms'
 
 const CONDITION_OPTIONS: { value: ItemCondition; label: string; color: string; dot: string }[] = [
-  { value: 'new', label: 'Nuevo', color: 'bg-green-100 text-green-800 border-green-200', dot: 'bg-green-500' },
-  { value: 'like_new', label: 'Como nuevo', color: 'bg-emerald-100 text-emerald-800 border-emerald-200', dot: 'bg-emerald-500' },
-  { value: 'good', label: 'Buen estado', color: 'bg-blue-100 text-blue-800 border-blue-200', dot: 'bg-blue-500' },
-  { value: 'fair', label: 'Aceptable', color: 'bg-amber-100 text-amber-800 border-amber-200', dot: 'bg-amber-500' },
-  { value: 'defective', label: 'Defectuoso', color: 'bg-red-100 text-red-800 border-red-200', dot: 'bg-red-500' },
+  {
+    value: 'new',
+    label: 'Nuevo',
+    color: 'bg-green-100 text-green-800 border-green-200',
+    dot: 'bg-green-500',
+  },
+  {
+    value: 'like_new',
+    label: 'Como nuevo',
+    color: 'bg-emerald-100 text-emerald-800 border-emerald-200',
+    dot: 'bg-emerald-500',
+  },
+  {
+    value: 'good',
+    label: 'Buen estado',
+    color: 'bg-blue-100 text-blue-800 border-blue-200',
+    dot: 'bg-blue-500',
+  },
+  {
+    value: 'fair',
+    label: 'Aceptable',
+    color: 'bg-amber-100 text-amber-800 border-amber-200',
+    dot: 'bg-amber-500',
+  },
+  {
+    value: 'defective',
+    label: 'Defectuoso',
+    color: 'bg-red-100 text-red-800 border-red-200',
+    dot: 'bg-red-500',
+  },
 ]
 
-const DISPOSITION_OPTIONS: { value: ReturnItemInspection['recommendedDisposition']; label: string }[] = [
+const DISPOSITION_OPTIONS: {
+  value: ReturnItemInspection['recommendedDisposition']
+  label: string
+}[] = [
   { value: 'restock', label: 'Reingresar al stock' },
   { value: 'repair', label: 'Enviar a reparación' },
   { value: 'scrap', label: 'Enviar a desecho' },
@@ -128,8 +163,13 @@ export const InspectReturnDialog = ({
   }
 
   return (
-    <Dialog open={open} onOpenChange={(o) => { if (!o) onClose() }}>
-      <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
+    <Dialog
+      open={open}
+      onOpenChange={(o) => {
+        if (!o) onClose()
+      }}
+    >
+      <DialogContent className="max-h-[90vh] max-w-xl! overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <ClipboardCheck className="size-5 text-blue-600" />
@@ -143,11 +183,11 @@ export const InspectReturnDialog = ({
         <div className="space-y-5 py-1">
           {/* RMA info */}
           <div className="grid grid-cols-2 gap-2">
-            <div className="flex items-center justify-between rounded-md bg-muted/40 px-3 py-2 text-sm">
+            <div className="bg-muted/40 flex items-center justify-between rounded-md px-3 py-2 text-sm">
               <span className="text-muted-foreground">RMA</span>
               <span className="font-medium">{rmaCode}</span>
             </div>
-            <div className="flex items-center justify-between rounded-md bg-muted/40 px-3 py-2 text-sm">
+            <div className="bg-muted/40 flex items-center justify-between rounded-md px-3 py-2 text-sm">
               <span className="text-muted-foreground">Cliente</span>
               <span className="font-medium">{customerName}</span>
             </div>
@@ -183,7 +223,7 @@ export const InspectReturnDialog = ({
                 <div
                   key={line.id}
                   className={cn(
-                    'rounded-xl border-2 p-4 space-y-4 transition-colors',
+                    'space-y-4 rounded-xl border-2 p-4 transition-colors',
                     state.conditionRating === 'defective'
                       ? 'border-red-200 bg-red-50/40'
                       : 'border-border bg-card'
@@ -192,11 +232,12 @@ export const InspectReturnDialog = ({
                   {/* Header del ítem */}
                   <div className="flex items-start justify-between gap-2">
                     <div className="space-y-0.5">
-                      <p className="text-sm font-semibold leading-tight">
+                      <p className="text-sm leading-tight font-semibold">
                         {idx + 1}. {productName(line.productId)}
                       </p>
                       <p className="text-muted-foreground text-xs">
-                        {line.requestedQuantity} unidad{line.requestedQuantity !== 1 ? 'es' : ''} devuelta{line.requestedQuantity !== 1 ? 's' : ''}
+                        {line.requestedQuantity} unidad{line.requestedQuantity !== 1 ? 'es' : ''}{' '}
+                        devuelta{line.requestedQuantity !== 1 ? 's' : ''}
                       </p>
                     </div>
                     {cond && (
@@ -267,7 +308,7 @@ export const InspectReturnDialog = ({
                   {getProduct && getProduct(line.productId)?.trackBy === 'serial' && (
                     <div className="space-y-1.5">
                       <Label className="flex items-center gap-1.5 text-xs font-medium">
-                        <Hash className="size-3 text-muted-foreground" />
+                        <Hash className="text-muted-foreground size-3" />
                         Número de serie del ítem devuelto
                       </Label>
                       <Input
@@ -277,10 +318,9 @@ export const InspectReturnDialog = ({
                         className="font-mono text-sm"
                       />
                       {state.serial.trim() && (
-                        <p className={cn(
-                          'flex items-center gap-1 text-xs',
-                          'text-muted-foreground'
-                        )}>
+                        <p
+                          className={cn('flex items-center gap-1 text-xs', 'text-muted-foreground')}
+                        >
                           <Info className="size-3" />
                           El serial se verificará contra el historial de despachos al confirmar.
                         </p>
@@ -293,7 +333,12 @@ export const InspectReturnDialog = ({
           </div>
 
           {/* Resultado calculado */}
-          <div className={cn('flex items-center justify-between rounded-lg border px-4 py-3', RESULT_STYLES[overallResult])}>
+          <div
+            className={cn(
+              'flex items-center justify-between rounded-lg border px-4 py-3',
+              RESULT_STYLES[overallResult]
+            )}
+          >
             <div className="flex items-center gap-2 text-sm font-medium">
               <Info className="size-4" />
               Resultado automático de inspección

@@ -17,6 +17,7 @@ export type OperationalStatus =
   | 'error'
   | 'synced'
   | 'short_received'
+  | 'ready_for_pickup'  // BOPIS/Ship-from-Store: prepared, awaiting customer
 
 // Sprint 4: Unit of Measure entity. Every Product has a baseUomId (the
 // smallest countable unit) plus optional conversion rules to larger units.
@@ -728,6 +729,16 @@ export interface Carrier {
   contactPhone?: string
 }
 
+// Sprint 7: SLA configuration per channel/fulfillment type
+export interface SlaConfig {
+  id: string
+  channel: CommerceOrder['channel'] | 'all'
+  fulfillmentType: CommerceOrder['fulfillmentType'] | 'all'
+  maxHours: number          // max hours from order creation to completion
+  alertAtPercent: number    // alert when elapsed > maxHours * (alertAtPercent/100)
+  label: string             // Spanish display name
+}
+
 export interface WmsSettings {
   abcThresholdA: number // cumulative share, e.g. 0.8
   abcThresholdB: number // cumulative share, e.g. 0.95
@@ -738,6 +749,11 @@ export interface WmsSettings {
   // Sprint 2: inventory control
   inventoryFreezeActive: boolean
   adjustmentApprovalThreshold: number // units delta above which supervisor approval is required
+  // Sprint 6: configurable alerts
+  stockAlertThreshold: number    // available units <= this triggers critical stock alert
+  expirationAlertDays: number    // items expiring within N days trigger expiration alert
+  // Sprint 7: SLA configs
+  slaConfigs: SlaConfig[]
 }
 
 // --- Inventory adjustment requests (Sprint 2 — #56) ---

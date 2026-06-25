@@ -22,6 +22,9 @@ const STATUS_MAP: Record<string, StatusMeta> = {
   on_hold: { label: 'En espera', variant: 'warning' },
   error: { label: 'Error', variant: 'danger' },
   synced: { label: 'Sincronizado', variant: 'success' },
+  ready_for_pickup: { label: 'Listo para recoger', variant: 'success' },
+  short_received: { label: 'Recibido con faltante', variant: 'warning' },
+  putaway_done: { label: 'Guardado', variant: 'success' },
 
   // ReturnStatus
   requested: { label: 'Solicitada', variant: 'neutral' },
