@@ -59,7 +59,9 @@ import { ScrapDialog } from './_components/scrap-dialog'
 import { RepairDialog } from './_components/repair-dialog'
 import { RepairReturnDialog } from './_components/repair-return-dialog'
 import { buildReturnColumns, DISPOSITION_LABELS, DISPOSITION_COLORS, TYPE_LABELS, type ReturnRow } from './columns'
+import { ReturnDetailSheet } from './_components/return-detail-sheet'
 import type {
+  ReentryBatch,
   ReentryLine,
   RepairTicket,
   RepairTicketLine,
@@ -68,6 +70,7 @@ import type {
   ReturnOrder,
   ScrapLine,
   ScrapMethod,
+  ScrapRecord,
 } from '@/types/wms'
 
 interface AdvanceReturnDialogData {
@@ -204,6 +207,7 @@ export default function ReturnsPage() {
   const [dispositionFilter, setDispositionFilter] = useState('all')
   const [statusFilter, setStatusFilter] = useState('all')
   const [search, setSearch] = useState('')
+  const [detailReturnId, setDetailReturnId] = useState<string | null>(null)
 
   const advanceDialog = useDialogState<AdvanceReturnDialogData>()
   const inspectDialog = useDialogState<ReturnActionDialogData>()
@@ -280,6 +284,34 @@ export default function ReturnsPage() {
     [state.repairTickets]
   )
   const inspectedCount = state.returnInspections.length
+
+  const detailReturn = useMemo(
+    () => state.returnOrders.find((r) => r.id === detailReturnId) ?? null,
+    [state.returnOrders, detailReturnId]
+  )
+
+  const detailInspection = useMemo(
+    () =>
+      detailReturn?.inspectionId
+        ? state.returnInspections.find((i) => i.id === detailReturn.inspectionId)
+        : undefined,
+    [detailReturn, state.returnInspections]
+  )
+
+  const detailRepairTickets = useMemo(
+    () => state.repairTickets.filter((t) => t.returnOrderId === detailReturnId),
+    [state.repairTickets, detailReturnId]
+  )
+
+  const detailScrapRecord = useMemo(
+    () => state.scrapRecords.find((s: ScrapRecord) => s.returnOrderId === detailReturnId),
+    [state.scrapRecords, detailReturnId]
+  )
+
+  const detailReentryBatch = useMemo(
+    () => state.reentryBatches.find((b: ReentryBatch) => b.returnOrderId === detailReturnId),
+    [state.reentryBatches, detailReturnId]
+  )
 
   const handleOpenAdvance = (row: ReturnRow) => {
     const ret = state.returnOrders.find((r) => r.id === row.id)
@@ -452,7 +484,7 @@ export default function ReturnsPage() {
   }
 
   const columns = useMemo(
-    () => buildReturnColumns(handleOpenAdvance),
+    () => buildReturnColumns(handleOpenAdvance, (row) => setDetailReturnId(row.id)),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     []
   )
@@ -954,6 +986,18 @@ export default function ReturnsPage() {
           error={reentryDialog.error}
         />
       )}
+
+      <ReturnDetailSheet
+        open={!!detailReturnId}
+        returnOrder={detailReturn}
+        inspection={detailInspection}
+        repairTickets={detailRepairTickets}
+        scrapRecord={detailScrapRecord}
+        reentryBatch={detailReentryBatch}
+        warehouseName={warehouseName}
+        productName={productName}
+        onClose={() => setDetailReturnId(null)}
+      />
     </>
   )
 }

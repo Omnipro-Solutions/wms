@@ -45,11 +45,21 @@ export const DISPOSITION_LABELS: Record<ReturnOrder['disposition'], string> = {
   rejected: 'Rechazada',
 }
 
-export const buildReturnColumns = (onAdvance: (row: ReturnRow) => void): ColumnDef<ReturnRow>[] => [
+export const buildReturnColumns = (
+  onAdvance: (row: ReturnRow) => void,
+  onRowClick: (row: ReturnRow) => void,
+): ColumnDef<ReturnRow>[] => [
   {
     accessorKey: 'rmaCode',
     header: ({ column }) => <DataTableColumnHeader column={column} title="RMA" />,
-    cell: ({ row }) => <span className="font-medium">{row.getValue('rmaCode')}</span>,
+    cell: ({ row }) => (
+      <button
+        onClick={() => onRowClick(row.original)}
+        className="font-medium hover:underline text-left"
+      >
+        {row.getValue('rmaCode')}
+      </button>
+    ),
   },
   {
     accessorKey: 'customerName',
