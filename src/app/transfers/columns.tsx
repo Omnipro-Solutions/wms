@@ -1,7 +1,7 @@
 'use client'
 
 import { type ColumnDef } from '@tanstack/react-table'
-import { ArrowRight, AlertCircle } from 'lucide-react'
+import { ArrowRight, AlertCircle, ChevronRight } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { StatusBadge } from '@/components/shared/status-badge'
 import { DataTableColumnHeader } from '@/components/data-table'
@@ -84,5 +84,14 @@ export const buildTransferColumns = (): ColumnDef<TransferRow>[] => [
     accessorKey: 'status',
     header: ({ column }) => <DataTableColumnHeader column={column} title="Estado" />,
     cell: ({ row }) => <StatusBadge status={row.getValue('status')} />,
+  },
+  {
+    id: 'expand',
+    enableHiding: false,
+    enableSorting: false,
+    header: () => null,
+    cell: () => (
+      <ChevronRight className="text-muted-foreground/40 group-hover:text-muted-foreground size-4 transition-colors" />
+    ),
   },
 ]
