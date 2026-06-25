@@ -1,15 +1,15 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { ArrowRightLeft, CheckCircle2, Truck, Clock } from 'lucide-react'
+import { ArrowRightLeft, CheckCircle2, Clock, Truck } from 'lucide-react'
 
 import { useWmsStore } from '@/store/wms-store'
 import { useStoreHelpers } from '@/hooks/use-store-helpers'
+import { useDialogState } from '@/hooks/use-dialog-state'
 import { PageHeader } from '@/components/shared/page-header'
-import { StatusBadge } from '@/components/shared/status-badge'
 import { KpiCard } from '@/components/shared/kpi-card'
 import { DataTable } from '@/components/data-table'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import {
   Select,
   SelectContent,
@@ -17,25 +17,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
 import { formatNumber } from '@/lib/formatters'
 import { buildTransferColumns, type TransferRow } from './columns'
+import { TransferDetailSheet } from './_components/transfer-detail-sheet'
+import type { TransferOrder } from '@/types/wms'
 
 const TERMINAL_STATUSES = new Set(['completed', 'cancelled'])
-const NEXT_MAP: Partial<Record<string, string>> = {
-  draft: 'pending',
-  pending: 'in_progress',
-  in_progress: 'in_transit',
-  in_transit: 'completed',
-  partial: 'completed',
-}
 
 export default function TransfersPage() {
   const state = useWmsStore()
@@ -43,6 +30,8 @@ export default function TransfersPage() {
 
   const [typeFilter, setTypeFilter] = useState('all')
   const [statusFilter, setStatusFilter] = useState('all')
+
+  const detailSheet = useDialogState<TransferOrder>()
 
   const rows = useMemo<TransferRow[]>(
     () =>
@@ -55,7 +44,7 @@ export default function TransfersPage() {
         linesCount: t.items.length,
         estimatedArrivalDate: t.estimatedArrivalDate,
         status: t.status,
-        canAdvance: !TERMINAL_STATUSES.has(t.status) && !!NEXT_MAP[t.status],
+        canAdvance: !TERMINAL_STATUSES.has(t.status),
       })),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [state.transfers]
@@ -71,16 +60,16 @@ export default function TransfersPage() {
     [rows, typeFilter, statusFilter]
   )
 
-  const activeTransfers = useMemo(
-    () => state.transfers.filter((t) => !TERMINAL_STATUSES.has(t.status)),
-    [state.transfers]
-  )
-
   const inTransitCount = state.transfers.filter((t) => t.status === 'in_transit').length
   const pendingCount = state.transfers.filter(
     (t) => t.status === 'draft' || t.status === 'pending'
   ).length
   const completedCount = state.transfers.filter((t) => t.status === 'completed').length
+
+  const handleRowClick = (row: TransferRow) => {
+    const transfer = state.transfers.find((t) => t.id === row.id)
+    if (transfer) detailSheet.open(transfer)
+  }
 
   const columns = useMemo(() => buildTransferColumns(), [])
 
@@ -123,12 +112,7 @@ export default function TransfersPage() {
       />
 
       <div className="grid gap-4 sm:grid-cols-3">
-        <KpiCard
-          icon={Truck}
-          value={formatNumber(inTransitCount)}
-          label="En tránsito"
-          tone="blue"
-        />
+        <KpiCard icon={Truck} value={formatNumber(inTransitCount)} label="En tránsito" tone="blue" />
         <KpiCard
           icon={Clock}
           value={formatNumber(pendingCount)}
@@ -155,45 +139,19 @@ export default function TransfersPage() {
             searchPlaceholder="Buscar código..."
             filters={filtersNode}
             emptyMessage="No hay traslados con los filtros seleccionados."
+            onRowClick={handleRowClick}
           />
         </CardContent>
       </Card>
 
-      {activeTransfers.map((transfer) => (
-        <Card key={transfer.id}>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-sm">
-              <ArrowRightLeft className="size-4 text-blue-600" />
-              {transfer.code} — Líneas
-              <StatusBadge status={transfer.status} />
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Producto</TableHead>
-                  <TableHead className="text-right">Solicitado</TableHead>
-                  <TableHead className="text-right">Pickeado</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {transfer.items.map((line) => (
-                  <TableRow key={line.id}>
-                    <TableCell>{productName(line.productId)}</TableCell>
-                    <TableCell className="text-right tabular-nums">
-                      {formatNumber(line.requestedQuantity)}
-                    </TableCell>
-                    <TableCell className="text-muted-foreground text-right tabular-nums">
-                      {line.pickedQuantity ?? '—'}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-      ))}
+      <TransferDetailSheet
+        transfer={detailSheet.data}
+        originName={detailSheet.data ? warehouseName(detailSheet.data.originId) : ''}
+        destinationName={detailSheet.data ? warehouseName(detailSheet.data.destinationId) : ''}
+        productName={productName}
+        open={!!detailSheet.data}
+        onClose={detailSheet.close}
+      />
     </>
   )
 }
