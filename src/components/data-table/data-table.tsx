@@ -185,7 +185,10 @@ export const DataTable = <TData, TValue>({
               <TableRow>
                 <TableCell
                   colSpan={columns.length}
-                  className="text-muted-foreground h-24 text-center"
+                  className={cn(
+                    'text-muted-foreground text-center',
+                    emptyState ? 'p-0' : 'h-24'
+                  )}
                 >
                   {emptyState ?? emptyMessage}
                 </TableCell>
