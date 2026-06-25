@@ -1,13 +1,14 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { ArrowRight, ArrowRightLeft, CheckCircle2, TriangleAlert } from 'lucide-react'
+import { ArrowRight, ArrowRightLeft, CheckCircle2, TriangleAlert, Truck, Clock } from 'lucide-react'
 
 import { useWmsStore } from '@/store/wms-store'
 import { useStoreHelpers } from '@/hooks/use-store-helpers'
 import { useDialogState } from '@/hooks/use-dialog-state'
 import { PageHeader } from '@/components/shared/page-header'
 import { StatusBadge } from '@/components/shared/status-badge'
+import { KpiCard } from '@/components/shared/kpi-card'
 import { DataTable } from '@/components/data-table'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -171,30 +172,24 @@ export default function TransfersPage() {
       />
 
       <div className="grid gap-4 sm:grid-cols-3">
-        <Card>
-          <CardContent className="pt-6">
-            <p className="text-muted-foreground text-sm">En tránsito</p>
-            <p className="text-2xl font-bold text-blue-600 tabular-nums">
-              {formatNumber(inTransitCount)}
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <p className="text-muted-foreground text-sm">Pendientes / en preparación</p>
-            <p className="text-2xl font-bold text-amber-600 tabular-nums">
-              {formatNumber(pendingCount)}
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <p className="text-muted-foreground text-sm">Completados</p>
-            <p className="text-2xl font-bold text-green-700 tabular-nums">
-              {formatNumber(completedCount)}
-            </p>
-          </CardContent>
-        </Card>
+        <KpiCard
+          icon={Truck}
+          value={formatNumber(inTransitCount)}
+          label="En tránsito"
+          tone="blue"
+        />
+        <KpiCard
+          icon={Clock}
+          value={formatNumber(pendingCount)}
+          label="Pendientes / en preparación"
+          tone="amber"
+        />
+        <KpiCard
+          icon={CheckCircle2}
+          value={formatNumber(completedCount)}
+          label="Completados"
+          tone="green"
+        />
       </div>
 
       <Card>
