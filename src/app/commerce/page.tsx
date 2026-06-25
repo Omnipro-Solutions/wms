@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState } from 'react'
+import { useState } from 'react'
 import { isToday, isBefore, parseISO } from 'date-fns'
 import {
   ArrowUpDown,
@@ -100,11 +100,6 @@ export default function CommercePage() {
   const [sortDir, setSortDir] = useState<SortDir>('desc')
   const [channelFilter, setChannelFilter] = useState('all')
   const [statusFilter, setStatusFilter] = useState('all')
-  const [expandedRow, setExpandedRow] = useState<string | null>(null)
-
-  const toggleRow = (id: string) =>
-    setExpandedRow((prev) => (prev === id ? null : id))
-
   const reserveDialog = useDialogState<ReserveDialogData>()
 
   const filtered = state.commerceOrders.filter((o) => {
@@ -254,128 +249,81 @@ export default function CommercePage() {
                 <TableHead className="cursor-pointer" onClick={() => toggleSort('status')}>
                   Estado <SortIcon field="status" active={sortField} dir={sortDir} />
                 </TableHead>
-                <TableHead />
+                <TableHead>Acción</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {sorted.map((order) => {
                 const overdue = !['completed', 'cancelled'].includes(order.status) && isOverdue(order.promisedDeliveryDate)
                 const urgent = !['completed', 'cancelled'].includes(order.status) && isUrgent(order.promisedDeliveryDate)
-                const isExpanded = expandedRow === order.id
 
                 return (
-                  <React.Fragment key={order.id}>
-                    <TableRow
-                      className={cn(
-                        'cursor-pointer',
-                        overdue && 'bg-red-50 hover:bg-red-100',
-                        urgent && !overdue && 'bg-amber-50 hover:bg-amber-100'
-                      )}
-                      onClick={() => toggleRow(order.id)}
-                    >
-                      <TableCell className="font-medium">
-                        <div className="flex items-center gap-1.5">
-                          {overdue && <TriangleAlert className="size-3 shrink-0 text-red-500" />}
-                          {urgent && !overdue && <Clock className="size-3 shrink-0 text-amber-500" />}
-                          {order.orderNumber}
-                        </div>
-                      </TableCell>
-                      <TableCell>{order.customerName}</TableCell>
-                      <TableCell>
-                        <div className="flex flex-wrap items-center gap-1">
-                          <Badge variant="outline" className="text-xs">
-                            {CHANNEL_LABELS[order.channel] ?? order.channel}
-                          </Badge>
-                          <Badge variant="secondary" className="text-xs">
-                            {FULFILLMENT_LABELS[order.fulfillmentType] ?? order.fulfillmentType}
-                          </Badge>
-                        </div>
-                      </TableCell>
-                      <TableCell className="tabular-nums">{order.items.length}</TableCell>
-                      <TableCell
-                        className={cn(
-                          'text-sm',
-                          overdue && 'font-semibold text-red-600',
-                          urgent && !overdue && 'font-semibold text-amber-600'
-                        )}
-                      >
-                        {formatDate(order.promisedDeliveryDate)}
-                        {overdue && <span className="ml-1 text-xs">(vencida)</span>}
-                        {urgent && !overdue && <span className="ml-1 text-xs">(hoy)</span>}
-                      </TableCell>
-                      <TableCell>
-                        <StatusBadge status={order.status} />
-                      </TableCell>
-                      <TableCell>
-                        {isExpanded ? (
-                          <ChevronUp className="size-4 text-muted-foreground" />
-                        ) : (
-                          <ChevronDown className="size-4 text-muted-foreground" />
-                        )}
-                      </TableCell>
-                    </TableRow>
-
-                    {isExpanded && (
-                      <TableRow key={`${order.id}-detail`} className={cn(
-                        overdue && 'bg-red-50',
-                        urgent && !overdue && 'bg-amber-50'
+                  <TableRow key={order.id}>
+                    <TableCell className="font-medium">
+                      <div className="flex items-center gap-1.5">
+                        {overdue && <TriangleAlert className="size-3 shrink-0 text-red-500" />}
+                        {urgent && !overdue && <Clock className="size-3 shrink-0 text-amber-500" />}
+                        {order.orderNumber}
+                      </div>
+                    </TableCell>
+                    <TableCell>{order.customerName}</TableCell>
+                    <TableCell>
+                      <div className="flex flex-wrap items-center gap-1">
+                        <Badge variant="outline" className="text-xs">
+                          {CHANNEL_LABELS[order.channel] ?? order.channel}
+                        </Badge>
+                        <Badge variant="secondary" className="text-xs">
+                          {FULFILLMENT_LABELS[order.fulfillmentType] ?? order.fulfillmentType}
+                        </Badge>
+                      </div>
+                    </TableCell>
+                    <TableCell className="tabular-nums">{order.items.length}</TableCell>
+                    <TableCell className="text-sm">
+                      <span className={cn(
+                        overdue && 'font-semibold text-red-600',
+                        urgent && !overdue && 'font-semibold text-amber-600'
                       )}>
-                        <TableCell colSpan={7} className="pb-4 pt-2">
-                          <div className="rounded-lg border bg-white p-4 space-y-3">
-                            <p className="text-sm font-medium text-muted-foreground">Líneas del pedido</p>
-                            <div className="divide-y rounded-md border">
-                              {order.items.map((item) => (
-                                <div key={item.id} className="flex items-center justify-between px-3 py-2">
-                                  <span className="text-sm">{productName(item.productId)}</span>
-                                  <span className="tabular-nums text-sm font-medium">
-                                    {item.requestedQuantity} uds.
-                                  </span>
-                                </div>
-                              ))}
-                            </div>
-                            <div className="flex items-center gap-2 pt-1">
-                              {order.status === 'pending' && (
-                                <Button
-                                  size="sm"
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    openReserveDialog(order.id)
-                                  }}
-                                >
-                                  <PackageCheck className="mr-1 size-3" /> Reservar inventario
-                                </Button>
-                              )}
-                              {order.status === 'in_progress' &&
-                                order.fulfillmentType === 'pickup_in_store' && (
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    onClick={(e) => {
-                                      e.stopPropagation()
-                                      try { markReadyForPickup(order.id, operatorName) } catch { /* ignore */ }
-                                    }}
-                                  >
-                                    <ShoppingBag className="mr-1 size-3" /> Listo para recoger
-                                  </Button>
-                                )}
-                              {order.status === 'ready_for_pickup' && (
-                                <Button
-                                  size="sm"
-                                  className="bg-green-600 hover:bg-green-700 text-white"
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    try { confirmPickup(order.id, operatorName) } catch { /* ignore */ }
-                                  }}
-                                >
-                                  <CheckCircle2 className="mr-1 size-3" /> Confirmar recogida
-                                </Button>
-                              )}
-                            </div>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    )}
-                  </React.Fragment>
+                        {formatDate(order.promisedDeliveryDate)}
+                      </span>
+                      {overdue && <span className="ml-1 text-xs text-red-500">(vencida)</span>}
+                      {urgent && !overdue && <span className="ml-1 text-xs text-amber-500">(hoy)</span>}
+                    </TableCell>
+                    <TableCell>
+                      <StatusBadge status={order.status} />
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-1">
+                        {order.status === 'pending' && (
+                          <Button size="sm" onClick={() => openReserveDialog(order.id)}>
+                            <PackageCheck className="mr-1 size-3" /> Reservar
+                          </Button>
+                        )}
+                        {order.status === 'in_progress' &&
+                          order.fulfillmentType === 'pickup_in_store' && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => {
+                                try { markReadyForPickup(order.id, operatorName) } catch { /* ignore */ }
+                              }}
+                            >
+                              <ShoppingBag className="mr-1 size-3" /> Listo
+                            </Button>
+                          )}
+                        {order.status === 'ready_for_pickup' && (
+                          <Button
+                            size="sm"
+                            className="bg-green-600 hover:bg-green-700 text-white"
+                            onClick={() => {
+                              try { confirmPickup(order.id, operatorName) } catch { /* ignore */ }
+                            }}
+                          >
+                            <CheckCircle2 className="mr-1 size-3" /> Confirmar recogida
+                          </Button>
+                        )}
+                      </div>
+                    </TableCell>
+                  </TableRow>
                 )
               })}
             </TableBody>
