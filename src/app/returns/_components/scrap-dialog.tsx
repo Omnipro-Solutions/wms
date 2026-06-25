@@ -141,16 +141,17 @@ export const ScrapDialog = ({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-5 py-1">
+        <div className="space-y-6 py-1">
           {/* Info del RMA */}
-          <div className="grid grid-cols-2 gap-2">
-            <div className="flex items-center justify-between rounded-md bg-muted/40 px-3 py-2 text-sm">
+          <div className="flex items-center gap-6 rounded-lg bg-muted/40 px-4 py-3 text-sm">
+            <div className="flex items-center gap-2">
               <span className="text-muted-foreground">RMA</span>
-              <span className="font-medium">{rmaCode}</span>
+              <span className="font-semibold">{rmaCode}</span>
             </div>
-            <div className="flex items-center justify-between rounded-md bg-muted/40 px-3 py-2 text-sm">
+            <div className="h-4 w-px bg-border" />
+            <div className="flex items-center gap-2">
               <span className="text-muted-foreground">Cliente</span>
-              <span className="font-medium">{customerName}</span>
+              <span className="font-semibold">{customerName}</span>
             </div>
           </div>
 
@@ -172,7 +173,7 @@ export const ScrapDialog = ({
             <ChoiceCardGroup
               value={disposalMethod}
               onValueChange={(v) => setDisposalMethod(v as ScrapMethod)}
-              className="grid grid-cols-1 sm:grid-cols-2 gap-2"
+              className="grid grid-cols-2 sm:grid-cols-3 gap-2"
             >
               {DISPOSAL_METHODS.map((m) => (
                 <ChoiceCard
@@ -238,10 +239,10 @@ export const ScrapDialog = ({
                   </div>
 
                   {s.include && (
-                    <div className="grid grid-cols-2 gap-3 pl-7">
+                    <div className="grid grid-cols-[120px_1fr] gap-3 pl-7">
                       <div className="space-y-1.5">
                         <Label className="text-xs font-medium">
-                          Cantidad a dar de baja{' '}
+                          Cantidad{' '}
                           <span className="text-muted-foreground font-normal">
                             (máx. {line.requestedQuantity})
                           </span>
@@ -290,27 +291,25 @@ export const ScrapDialog = ({
           {/* Campos de soporte */}
           <div className="space-y-3">
             <p className="text-sm font-semibold">Datos de soporte</p>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label htmlFor="operator">
-                  Operador responsable <span className="text-destructive">*</span>
-                </Label>
-                <Input
-                  id="operator"
-                  placeholder="Nombre del operador"
-                  value={operatorName}
-                  onChange={(e) => setOperatorName(e.target.value)}
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="ref-doc">Documento de referencia</Label>
-                <Input
-                  id="ref-doc"
-                  placeholder="Acta, guía, resolución..."
-                  value={referenceDoc}
-                  onChange={(e) => setReferenceDoc(e.target.value)}
-                />
-              </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="operator">
+                Operador responsable <span className="text-destructive">*</span>
+              </Label>
+              <Input
+                id="operator"
+                placeholder="Nombre del operador"
+                value={operatorName}
+                onChange={(e) => setOperatorName(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="ref-doc">Documento de referencia</Label>
+              <Input
+                id="ref-doc"
+                placeholder="Acta, guía, resolución..."
+                value={referenceDoc}
+                onChange={(e) => setReferenceDoc(e.target.value)}
+              />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="notes">Observaciones adicionales</Label>
