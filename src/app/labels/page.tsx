@@ -16,6 +16,7 @@ import {
 } from '@/components/ui/select'
 import { cn } from '@/lib/utils'
 import { buildLabelColumns, TYPE_LABELS, TYPE_COLORS, type LabelRow } from './columns'
+import { ZplPreviewDialog } from './_components/zpl-preview-dialog'
 import type { WmsLabel } from '@/types/wms'
 
 export default function LabelsPage() {
@@ -23,6 +24,12 @@ export default function LabelsPage() {
 
   const [typeFilter, setTypeFilter] = useState('all')
   const [statusFilter, setStatusFilter] = useState('all')
+  const [previewLabel, setPreviewLabel] = useState<WmsLabel | null>(null)
+
+  const handlePreview = (row: LabelRow) => {
+    const label = state.labels.find((l) => l.id === row.id) ?? null
+    setPreviewLabel(label)
+  }
 
   const rows = useMemo<LabelRow[]>(
     () =>
@@ -51,28 +58,45 @@ export default function LabelsPage() {
   const completedCount = state.labels.filter((l) => l.status === 'completed').length
   const pendingCount = state.labels.filter((l) => l.status === 'pending').length
 
-  const byType = Object.keys(TYPE_LABELS).map((t) => ({
-    type: t as WmsLabel['type'],
-    count: state.labels.filter((l) => l.type === t).length,
-  }))
 
-  const columns = useMemo(() => buildLabelColumns(), [])
+  const columns = useMemo(() => buildLabelColumns(handlePreview), [state.labels])
 
   const filtersNode = (
-    <>
-      <Select value={typeFilter} onValueChange={setTypeFilter}>
-        <SelectTrigger className="h-8 w-40">
-          <SelectValue placeholder="Tipo" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="all">Todos los tipos</SelectItem>
-          {Object.entries(TYPE_LABELS).map(([val, label]) => (
-            <SelectItem key={val} value={val}>
+    <div className="flex flex-wrap items-center gap-2">
+      {/* Type chips */}
+      <div className="flex flex-wrap items-center gap-1.5">
+        <button
+          className={cn(
+            'rounded-full border px-3 py-1 text-xs font-medium transition-colors',
+            typeFilter === 'all'
+              ? 'bg-foreground text-background border-foreground'
+              : 'bg-background text-muted-foreground hover:border-foreground/40'
+          )}
+          onClick={() => setTypeFilter('all')}
+        >
+          Todos
+        </button>
+        {Object.entries(TYPE_LABELS).map(([val, label]) => {
+          const count = state.labels.filter((l) => l.type === val).length
+          return (
+            <button
+              key={val}
+              className={cn(
+                'rounded-full border px-3 py-1 text-xs font-medium transition-colors',
+                typeFilter === val
+                  ? cn('border-transparent', TYPE_COLORS[val as WmsLabel['type']])
+                  : 'bg-background text-muted-foreground hover:border-foreground/40'
+              )}
+              onClick={() => setTypeFilter(typeFilter === val ? 'all' : val)}
+            >
               {label}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+              <span className="ml-1 tabular-nums opacity-60">{count}</span>
+            </button>
+          )
+        })}
+      </div>
+
+      {/* Status filter */}
       <Select value={statusFilter} onValueChange={setStatusFilter}>
         <SelectTrigger className="h-8 w-40">
           <SelectValue placeholder="Estado" />
@@ -84,7 +108,7 @@ export default function LabelsPage() {
           <SelectItem value="cancelled">Cancelada</SelectItem>
         </SelectContent>
       </Select>
-    </>
+    </div>
   )
 
   return (
@@ -115,32 +139,7 @@ export default function LabelsPage() {
         </Card>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-6">
-        {byType.map(({ type, count }) => (
-          <Card
-            key={type}
-            className={cn(
-              'cursor-pointer transition-colors',
-              typeFilter === type && 'ring-primary ring-2'
-            )}
-            onClick={() => setTypeFilter(typeFilter === type ? 'all' : type)}
-          >
-            <CardContent className="pt-4 pb-4">
-              <p className="text-muted-foreground text-xs">{TYPE_LABELS[type]}</p>
-              <p className="text-xl font-bold tabular-nums">{count}</p>
-              {typeFilter === type && (
-                <div
-                  className={`mt-1 inline-block rounded-full px-1.5 py-0.5 text-xs font-medium ${TYPE_COLORS[type]}`}
-                >
-                  Filtrando
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-
-      <Card>
+<Card>
         <CardContent className="pt-4">
           <div className="mb-1 flex items-center gap-2 text-base font-semibold">
             <Tag className="size-4" /> Etiquetas
@@ -155,6 +154,12 @@ export default function LabelsPage() {
           />
         </CardContent>
       </Card>
+
+      <ZplPreviewDialog
+        label={previewLabel}
+        open={previewLabel !== null}
+        onClose={() => setPreviewLabel(null)}
+      />
     </>
   )
 }
