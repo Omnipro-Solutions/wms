@@ -1,11 +1,12 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { MapPinned, Plus, TriangleAlert } from 'lucide-react'
+import { Activity, MapPinned, Package, Plus, Scale, TriangleAlert, Truck } from 'lucide-react'
 
 import { useWmsStore } from '@/store/wms-store'
 import { useDialogState } from '@/hooks/use-dialog-state'
 import { PageHeader } from '@/components/shared/page-header'
+import { KpiCard } from '@/components/shared/kpi-card'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import {
@@ -22,7 +23,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { formatNumber } from '@/lib/formatters'
+import { formatNumber, formatWeight } from '@/lib/formatters'
 import { CreateManifestDialog } from './_components/create-manifest-dialog'
 import { ManifestCard } from './_components/manifest-card'
 
@@ -126,34 +127,31 @@ export default function LoadManifestsPage() {
 
       {/* KPIs */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardContent className="pt-6">
-            <p className="text-muted-foreground text-sm">Manifiestos activos</p>
-            <p className="text-2xl font-bold text-blue-600 tabular-nums">
-              {formatNumber(activeCount)}
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <p className="text-muted-foreground text-sm">Pendientes de despacho</p>
-            <p className="text-2xl font-bold text-amber-600 tabular-nums">
-              {formatNumber(pendingCount)}
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <p className="text-muted-foreground text-sm">Unidades totales</p>
-            <p className="text-2xl font-bold tabular-nums">{formatNumber(totalUnits)}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <p className="text-muted-foreground text-sm">Peso total (kg)</p>
-            <p className="text-2xl font-bold tabular-nums">{formatNumber(totalWeight)}</p>
-          </CardContent>
-        </Card>
+        <KpiCard
+          icon={Activity}
+          value={activeCount}
+          label="Manifiestos activos"
+          tone="blue"
+        />
+        <KpiCard
+          icon={Truck}
+          value={pendingCount}
+          label="Pendientes de despacho"
+          tone="amber"
+          alert={pendingCount > 0}
+        />
+        <KpiCard
+          icon={Package}
+          value={formatNumber(totalUnits)}
+          label="Unidades totales"
+          tone="neutral"
+        />
+        <KpiCard
+          icon={Scale}
+          value={formatWeight(totalWeight)}
+          label="Peso total"
+          tone="neutral"
+        />
       </div>
 
       {/* Toolbar */}
