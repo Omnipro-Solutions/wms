@@ -74,7 +74,7 @@ const FULFILLMENT_LABELS: Record<string, string> = {
   cross_docking: 'Cross docking',
 }
 
-function SortIcon({ field, active, dir }: { field: string; active: string; dir: SortDir }) {
+const SortIcon = ({ field, active, dir }: { field: string; active: string; dir: SortDir }) => {
   if (active !== field) return <ArrowUpDown className="ml-1 inline size-3 opacity-40" />
   return dir === 'asc' ? (
     <ChevronUp className="ml-1 inline size-3" />
