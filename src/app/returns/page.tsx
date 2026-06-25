@@ -491,6 +491,15 @@ export default function ReturnsPage() {
 
   const filtersNode = (
     <>
+      <div className="relative">
+        <Search className="absolute left-2.5 top-2 size-3.5 text-muted-foreground" />
+        <Input
+          placeholder="Buscar por RMA o cliente..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="h-8 pl-8 text-sm w-52"
+        />
+      </div>
       <Select value={dispositionFilter} onValueChange={setDispositionFilter}>
         <SelectTrigger className="h-8 w-44">
           <SelectValue placeholder="Disposición" />
@@ -553,17 +562,6 @@ export default function ReturnsPage() {
         <CardContent className="pt-4">
           <div className="mb-3 flex items-center gap-2 text-base font-semibold">
             <Undo2 className="size-4" /> Todas las devoluciones (RMA)
-          </div>
-          <div className="mb-3 flex items-center gap-2">
-            <div className="relative flex-1 max-w-sm">
-              <Search className="absolute left-2.5 top-2.5 size-3.5 text-muted-foreground" />
-              <Input
-                placeholder="Buscar por RMA o cliente..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="h-8 pl-8 text-sm"
-              />
-            </div>
           </div>
           <DataTable
             columns={columns}
@@ -996,6 +994,7 @@ export default function ReturnsPage() {
         reentryBatch={detailReentryBatch}
         warehouseName={warehouseName}
         productName={productName}
+        getProduct={getProduct}
         onClose={() => setDetailReturnId(null)}
       />
     </>

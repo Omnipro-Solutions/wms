@@ -25,7 +25,7 @@ import {
 } from '@/components/ui/sheet'
 import { StatusBadge } from '@/components/shared/status-badge'
 import { cn } from '@/lib/utils'
-import type { ReentryBatch, RepairTicket, ReturnInspection, ReturnOrder, ScrapRecord } from '@/types/wms'
+import type { Product, ReentryBatch, RepairTicket, ReturnInspection, ReturnOrder, ScrapRecord } from '@/types/wms'
 import {
   DISPOSITION_COLORS,
   DISPOSITION_LABELS,
@@ -41,6 +41,7 @@ interface Props {
   reentryBatch: ReentryBatch | undefined
   warehouseName: (id: string) => string
   productName: (id: string) => string
+  getProduct: (id: string) => Product | undefined
   onClose: () => void
 }
 
@@ -96,7 +97,7 @@ const SCRAP_METHOD_LABELS: Record<string, string> = {
 }
 
 const InfoRow = ({ label, children }: { label: string; children: React.ReactNode }) => (
-  <div className="flex items-start justify-between gap-4 py-1.5">
+  <div className="flex items-start justify-between gap-4 py-2 border-b border-border/50 last:border-0">
     <span className="text-xs text-muted-foreground shrink-0">{label}</span>
     <span className="text-xs text-right">{children}</span>
   </div>
@@ -111,15 +112,16 @@ export const ReturnDetailSheet = ({
   reentryBatch,
   warehouseName,
   productName,
+  getProduct,
   onClose,
 }: Props) => {
   if (!returnOrder) return null
 
   return (
     <Sheet open={open} onOpenChange={(o) => { if (!o) onClose() }}>
-      <SheetContent className="w-[480px] sm:max-w-[480px] overflow-y-auto">
-        <SheetHeader className="pb-4">
-          <SheetTitle className="flex items-center gap-2">
+      <SheetContent className="w-[520px] sm:max-w-[520px] overflow-y-auto px-6">
+        <SheetHeader className="pb-5 pt-2">
+          <SheetTitle className="flex items-center gap-2 text-base">
             {returnOrder.rmaCode}
             <StatusBadge status={returnOrder.status} />
           </SheetTitle>
@@ -128,7 +130,7 @@ export const ReturnDetailSheet = ({
           </SheetDescription>
         </SheetHeader>
 
-        <div className="space-y-5">
+        <div className="space-y-6">
           {/* Identidad */}
           <section className="space-y-0.5">
             <InfoRow label="Cliente">
@@ -169,15 +171,15 @@ export const ReturnDetailSheet = ({
 
           {/* Ítems */}
           <section>
-            <p className="text-xs font-semibold mb-2 text-muted-foreground uppercase tracking-wide">
+            <p className="text-xs font-semibold mb-3 text-muted-foreground uppercase tracking-wide">
               Ítems
             </p>
             <div className="overflow-hidden rounded-lg border">
               <table className="w-full text-xs">
                 <thead>
                   <tr className="bg-muted/40 border-b">
-                    <th className="text-left px-3 py-2 font-medium text-muted-foreground">Producto</th>
-                    <th className="text-right px-3 py-2 font-medium text-muted-foreground w-16">Uds.</th>
+                    <th className="text-left px-3 py-2 font-medium text-muted-foreground" colSpan={2}>Producto</th>
+                    <th className="text-right px-3 py-2 font-medium text-muted-foreground w-14">Uds.</th>
                     {inspection && (
                       <th className="text-left px-3 py-2 font-medium text-muted-foreground w-28">Condición</th>
                     )}
@@ -185,12 +187,24 @@ export const ReturnDetailSheet = ({
                 </thead>
                 <tbody className="divide-y">
                   {returnOrder.items.map((line) => {
+                    const product = getProduct(line.productId)
                     const itemInspection = inspection?.items.find(
                       (i) => i.returnLineId === line.id
                     )
                     return (
-                      <tr key={line.id}>
-                        <td className="px-3 py-2">{productName(line.productId)}</td>
+                      <tr key={line.id} className="hover:bg-muted/20">
+                        <td className="px-3 py-2 w-10">
+                          {product?.imageUrl ? (
+                            <img
+                              src={product.imageUrl}
+                              alt={product.name}
+                              className="size-8 rounded object-cover border border-border"
+                            />
+                          ) : (
+                            <div className="size-8 rounded bg-muted border border-border" />
+                          )}
+                        </td>
+                        <td className="px-2 py-2">{productName(line.productId)}</td>
                         <td className="px-3 py-2 text-right tabular-nums">{line.requestedQuantity}</td>
                         {inspection && (
                           <td className="px-3 py-2">
