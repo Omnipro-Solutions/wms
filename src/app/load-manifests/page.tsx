@@ -2,6 +2,8 @@
 
 import { useMemo, useState } from 'react'
 import { Activity, MapPinned, Package, Plus, Scale, Search, TriangleAlert, Truck } from 'lucide-react'
+import { isToday, isYesterday, parseISO, format } from 'date-fns'
+import { es } from 'date-fns/locale'
 
 import { useWmsStore } from '@/store/wms-store'
 import { useDialogState } from '@/hooks/use-dialog-state'
@@ -76,6 +78,30 @@ export default function LoadManifestsPage() {
       return matchStatus && matchQuery
     })
   }, [state.loadManifests, statusFilter, searchQuery])
+
+  // ── Grouped manifests by date ──────────────────────────────────────────────
+
+  const groupedManifests = useMemo(() => {
+    const sorted = [...filtered].sort(
+      (a, b) => b.manifestDate.localeCompare(a.manifestDate)
+    )
+    const groups: Array<{ label: string; items: typeof sorted }> = []
+    for (const m of sorted) {
+      const date = parseISO(m.manifestDate)
+      const label = isToday(date)
+        ? 'Hoy'
+        : isYesterday(date)
+          ? 'Ayer'
+          : format(date, "EEEE d 'de' MMMM", { locale: es })
+      const existing = groups.find((g) => g.label === label)
+      if (existing) {
+        existing.items.push(m)
+      } else {
+        groups.push({ label, items: [m] })
+      }
+    }
+    return groups
+  }, [filtered])
 
   // ── KPIs ──────────────────────────────────────────────────────────────────
 
@@ -209,21 +235,32 @@ export default function LoadManifestsPage() {
           </CardContent>
         </Card>
       ) : (
-        <div className="space-y-4">
-          {filtered.map((m) => (
-            <ManifestCard
-              key={m.id}
-              manifest={m}
-              warehouses={state.warehouses}
-              orders={state.commerceOrders}
-              transfers={state.transfers}
-              returns={state.returnOrders}
-              onDispatch={handleDispatch}
-              onClose={(id) => {
-                const manifest = state.loadManifests.find((x) => x.id === id)
-                if (manifest) closeDialog.open({ manifestId: id, code: manifest.code })
-              }}
-            />
+        <div className="space-y-6">
+          {groupedManifests.map((group) => (
+            <div key={group.label} className="space-y-3">
+              <div className="flex items-center gap-2">
+                <span className="text-muted-foreground text-xs font-semibold uppercase tracking-wide">
+                  {group.label}
+                </span>
+                <div className="bg-border h-px flex-1" />
+                <span className="text-muted-foreground text-xs">{group.items.length}</span>
+              </div>
+              {group.items.map((m) => (
+                <ManifestCard
+                  key={m.id}
+                  manifest={m}
+                  warehouses={state.warehouses}
+                  orders={state.commerceOrders}
+                  transfers={state.transfers}
+                  returns={state.returnOrders}
+                  onDispatch={handleDispatch}
+                  onClose={(id) => {
+                    const manifest = state.loadManifests.find((x) => x.id === id)
+                    if (manifest) closeDialog.open({ manifestId: id, code: manifest.code })
+                  }}
+                />
+              ))}
+            </div>
           ))}
         </div>
       )}
