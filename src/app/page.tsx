@@ -7,22 +7,25 @@ import {
   selectExpiringItems,
   selectCriticalStockItems,
   selectSlaBreaches,
+  selectDashboardChartData,
 } from '@/store/selectors'
 import { KpiCard } from '@/components/shared/kpi-card'
 import { PageHeader } from '@/components/shared/page-header'
 import { useCurrentOperator } from '@/hooks/use-current-operator'
+import { OtifIraGauge } from './_components/otif-ira-gauge'
+import { DemandTrendChart } from './_components/demand-trend-chart'
+import { OrdersByStatusChart } from './_components/orders-by-status-chart'
+import { OperatorProductivityChart } from './_components/operator-productivity-chart'
 import {
   AlertTriangle,
-  BarChart3,
   CheckCircle2,
   Clock,
   Package,
-  PackageCheck,
   Snowflake,
   TrendingDown,
   TrendingUp,
   Truck,
-  Users,
+  BarChart3,
 } from 'lucide-react'
 import Link from 'next/link'
 
@@ -33,6 +36,8 @@ export default function DashboardPage() {
   const expiring = useMemo(() => selectExpiringItems(state), [state])
   const criticalStock = useMemo(() => selectCriticalStockItems(state), [state])
   const slaBreaches = useMemo(() => selectSlaBreaches(state, Date.now()), [state])
+  const chartData = useMemo(() => selectDashboardChartData(state), [state])
+
   const breached = slaBreaches.filter((s) => s.isBreached)
   const atRisk = slaBreaches.filter((s) => s.isAtRisk && !s.isBreached)
 
@@ -43,7 +48,7 @@ export default function DashboardPage() {
         description="Resumen operativo del almacén"
       />
 
-      {/* Banners de alerta */}
+      {/* Alert banners */}
       {kpis.inventoryFreezeActive && (
         <div className="flex items-center gap-2 rounded-md border border-blue-300 bg-blue-50 px-4 py-3 text-sm text-blue-800">
           <Snowflake className="h-4 w-4" />
@@ -80,10 +85,8 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* KPI Grid */}
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-        <KpiCard icon={Package} label="Órdenes pendientes" value={kpis.pendingOrders} tone="blue" />
-        <KpiCard icon={PackageCheck} label="En picking" value={kpis.ordersInPicking} tone="blue" />
+      {/* 6 KPI cards */}
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
         <KpiCard
           icon={Truck}
           label="OTIF"
@@ -96,12 +99,8 @@ export default function DashboardPage() {
           value={`${kpis.ira.toFixed(1)}%`}
           tone={kpis.ira >= 98 ? 'green' : kpis.ira >= 95 ? 'amber' : 'red'}
         />
-        <KpiCard
-          icon={AlertTriangle}
-          label="Alertas críticas"
-          value={kpis.criticalAlerts}
-          tone={kpis.criticalAlerts > 0 ? 'red' : 'green'}
-        />
+        <KpiCard icon={Package} label="Órdenes pendientes" value={kpis.pendingOrders} tone="blue" />
+        <KpiCard icon={BarChart3} label="Oleadas activas" value={kpis.activeWaves} tone="neutral" />
         <KpiCard
           icon={Clock}
           label="SLA vencidos"
@@ -109,26 +108,19 @@ export default function DashboardPage() {
           tone={kpis.slaBreaches > 0 ? 'red' : 'green'}
         />
         <KpiCard
-          icon={Package}
-          label="Ítems por vencer"
-          value={kpis.expiringItems}
-          tone={kpis.expiringItems > 0 ? 'amber' : 'neutral'}
-        />
-        <KpiCard
           icon={TrendingDown}
           label="Stock crítico"
           value={kpis.criticalStockItems}
           tone={kpis.criticalStockItems > 0 ? 'red' : 'neutral'}
         />
-        <KpiCard icon={Users} label="Recepciones pendientes" value={kpis.pendingReceipts} tone="neutral" />
-        <KpiCard icon={BarChart3} label="Oleadas activas" value={kpis.activeWaves} tone="neutral" />
-        <KpiCard
-          icon={AlertTriangle}
-          label="Ajustes pendientes"
-          value={kpis.pendingAdjustments}
-          tone={kpis.pendingAdjustments > 0 ? 'amber' : 'neutral'}
-        />
-        <KpiCard icon={TrendingUp} label="Inventario en hold" value={kpis.inventoryOnHold} tone="neutral" />
+      </div>
+
+      {/* Charts 2-column grid */}
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <OtifIraGauge gauges={chartData.gauges} />
+        <DemandTrendChart weeklyDemand={chartData.weeklyDemand} />
+        <OrdersByStatusChart ordersByStatus={chartData.ordersByStatus} />
+        <OperatorProductivityChart operatorProductivity={chartData.operatorProductivity} />
       </div>
     </div>
   )
