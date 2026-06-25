@@ -23,7 +23,6 @@ import {
   Package,
   Snowflake,
   TrendingDown,
-  TrendingUp,
   Truck,
   BarChart3,
 } from 'lucide-react'
