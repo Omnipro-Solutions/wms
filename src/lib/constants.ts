@@ -28,6 +28,7 @@ export const NAV_GROUPS: NavGroup[] = [
     title: 'Entrada',
     icon: PackageCheck,
     items: [
+      { label: 'Dashboard', href: '/', icon: BarChart3 },
       { label: 'Recepción', href: '/receiving', icon: PackageCheck },
       { label: 'Inventario', href: '/inventory', icon: Boxes },
       { label: 'Trazabilidad lotes', href: '/inventory/lot-trace', icon: Layers },
