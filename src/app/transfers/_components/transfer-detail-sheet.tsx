@@ -6,13 +6,7 @@ import { useState } from 'react'
 import { useWmsStore } from '@/store/wms-store'
 import { StatusBadge } from '@/components/shared/status-badge'
 import { Button } from '@/components/ui/button'
-import {
-  Sheet,
-  SheetContent,
-  SheetFooter,
-  SheetHeader,
-  SheetTitle,
-} from '@/components/ui/sheet'
+import { Sheet, SheetContent, SheetFooter, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import {
   Table,
   TableBody,
@@ -81,7 +75,6 @@ export const TransferDetailSheet = ({
     try {
       advanceTransfer(transfer.id, 'Operador')
       setError('')
-      onClose()
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Error al avanzar traslado')
     }
@@ -93,8 +86,13 @@ export const TransferDetailSheet = ({
     new Date(transfer.estimatedArrivalDate) < new Date()
 
   return (
-    <Sheet open={open} onOpenChange={(o) => { if (!o) onClose() }}>
-      <SheetContent className="flex w-full flex-col gap-0 overflow-y-auto sm:max-w-[560px]">
+    <Sheet
+      open={open}
+      onOpenChange={(o) => {
+        if (!o) onClose()
+      }}
+    >
+      <SheetContent className="flex w-full flex-col gap-0 overflow-y-auto sm:max-w-140!">
         <SheetHeader className="border-b px-6 pb-4">
           <SheetTitle className="flex items-center gap-2">
             {transfer.code}
@@ -105,7 +103,7 @@ export const TransferDetailSheet = ({
         <div className="flex-1 space-y-6 px-6 py-6">
           {/* Ruta y fechas */}
           <section className="space-y-2">
-            <h3 className="text-muted-foreground text-xs font-semibold uppercase tracking-wide">
+            <h3 className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
               Ruta
             </h3>
             <div className="flex items-center gap-2 text-sm font-medium">
@@ -115,7 +113,9 @@ export const TransferDetailSheet = ({
             </div>
             <div className="text-muted-foreground flex gap-4 text-xs">
               <span>Creado: {formatDate(transfer.createdAt)}</span>
-              <span className={cn('flex items-center gap-1', isOverdue && 'text-red-600 font-medium')}>
+              <span
+                className={cn('flex items-center gap-1', isOverdue && 'font-medium text-red-600')}
+              >
                 ETA: {formatDate(transfer.estimatedArrivalDate)}
                 {isOverdue && ' · Atrasado'}
               </span>
@@ -124,7 +124,7 @@ export const TransferDetailSheet = ({
 
           {/* Timeline de estados */}
           <section className="space-y-2">
-            <h3 className="text-muted-foreground text-xs font-semibold uppercase tracking-wide">
+            <h3 className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
               Estado del ciclo
             </h3>
             <div className="flex items-start gap-0">
@@ -133,7 +133,7 @@ export const TransferDetailSheet = ({
                 const isCurrent = i === currentStepIndex
                 const isLast = i === STEPS.length - 1
                 return (
-                  <div key={step.key} className="flex flex-1 flex-col items-center">
+                  <div key={step.key} className="flex flex-1 flex-col items-start">
                     <div className="flex w-full items-center">
                       <div
                         className={cn(
@@ -147,10 +147,7 @@ export const TransferDetailSheet = ({
                       </div>
                       {!isLast && (
                         <div
-                          className={cn(
-                            'h-0.5 flex-1',
-                            isDone ? 'bg-emerald-400' : 'bg-zinc-200'
-                          )}
+                          className={cn('h-0.5 flex-1', isDone ? 'bg-emerald-400' : 'bg-zinc-200')}
                         />
                       )}
                     </div>
@@ -170,7 +167,7 @@ export const TransferDetailSheet = ({
 
           {/* Tabla de líneas */}
           <section className="space-y-2">
-            <h3 className="text-muted-foreground text-xs font-semibold uppercase tracking-wide">
+            <h3 className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
               Líneas ({transfer.items.length})
             </h3>
             <div className="rounded-md border">
@@ -222,7 +219,8 @@ export const TransferDetailSheet = ({
             <div className="flex w-full flex-col gap-2">
               {nextStatus === 'completed' && (
                 <p className="text-muted-foreground text-xs">
-                  Al completar se registrarán movimientos de inventario de tipo <strong>transfer</strong> por cada línea.
+                  Al completar se registrarán movimientos de inventario de tipo{' '}
+                  <strong>transfer</strong> por cada línea.
                 </p>
               )}
               {error && (

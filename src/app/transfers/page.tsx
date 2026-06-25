@@ -31,7 +31,7 @@ export default function TransfersPage() {
   const [typeFilter, setTypeFilter] = useState('all')
   const [statusFilter, setStatusFilter] = useState('all')
 
-  const detailSheet = useDialogState<TransferOrder>()
+  const detailSheet = useDialogState<{ id: string }>()
 
   const rows = useMemo<TransferRow[]>(
     () =>
@@ -66,9 +66,13 @@ export default function TransfersPage() {
   const completedCount = state.transfers.filter((t) => t.status === 'completed').length
 
   const handleRowClick = (row: TransferRow) => {
-    const transfer = state.transfers.find((t) => t.id === row.id)
-    if (transfer) detailSheet.open(transfer)
+    detailSheet.open({ id: row.id })
   }
+
+  // always read live from store so sheet reflects state after each advance
+  const selectedTransfer = detailSheet.data
+    ? state.transfers.find((t) => t.id === detailSheet.data!.id) ?? null
+    : null
 
   const columns = useMemo(() => buildTransferColumns(), [])
 
@@ -144,9 +148,9 @@ export default function TransfersPage() {
       </Card>
 
       <TransferDetailSheet
-        transfer={detailSheet.data}
-        originName={detailSheet.data ? warehouseName(detailSheet.data.originId) : ''}
-        destinationName={detailSheet.data ? warehouseName(detailSheet.data.destinationId) : ''}
+        transfer={selectedTransfer}
+        originName={selectedTransfer ? warehouseName(selectedTransfer.originId) : ''}
+        destinationName={selectedTransfer ? warehouseName(selectedTransfer.destinationId) : ''}
         getProduct={getProduct}
         open={!!detailSheet.data}
         onClose={detailSheet.close}
