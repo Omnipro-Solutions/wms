@@ -74,7 +74,7 @@ export default function LoadManifestsPage() {
         m.code.toLowerCase().includes(q) ||
         m.carrierName.toLowerCase().includes(q) ||
         m.truckPlate.toLowerCase().includes(q) ||
-        m.sapRouteId.toLowerCase().includes(q)
+        (m.sapRouteId ?? '').toLowerCase().includes(q)
       return matchStatus && matchQuery
     })
   }, [state.loadManifests, statusFilter, searchQuery])
@@ -83,7 +83,7 @@ export default function LoadManifestsPage() {
 
   const groupedManifests = useMemo(() => {
     const sorted = [...filtered].sort(
-      (a, b) => b.manifestDate.localeCompare(a.manifestDate)
+      (a, b) => parseISO(b.manifestDate).getTime() - parseISO(a.manifestDate).getTime()
     )
     const groups: Array<{ label: string; items: typeof sorted }> = []
     for (const m of sorted) {

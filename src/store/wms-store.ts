@@ -1721,7 +1721,7 @@ export const useWmsStore = create<WmsState>()(
       totalPackages: data.orderIds.length + data.transferIds.length,
       totalWeightKg: 0,
       totalVolumeM3: 0,
-      sapRouteId: '',
+      sapRouteId: data.sapRouteId,
       truckPlate: '',
       driverName: '',
       carrierName: '',
