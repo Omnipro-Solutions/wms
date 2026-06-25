@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { ArrowRightLeft, Truck, Clock } from 'lucide-react'
+import { ArrowRightLeft, CheckCircle2, Truck, Clock } from 'lucide-react'
 
 import { useWmsStore } from '@/store/wms-store'
 import { useStoreHelpers } from '@/hooks/use-store-helpers'
