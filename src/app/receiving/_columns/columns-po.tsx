@@ -9,11 +9,11 @@ import { formatNumber } from '@/lib/formatters'
 import type { PoRow } from '../columns'
 
 const PO_STATUS_MAP: Record<string, { label: string; className: string }> = {
-  draft: { label: 'Borrador', className: 'bg-zinc-100 text-zinc-600 border-zinc-200' },
-  confirmed: { label: 'Confirmada', className: 'bg-blue-100 text-blue-700 border-blue-200' },
-  partial: { label: 'Parcial', className: 'bg-amber-100 text-amber-700 border-amber-200' },
-  received: { label: 'Recibida', className: 'bg-emerald-100 text-emerald-700 border-emerald-200' },
-  cancelled: { label: 'Cancelada', className: 'bg-red-100 text-red-700 border-red-200' },
+  draft: { label: 'Borrador', className: 'bg-zinc-100 text-zinc-600 border-zinc-200 dark:bg-zinc-800/60 dark:text-zinc-300 dark:border-zinc-700/50' },
+  confirmed: { label: 'Confirmada', className: 'bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-950/60 dark:text-blue-300 dark:border-blue-800/50' },
+  partial: { label: 'Parcial', className: 'bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800/50' },
+  received: { label: 'Recibida', className: 'bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800/50' },
+  cancelled: { label: 'Cancelada', className: 'bg-red-100 text-red-700 border-red-200 dark:bg-red-950/60 dark:text-red-300 dark:border-red-800/50' },
 }
 
 export const buildPoColumns = (onCreateReception: (row: PoRow) => void): ColumnDef<PoRow>[] => [
@@ -88,9 +88,9 @@ export const buildPoColumns = (onCreateReception: (row: PoRow) => void): ColumnD
               className={cn(
                 'font-semibold tabular-nums',
                 progressPct === 100
-                  ? 'text-emerald-600'
+                  ? 'text-emerald-600 dark:text-emerald-400'
                   : progressPct > 0
-                    ? 'text-blue-600'
+                    ? 'text-primary'
                     : 'text-muted-foreground'
               )}
             >
@@ -99,13 +99,7 @@ export const buildPoColumns = (onCreateReception: (row: PoRow) => void): ColumnD
           </div>
           <Progress
             value={progressPct}
-            className={cn(
-              progressPct === 100
-                ? '*:data-[slot=progress-indicator]:bg-emerald-500'
-                : progressPct > 0
-                  ? '*:data-[slot=progress-indicator]:bg-blue-500'
-                  : ''
-            )}
+            variant={progressPct === 100 ? 'success' : 'default'}
           />
           {pendingQty > 0 && (
             <p className="text-muted-foreground tabular-nums text-[10px]">

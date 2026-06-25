@@ -64,12 +64,9 @@ export const buildPutToStoreColumns = (
               <span className="font-semibold">{formatNumber(distributed)}</span>
               <span className="text-muted-foreground"> / {formatNumber(total)}</span>
             </span>
-            <span className="text-xs font-bold text-blue-600">{pct}%</span>
+            <span className="text-xs font-bold text-primary">{pct}%</span>
           </div>
-          <Progress
-            value={pct}
-            className="h-1.5 *:data-[slot=progress-indicator]:bg-blue-500"
-          />
+          <Progress value={pct} className="h-1.5" />
           {pct === 100 && (
             <div className="flex items-center gap-1 text-[10px] text-green-700">
               <CheckCircle2 className="size-3" /> Completo

@@ -24,9 +24,9 @@ interface Props {
 }
 
 const OTIF_COLORS = {
-  on_time: 'bg-green-100 text-green-700 border-green-200',
-  at_risk: 'bg-amber-100 text-amber-700 border-amber-200',
-  late: 'bg-red-100 text-red-700 border-red-200',
+  on_time: 'bg-green-100 text-green-700 border-green-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-900/50',
+  at_risk: 'bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-900/50',
+  late: 'bg-red-100 text-red-700 border-red-200 dark:bg-red-950/40 dark:text-red-300 dark:border-red-900/50',
 }
 
 const OTIF_LABELS = {
@@ -93,21 +93,21 @@ export const OtifDashboard = ({ shipments, alerts, today }: Props) => {
         <CardContent className="space-y-3">
           <div className="space-y-1.5">
             <div className="flex justify-between text-xs">
-              <span className="text-green-700 font-medium">A tiempo</span>
+              <span className="text-green-700 dark:text-emerald-300 font-medium">A tiempo</span>
               <span className="tabular-nums">{breakdown.on_time} ({formatPercent(onTimePct)})</span>
             </div>
             <ProgressBar value={onTimePct} color="bg-green-500" />
           </div>
           <div className="space-y-1.5">
             <div className="flex justify-between text-xs">
-              <span className="text-amber-600 font-medium">En riesgo</span>
+              <span className="text-amber-600 dark:text-amber-300 font-medium">En riesgo</span>
               <span className="tabular-nums">{breakdown.at_risk} ({formatPercent(atRiskPct)})</span>
             </div>
             <ProgressBar value={atRiskPct} color="bg-amber-400" />
           </div>
           <div className="space-y-1.5">
             <div className="flex justify-between text-xs">
-              <span className="text-red-600 font-medium">Con retraso</span>
+              <span className="text-red-600 dark:text-red-300 font-medium">Con retraso</span>
               <span className="tabular-nums">{breakdown.late} ({formatPercent(latePct)})</span>
             </div>
             <ProgressBar value={latePct} color="bg-red-500" />
@@ -117,9 +117,9 @@ export const OtifDashboard = ({ shipments, alerts, today }: Props) => {
 
       {/* Alerts */}
       {alerts.length > 0 && (
-        <Card className="border-amber-200 bg-amber-50/40">
+        <Card className="border-amber-200 bg-amber-50/40 dark:border-amber-900/50 dark:bg-amber-950/40">
           <CardHeader className="pb-2">
-            <CardTitle className="flex items-center gap-2 text-sm text-amber-700">
+            <CardTitle className="flex items-center gap-2 text-sm text-amber-700 dark:text-amber-300">
               <AlertTriangle className="size-4" />
               Alertas OTIF — {alerts.length} envío{alerts.length !== 1 ? 's' : ''} requieren atención
             </CardTitle>
@@ -161,7 +161,7 @@ export const OtifDashboard = ({ shipments, alerts, today }: Props) => {
                       <span
                         className={cn(
                           'text-sm font-semibold',
-                          a.daysOverdue > 0 ? 'text-red-600' : 'text-amber-600'
+                          a.daysOverdue > 0 ? 'text-red-600 dark:text-red-300' : 'text-amber-600 dark:text-amber-300'
                         )}
                       >
                         {a.daysOverdue > 0 ? `+${a.daysOverdue}` : a.daysOverdue === 0 ? 'Hoy' : `${a.daysOverdue}`}
@@ -208,10 +208,10 @@ export const OtifDashboard = ({ shipments, alerts, today }: Props) => {
                             className={cn(
                               'font-bold tabular-nums',
                               c.onTimeRate >= 90
-                                ? 'text-green-700'
+                                ? 'text-green-700 dark:text-emerald-300'
                                 : c.onTimeRate >= 70
-                                  ? 'text-amber-600'
-                                  : 'text-red-600'
+                                  ? 'text-amber-600 dark:text-amber-300'
+                                  : 'text-red-600 dark:text-red-300'
                             )}
                           >
                             {formatPercent(c.onTimeRate)}

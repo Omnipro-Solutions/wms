@@ -21,11 +21,11 @@ export const PRIORITY_LABELS: Record<string, string> = {
 }
 
 export const ZONE_COLORS: Record<string, string> = {
-  A: 'border-green-200 bg-green-100 text-green-800',
-  B: 'border-blue-200 bg-blue-100 text-blue-800',
-  R: 'border-slate-200 bg-slate-100 text-slate-700',
-  S: 'border-orange-200 bg-orange-100 text-orange-800',
-  QC: 'border-purple-200 bg-purple-100 text-purple-800',
+  A: 'border-green-200 bg-green-100 text-green-800 dark:border-green-800/50 dark:bg-green-950/50 dark:text-green-300',
+  B: 'border-blue-200 bg-blue-100 text-blue-800 dark:border-blue-800/50 dark:bg-blue-950/50 dark:text-blue-300',
+  R: 'border-slate-200 bg-slate-100 text-slate-700 dark:border-slate-700/50 dark:bg-slate-800/50 dark:text-slate-300',
+  S: 'border-orange-200 bg-orange-100 text-orange-800 dark:border-orange-800/50 dark:bg-orange-950/50 dark:text-orange-300',
+  QC: 'border-purple-200 bg-purple-100 text-purple-800 dark:border-purple-800/50 dark:bg-purple-950/50 dark:text-purple-300',
 }
 
 export const CHANNEL_LABELS: Record<string, string> = {
@@ -67,11 +67,11 @@ export const progressCell = (picked: number, requested: number) => {
           <span className="font-semibold">{formatNumber(picked)}</span>
           <span className="text-muted-foreground"> / {formatNumber(requested)}</span>
         </span>
-        <span className="text-xs font-bold text-blue-600">{pct}%</span>
+        <span className="text-xs font-bold text-primary">{pct}%</span>
       </div>
-      <Progress value={pct} className="h-1.5 *:data-[slot=progress-indicator]:bg-blue-500" />
+      <Progress value={pct} className="h-1.5" />
       {missing > 0 && (
-        <span className="rounded bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700">
+        <span className="rounded bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700 dark:bg-amber-950/50 dark:text-amber-300">
           -{formatNumber(missing)} falta
         </span>
       )}

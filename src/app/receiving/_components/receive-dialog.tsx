@@ -79,7 +79,7 @@ const QtyInput = ({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         className={cn(
-          'h-14 flex-1 rounded-xl border-2 bg-white text-center text-3xl font-bold tabular-nums',
+          'h-14 flex-1 rounded-xl border-2 bg-white dark:bg-zinc-900 text-center text-3xl font-bold tabular-nums',
           hasError ? 'border-destructive' : accentClass
         )}
       />
@@ -147,7 +147,7 @@ export const ReceiveDialog = ({ state }: Props) => {
     >
       <DialogContent className="max-w-4xl! gap-0 overflow-hidden p-0">
         {/* ── Header ── */}
-        <div className="border-b bg-white px-7 py-5">
+        <div className="border-b bg-white dark:bg-zinc-900 px-7 py-5">
           <div className="flex items-start justify-between gap-4">
             <div className="flex items-start gap-3">
               <div className="bg-muted border-border mt-0.5 flex size-10 shrink-0 items-center justify-center rounded-xl border">
@@ -214,15 +214,15 @@ export const ReceiveDialog = ({ state }: Props) => {
                   Resumen de esta entrega
                 </p>
                 <div className="space-y-2">
-                  <div className="flex items-center justify-between rounded-lg border bg-white px-4 py-3">
+                  <div className="flex items-center justify-between rounded-lg border bg-white dark:bg-zinc-900 px-4 py-3">
                     <span className="text-muted-foreground text-sm">Total esperado</span>
                     <span className="text-xl font-bold tabular-nums">{data.expectedTotal}</span>
                   </div>
-                  <div className="flex items-center justify-between rounded-lg border bg-white px-4 py-3">
+                  <div className="flex items-center justify-between rounded-lg border bg-white dark:bg-zinc-900 px-4 py-3">
                     <span className="text-muted-foreground text-sm">Ya recibido</span>
                     <span className="text-xl font-bold tabular-nums">{data.receivedSoFar}</span>
                   </div>
-                  <div className="border-foreground/15 flex items-center justify-between rounded-lg border-2 bg-white px-4 py-3">
+                  <div className="border-foreground/15 flex items-center justify-between rounded-lg border-2 bg-white dark:bg-zinc-900 px-4 py-3">
                     <span className="text-sm font-semibold">Pendiente esta entrega</span>
                     <span className="text-2xl font-bold tabular-nums">{data.pendingQty}</span>
                   </div>
@@ -276,7 +276,7 @@ export const ReceiveDialog = ({ state }: Props) => {
                     </div>
                   </div>
                 ) : progressPct === 100 ? (
-                  <div className="border-border flex items-center gap-2 rounded-lg border bg-white px-3 py-3 text-sm">
+                  <div className="border-border flex items-center gap-2 rounded-lg border bg-white dark:bg-zinc-900 px-3 py-3 text-sm">
                     <CheckCircle2 className="text-foreground size-5 shrink-0" />
                     <div>
                       <p className="font-semibold">Conteo completo</p>
@@ -288,7 +288,7 @@ export const ReceiveDialog = ({ state }: Props) => {
                     </div>
                   </div>
                 ) : (
-                  <div className="border-border flex items-start gap-2 rounded-lg border bg-white px-3 py-3 text-sm">
+                  <div className="border-border flex items-start gap-2 rounded-lg border bg-white dark:bg-zinc-900 px-3 py-3 text-sm">
                     <AlertTriangle className="text-muted-foreground mt-0.5 size-4 shrink-0" />
                     <div>
                       <p className="font-semibold">Faltan {missingInForm} unidades</p>
@@ -308,7 +308,7 @@ export const ReceiveDialog = ({ state }: Props) => {
 
               {/* UoM selector — shown only when product has multiple options */}
               {hasUomChoice && (
-                <div className="space-y-1.5 rounded-lg border bg-white p-4">
+                <div className="space-y-1.5 rounded-lg border bg-white dark:bg-zinc-900 p-4">
                   <Label className="flex items-center gap-2 text-sm font-semibold">
                     <Ruler className="text-muted-foreground size-4" />
                     Unidad de medida de recepción
@@ -339,7 +339,7 @@ export const ReceiveDialog = ({ state }: Props) => {
 
               <div className="space-y-3">
                 {/* Buen estado */}
-                <div className="space-y-3 rounded-lg border bg-white p-4">
+                <div className="space-y-3 rounded-lg border bg-white dark:bg-zinc-900 p-4">
                   <Label
                     htmlFor="rcv-good"
                     className="flex items-center gap-2 text-sm font-semibold"
@@ -360,7 +360,7 @@ export const ReceiveDialog = ({ state }: Props) => {
                 </div>
 
                 {/* Dañadas */}
-                <div className="space-y-3 rounded-lg border bg-white p-4">
+                <div className="space-y-3 rounded-lg border bg-white dark:bg-zinc-900 p-4">
                   <Label
                     htmlFor="rcv-damaged"
                     className="flex items-center gap-2 text-sm font-semibold"
@@ -383,7 +383,7 @@ export const ReceiveDialog = ({ state }: Props) => {
 
               {/* Serial capture */}
               {requiresSerial && goodQtyNum > 0 && (
-                <div className="space-y-2 rounded-lg border bg-white p-4">
+                <div className="space-y-2 rounded-lg border bg-white dark:bg-zinc-900 p-4">
                   <Label
                     htmlFor="rcv-serials"
                     className="flex items-center gap-2 text-sm font-semibold"
@@ -399,7 +399,7 @@ export const ReceiveDialog = ({ state }: Props) => {
                           : serialsMismatch
                             ? 'border-amber-400 text-amber-600'
                             : parsedSerials.length === goodQtyNum && goodQtyNum > 0
-                              ? 'border-green-400 text-green-700'
+                              ? 'border-green-400 text-green-700 dark:text-emerald-300'
                               : 'text-muted-foreground'
                       )}
                     >
@@ -427,12 +427,12 @@ export const ReceiveDialog = ({ state }: Props) => {
                     <p className="text-destructive text-xs">Hay números de serie duplicados.</p>
                   )}
                   {!serialsDuplicated && serialsMismatch && (
-                    <p className="text-amber-600 text-xs">
+                    <p className="text-amber-600 dark:text-amber-300 text-xs">
                       Se esperan {goodQtyNum} series — ingresadas {parsedSerials.length}.
                     </p>
                   )}
                   {!serialsDuplicated && parsedSerials.length === goodQtyNum && goodQtyNum > 0 && (
-                    <p className="text-green-700 text-xs flex items-center gap-1">
+                    <p className="text-green-700 dark:text-emerald-300 text-xs flex items-center gap-1">
                       <CheckCircle2 className="size-3" /> {goodQtyNum} series capturadas correctamente.
                     </p>
                   )}
@@ -529,7 +529,7 @@ export const ReceiveDialog = ({ state }: Props) => {
         )}
 
         {/* ── Footer ── */}
-        <div className="flex items-center justify-between border-t bg-white px-7 py-4">
+        <div className="flex items-center justify-between border-t bg-white dark:bg-zinc-900 px-7 py-4">
           <div className="text-muted-foreground text-sm">
             {totalCounted > 0 && !isOverCount && (
               <span>

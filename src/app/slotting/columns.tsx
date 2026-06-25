@@ -25,37 +25,37 @@ import type { SimulationSummary } from '@/store/selectors'
 
 export const abcBadge = (cls: AbcClass) =>
   ({
-    A: 'bg-green-600 text-white hover:bg-green-600',
-    B: 'bg-blue-500 text-white hover:bg-blue-500',
-    C: 'bg-zinc-200 text-zinc-700 hover:bg-zinc-200',
+    A: 'bg-green-600 text-white hover:bg-green-600 dark:bg-emerald-500',
+    B: 'bg-blue-500 text-white hover:bg-blue-500 dark:bg-blue-400',
+    C: 'bg-zinc-200 text-zinc-700 hover:bg-zinc-200 dark:bg-zinc-500 dark:text-white',
   })[cls]
 
 export const xyzBadge = (cls: XyzClass) =>
   ({
-    X: 'bg-violet-600 text-white hover:bg-violet-600',
-    Y: 'bg-orange-400 text-white hover:bg-orange-400',
-    Z: 'bg-zinc-200 text-zinc-600 hover:bg-zinc-200',
+    X: 'bg-violet-600 text-white hover:bg-violet-600 dark:bg-violet-500',
+    Y: 'bg-orange-400 text-white hover:bg-orange-400 dark:bg-orange-500',
+    Z: 'bg-zinc-200 text-zinc-600 hover:bg-zinc-200 dark:bg-zinc-500 dark:text-white',
   })[cls]
 
 export const scoreTone = (score: number) =>
   score >= 70
-    ? 'text-green-700 font-bold'
+    ? 'text-green-700 font-bold dark:text-emerald-300'
     : score >= 40
-      ? 'text-amber-600 font-semibold'
+      ? 'text-amber-600 font-semibold dark:text-amber-300'
       : 'text-muted-foreground'
 
 export const COMBO_COLOR: Record<string, string> = {
-  AX: 'bg-green-100 text-green-800 border-green-300',
-  AY: 'bg-emerald-100 text-emerald-700 border-emerald-200',
-  AZ: 'bg-amber-100 text-amber-700 border-amber-200',
-  BX: 'bg-blue-100 text-blue-700 border-blue-200',
-  CZ: 'bg-red-100 text-red-600 border-red-200',
+  AX: 'bg-green-100 text-green-800 border-green-300 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-900/50',
+  AY: 'bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-900/50',
+  AZ: 'bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-900/50',
+  BX: 'bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-900/50',
+  CZ: 'bg-red-100 text-red-600 border-red-200 dark:bg-red-950/40 dark:text-red-300 dark:border-red-900/50',
 }
 
 const priorityPill: Record<string, string> = {
-  high: 'bg-red-100 text-red-700 border-red-200',
-  medium: 'bg-amber-100 text-amber-700 border-amber-200',
-  low: 'bg-zinc-100 text-zinc-600 border-zinc-200',
+  high: 'bg-red-100 text-red-700 border-red-200 dark:bg-red-950/40 dark:text-red-300 dark:border-red-900/50',
+  medium: 'bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-900/50',
+  low: 'bg-zinc-100 text-zinc-600 border-zinc-200 dark:bg-zinc-800/50 dark:text-zinc-300 dark:border-zinc-700/50',
 }
 const priorityLabel: Record<string, string> = { high: 'Alta', medium: 'Media', low: 'Baja' }
 
@@ -200,7 +200,7 @@ export const buildOptimizationColumns = (
           className={cn(
             'rounded px-1.5 py-0.5 font-mono text-xs',
             currentLocationGolden
-              ? 'bg-amber-100 text-amber-800'
+              ? 'bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300'
               : 'bg-muted text-muted-foreground'
           )}
         >
@@ -227,21 +227,21 @@ export const buildOptimizationColumns = (
             className={cn(
               'rounded-md border px-2 py-1 font-mono text-xs font-semibold',
               suggestedLocationGolden
-                ? 'border-green-300 bg-green-100 text-green-800'
+                ? 'border-green-300 bg-green-100 text-green-800 dark:border-emerald-900/50 dark:bg-emerald-950/40 dark:text-emerald-300'
                 : suggestedLocationIsPickFace
-                  ? 'border-blue-200 bg-blue-50 text-blue-800'
+                  ? 'border-blue-200 bg-blue-50 text-blue-800 dark:border-blue-900/50 dark:bg-blue-950/40 dark:text-blue-300'
                   : 'border-zinc-200 bg-muted text-muted-foreground'
             )}
           >
             {suggestedLocationCode}
           </span>
           {suggestedLocationGolden && (
-            <span className="flex items-center gap-0.5 rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700">
+            <span className="flex items-center gap-0.5 rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700 dark:bg-amber-950/40 dark:text-amber-300">
               <MapPin className="size-2.5" /> golden
             </span>
           )}
           {suggestedLocationIsPickFace && !suggestedLocationGolden && (
-            <span className="rounded-full bg-blue-50 px-1.5 py-0.5 text-[10px] font-semibold text-blue-600">
+            <span className="rounded-full bg-blue-50 px-1.5 py-0.5 text-[10px] font-semibold text-blue-600 dark:bg-blue-950/40 dark:text-blue-300">
               pick face
             </span>
           )}
@@ -420,7 +420,7 @@ export const buildClassificationColumns = (): ColumnDef<ClassificationRow>[] => 
       const { cv } = row.original
       const cvPct = Math.min(100, cv * 60)
       const cvTone =
-        cv < 0.2 ? 'text-green-700' : cv < 0.5 ? 'text-amber-600' : 'text-red-600'
+        cv < 0.2 ? 'text-green-700 dark:text-emerald-300' : cv < 0.5 ? 'text-amber-600 dark:text-amber-300' : 'text-red-600 dark:text-red-300'
       const cvBarColor =
         cv < 0.2
           ? '[&>div]:bg-green-500'
@@ -448,16 +448,16 @@ export const buildClassificationColumns = (): ColumnDef<ClassificationRow>[] => 
             className={cn(
               'rounded-md border px-2 py-1 font-mono text-xs font-semibold',
               locationGolden
-                ? 'border-amber-300 bg-amber-100 text-amber-800'
+                ? 'border-amber-300 bg-amber-100 text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-300'
                 : locationIsPickFace
-                  ? 'border-blue-200 bg-blue-50 text-blue-800'
+                  ? 'border-blue-200 bg-blue-50 text-blue-800 dark:border-blue-900/50 dark:bg-blue-950/40 dark:text-blue-300'
                   : 'border-zinc-200 bg-muted text-muted-foreground'
             )}
           >
             {locationCode ?? '—'}
           </span>
           {locationGolden ? (
-            <span className="flex items-center gap-0.5 rounded-full bg-green-100 px-1.5 py-0.5 text-[10px] font-semibold text-green-700">
+            <span className="flex items-center gap-0.5 rounded-full bg-green-100 px-1.5 py-0.5 text-[10px] font-semibold text-green-700 dark:bg-emerald-950/40 dark:text-emerald-300">
               <CheckCircle2 className="size-2.5" /> golden
             </span>
           ) : (
@@ -515,7 +515,7 @@ export const buildReplenishmentColumns = (
             {originLocationCode}
           </span>
           <ArrowRight className="text-muted-foreground size-3 shrink-0" />
-          <span className="rounded-md border border-green-300 bg-green-100 px-1.5 py-0.5 font-mono text-xs font-semibold text-green-800">
+          <span className="rounded-md border border-green-300 bg-green-100 px-1.5 py-0.5 font-mono text-xs font-semibold text-green-800 dark:border-emerald-900/50 dark:bg-emerald-950/40 dark:text-emerald-300">
             {destinationLocationCode}
           </span>
           <MapPin className="size-3 shrink-0 text-green-600" />
@@ -582,10 +582,10 @@ export const buildReplenishmentColumns = (
             className={cn(
               'w-9 text-xs tabular-nums font-semibold',
               coveragePct < 30
-                ? 'text-red-600'
+                ? 'text-red-600 dark:text-red-300'
                 : coveragePct < 60
-                  ? 'text-amber-600'
-                  : 'text-green-700'
+                  ? 'text-amber-600 dark:text-amber-300'
+                  : 'text-green-700 dark:text-emerald-300'
             )}
           >
             {coveragePct}%
@@ -622,12 +622,12 @@ export const buildReplenishmentColumns = (
             className={cn(
               'text-xs font-medium',
               status === 'completed'
-                ? 'text-green-700'
+                ? 'text-green-700 dark:text-emerald-300'
                 : status === 'assigned'
-                  ? 'text-blue-600'
+                  ? 'text-blue-600 dark:text-blue-300'
                   : status === 'cancelled'
-                    ? 'text-zinc-400'
-                    : 'text-amber-600'
+                    ? 'text-zinc-400 dark:text-zinc-500'
+                    : 'text-amber-600 dark:text-amber-300'
             )}
           >
             {statusLabel(status)}
@@ -729,10 +729,10 @@ export const buildAffinityColumns = (): ColumnDef<AffinityRow>[] => [
       const { liftScore } = row.original
       const liftTone =
         liftScore >= 3
-          ? 'bg-violet-100 text-violet-800 border-violet-200'
+          ? 'bg-violet-100 text-violet-800 border-violet-200 dark:bg-violet-950/50 dark:text-violet-300 dark:border-violet-800/50'
           : liftScore >= 1.5
-            ? 'bg-blue-50 text-blue-700 border-blue-200'
-            : 'bg-zinc-100 text-zinc-600 border-zinc-200'
+            ? 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-900/50'
+            : 'bg-zinc-100 text-zinc-600 border-zinc-200 dark:bg-zinc-800/50 dark:text-zinc-300 dark:border-zinc-700/50'
       return (
         <div className="flex justify-end">
           <span className={cn('rounded-md border px-2 py-0.5 text-xs font-bold tabular-nums', liftTone)}>
@@ -759,7 +759,7 @@ export const buildAffinityColumns = (): ColumnDef<AffinityRow>[] => [
           <span
             className={cn(
               'w-7 text-xs tabular-nums font-semibold',
-              isAlreadyClose ? 'text-green-700' : 'text-violet-700'
+              isAlreadyClose ? 'text-green-700 dark:text-emerald-300' : 'text-violet-700 dark:text-violet-300'
             )}
           >
             {proximityScore}
@@ -774,11 +774,11 @@ export const buildAffinityColumns = (): ColumnDef<AffinityRow>[] => [
     cell: ({ row }) => {
       const { isAlreadyClose } = row.original
       return isAlreadyClose ? (
-        <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-semibold text-green-700">
+        <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-semibold text-green-700 dark:bg-emerald-950/40 dark:text-emerald-300">
           <CheckCircle2 className="size-3" /> Próximos
         </span>
       ) : (
-        <span className="inline-flex items-center gap-1 rounded-full bg-violet-100 px-2.5 py-0.5 text-xs font-semibold text-violet-700">
+        <span className="inline-flex items-center gap-1 rounded-full bg-violet-100 px-2.5 py-0.5 text-xs font-semibold text-violet-700 dark:bg-violet-950/50 dark:text-violet-300">
           <TriangleAlert className="size-3" /> Acercar
         </span>
       )
@@ -803,7 +803,7 @@ export const buildHistoryColumns = (): ColumnDef<HistoryRow>[] => [
             <div className="flex items-center gap-1.5">
               <p className="text-sm font-semibold leading-tight">{label}</p>
               {isLatest && (
-                <span className="rounded-full bg-blue-100 px-1.5 py-0.5 text-[10px] font-semibold text-blue-600">
+                <span className="rounded-full bg-blue-100 px-1.5 py-0.5 text-[10px] font-semibold text-blue-600 dark:bg-blue-950/40 dark:text-blue-300">
                   actual
                 </span>
               )}
@@ -885,7 +885,7 @@ export const buildHistoryColumns = (): ColumnDef<HistoryRow>[] => [
       return (
         <div className="flex items-center justify-center gap-2">
           <span className="flex flex-col items-center">
-            <span className="tabular-nums text-sm font-semibold text-green-700">{aToGoldenCount}</span>
+            <span className="tabular-nums text-sm font-semibold text-green-700 dark:text-emerald-300">{aToGoldenCount}</span>
             <span className="text-muted-foreground text-[10px]">A↑</span>
           </span>
           <span className="text-muted-foreground text-xs">/</span>
@@ -893,7 +893,7 @@ export const buildHistoryColumns = (): ColumnDef<HistoryRow>[] => [
             <span
               className={cn(
                 'tabular-nums text-sm font-semibold',
-                czInGoldenCount > 0 ? 'text-amber-600' : 'text-muted-foreground'
+                czInGoldenCount > 0 ? 'text-amber-600 dark:text-amber-300' : 'text-muted-foreground'
               )}
             >
               {czInGoldenCount}
@@ -918,7 +918,7 @@ export const buildHistoryColumns = (): ColumnDef<HistoryRow>[] => [
             <span
               className={cn(
                 'tabular-nums text-sm font-semibold',
-                pendingReplenishment > 0 ? 'text-red-600' : 'text-muted-foreground'
+                pendingReplenishment > 0 ? 'text-red-600 dark:text-red-300' : 'text-muted-foreground'
               )}
             >
               {pendingReplenishment}
@@ -930,7 +930,7 @@ export const buildHistoryColumns = (): ColumnDef<HistoryRow>[] => [
             <span
               className={cn(
                 'tabular-nums text-sm font-semibold',
-                affinityPairsNeedingAction > 0 ? 'text-violet-600' : 'text-muted-foreground'
+                affinityPairsNeedingAction > 0 ? 'text-violet-600 dark:text-violet-300' : 'text-muted-foreground'
               )}
             >
               {affinityPairsNeedingAction}
@@ -992,13 +992,13 @@ export const buildSimulationColumns = (): ColumnDef<SimulationRow>[] => [
           <span
             className={cn(
               'rounded px-1.5 py-0.5 font-mono text-xs font-semibold',
-              isGoldenMove ? 'bg-green-100 text-green-800' : 'bg-muted text-muted-foreground'
+              isGoldenMove ? 'bg-green-100 text-green-800 dark:bg-emerald-950/40 dark:text-emerald-300' : 'bg-muted text-muted-foreground'
             )}
           >
             {toCode}
           </span>
           {isGoldenMove && (
-            <span className="flex items-center gap-0.5 text-[10px] font-semibold text-green-600">
+            <span className="flex items-center gap-0.5 text-[10px] font-semibold text-green-600 dark:text-emerald-300">
               <MapPin className="size-3" /> golden
             </span>
           )}

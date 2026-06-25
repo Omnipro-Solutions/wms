@@ -28,12 +28,12 @@ export const TYPE_LABELS: Record<WmsLabel['type'], string> = {
 }
 
 export const TYPE_COLORS: Record<WmsLabel['type'], string> = {
-  product: 'bg-blue-100 text-blue-700 border-blue-200',
-  location: 'bg-slate-100 text-slate-700 border-slate-200',
-  box: 'bg-amber-100 text-amber-700 border-amber-200',
-  pallet: 'bg-orange-100 text-orange-700 border-orange-200',
-  shipping: 'bg-green-100 text-green-700 border-green-200',
-  return: 'bg-red-100 text-red-700 border-red-200',
+  product: 'bg-blue-100 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800/50',
+  location: 'bg-slate-100 dark:bg-zinc-800/50 text-slate-700 dark:text-zinc-300 border-slate-200 dark:border-zinc-700/50',
+  box: 'bg-amber-100 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800/50',
+  pallet: 'bg-orange-100 dark:bg-orange-950/40 text-orange-700 dark:text-orange-300 border-orange-200 dark:border-orange-800/50',
+  shipping: 'bg-green-100 dark:bg-emerald-950/40 text-green-700 dark:text-emerald-300 border-green-200 dark:border-emerald-800/50',
+  return: 'bg-red-100 dark:bg-red-950/40 text-red-700 dark:text-red-300 border-red-200 dark:border-red-800/50',
 }
 
 export const buildLabelColumns = (onPreview?: (row: LabelRow) => void): ColumnDef<LabelRow>[] => [

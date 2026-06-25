@@ -520,7 +520,7 @@ const SlottingPage = () => {
                 <Button
                   size="sm"
                   variant="outline"
-                  className="border-blue-300 bg-white text-blue-700 hover:bg-blue-50"
+                  className="border-blue-300 bg-white text-blue-700 hover:bg-blue-50 dark:border-blue-700 dark:bg-zinc-900 dark:text-blue-300 dark:hover:bg-blue-950/40"
                   onClick={handleSimulateAll}
                 >
                   <FlaskConical className="mr-1.5 size-3.5" />
@@ -530,36 +530,36 @@ const SlottingPage = () => {
             }
           >
             {activeRecs.length > 0 && (
-              <div className="mb-4 grid gap-3 rounded-xl border border-blue-100 bg-blue-50/60 p-4 sm:grid-cols-3">
+              <div className="mb-4 grid gap-3 rounded-xl border border-blue-100 bg-blue-50/60 p-4 sm:grid-cols-3 dark:border-blue-900/50 dark:bg-blue-950/40">
                 <div className="flex items-center gap-3">
-                  <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-blue-100">
-                    <MoveRight className="size-4 text-blue-600" />
+                  <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-blue-100 dark:bg-blue-900/50">
+                    <MoveRight className="size-4 text-blue-600 dark:text-blue-400" />
                   </div>
                   <div>
-                    <p className="text-xs text-blue-600">Distancia total a ahorrar</p>
-                    <p className="text-lg font-bold text-blue-800 tabular-nums">
+                    <p className="text-xs text-blue-600 dark:text-blue-400">Distancia total a ahorrar</p>
+                    <p className="text-lg font-bold text-blue-800 tabular-nums dark:text-blue-300">
                       {formatNumber(impact.totalDistanceSavedM)} m
                     </p>
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
-                  <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-blue-100">
-                    <Clock className="size-4 text-blue-600" />
+                  <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-blue-100 dark:bg-blue-900/50">
+                    <Clock className="size-4 text-blue-600 dark:text-blue-400" />
                   </div>
                   <div>
-                    <p className="text-xs text-blue-600">Tiempo ahorrado por turno</p>
-                    <p className="text-lg font-bold text-blue-800 tabular-nums">
+                    <p className="text-xs text-blue-600 dark:text-blue-400">Tiempo ahorrado por turno</p>
+                    <p className="text-lg font-bold text-blue-800 tabular-nums dark:text-blue-300">
                       {impact.totalTimeSavedMin} min
                     </p>
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
-                  <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-blue-100">
-                    <MoveRight className="size-4 text-blue-600" />
+                  <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-blue-100 dark:bg-blue-900/50">
+                    <MoveRight className="size-4 text-blue-600 dark:text-blue-400" />
                   </div>
                   <div>
-                    <p className="text-xs text-blue-600">Clase A → golden zone</p>
-                    <p className="text-lg font-bold text-blue-800 tabular-nums">
+                    <p className="text-xs text-blue-600 dark:text-blue-400">Clase A → golden zone</p>
+                    <p className="text-lg font-bold text-blue-800 tabular-nums dark:text-blue-300">
                       {impact.aClassToGoldenCount} SKUs
                     </p>
                   </div>
@@ -668,18 +668,18 @@ const SlottingPage = () => {
             }
           >
             {replenishmentNeeds.length > 0 && (
-              <div className="mb-4 flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
+              <div className="mb-4 flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 dark:border-amber-900/50 dark:bg-amber-950/40">
                 <TriangleAlert className="mt-0.5 size-4 shrink-0 text-amber-600" />
                 <div className="text-sm">
-                  <p className="font-semibold text-amber-800">
+                  <p className="font-semibold text-amber-800 dark:text-amber-300">
                     {replenishmentNeeds.length} pick face
                     {replenishmentNeeds.length > 1 ? 's' : ''} bajo mínimo sin tarea activa
                   </p>
-                  <p className="mt-0.5 text-xs text-amber-700">
+                  <p className="mt-0.5 text-xs text-amber-700 dark:text-amber-300">
                     {replenishmentNeeds.filter((n) => n.priority === 'high').length} críticas (stock
                     &lt; {Math.round(state.settings.replenishmentHighFactor * 100)}% del mínimo)
                     {lastGenerated > 0 && (
-                      <span className="ml-2 font-medium text-green-700">
+                      <span className="ml-2 font-medium text-green-700 dark:text-emerald-300">
                         · {lastGenerated} tarea{lastGenerated > 1 ? 's' : ''} generada
                         {lastGenerated > 1 ? 's' : ''}
                       </span>
@@ -703,7 +703,7 @@ const SlottingPage = () => {
                 searchPlaceholder="Buscar por producto…"
                 emptyMessage="Sin tareas de reabastecimiento."
                 rowClassName={(row: ReplenishmentRow) =>
-                  cn('group', row.isCritical && 'bg-red-50/50')
+                  cn('group', row.isCritical && 'bg-red-50/50 dark:bg-red-950/30')
                 }
               />
             )}
@@ -744,7 +744,7 @@ const SlottingPage = () => {
                   searchColumn="productNameA"
                   searchPlaceholder="Buscar por producto…"
                   emptyMessage="Sin pares de afinidad."
-                  rowClassName={(row: AffinityRow) => (row.isAlreadyClose ? 'bg-green-50/40' : '')}
+                  rowClassName={(row: AffinityRow) => (row.isAlreadyClose ? 'bg-green-50/40 dark:bg-emerald-950/30' : '')}
                 />
               </>
             )}
@@ -763,20 +763,20 @@ const SlottingPage = () => {
                   .map((rec) => (
                     <div
                       key={`${rec.pair.productA}|${rec.pair.productB}`}
-                      className="flex items-start gap-3 rounded-lg border border-violet-100 bg-violet-50/50 px-4 py-3 text-sm"
+                      className="flex items-start gap-3 rounded-lg border border-violet-100 bg-violet-50/50 px-4 py-3 text-sm dark:border-violet-800/50 dark:bg-violet-950/40"
                     >
                       <GitMerge className="mt-0.5 size-4 shrink-0 text-violet-500" />
                       <div className="flex-1">
-                        <p className="text-violet-900">{rec.suggestion}</p>
+                        <p className="text-violet-900 dark:text-violet-200">{rec.suggestion}</p>
                         {rec.distanceBetweenM !== null && (
-                          <p className="mt-0.5 text-xs text-violet-600">
+                          <p className="mt-0.5 text-xs text-violet-600 dark:text-violet-300">
                             Distancia actual entre ubicaciones:{' '}
                             <strong>{rec.distanceBetweenM} m</strong>
                             {' · '}Co-ocurrencias: <strong>{rec.pair.coOccurrences}</strong> órdenes
                           </p>
                         )}
                       </div>
-                      <span className="shrink-0 rounded-full border border-violet-200 bg-white px-2 py-0.5 text-xs font-semibold text-violet-700">
+                      <span className="shrink-0 rounded-full border border-violet-200 bg-white px-2 py-0.5 text-xs font-semibold text-violet-700 dark:border-violet-800/50 dark:bg-zinc-900 dark:text-violet-300">
                         Score {rec.pair.proximityScore}
                       </span>
                     </div>
@@ -856,10 +856,10 @@ const SlottingPage = () => {
                       className={cn(
                         'flex items-center gap-3 rounded-xl border p-4',
                         neutral
-                          ? 'border-zinc-200 bg-white'
+                          ? 'border-zinc-200 bg-white dark:border-zinc-700 dark:bg-zinc-900'
                           : improved
-                            ? 'border-green-200 bg-green-50'
-                            : 'border-red-200 bg-red-50'
+                            ? 'border-green-200 bg-green-50 dark:border-emerald-900/50 dark:bg-emerald-950/40'
+                            : 'border-red-200 bg-red-50 dark:border-red-900/50 dark:bg-red-950/40'
                       )}
                     >
                       {neutral ? (
@@ -870,11 +870,11 @@ const SlottingPage = () => {
                         <TrendingUp className="size-5 shrink-0 text-red-500" />
                       )}
                       <div>
-                        <p className="text-xs text-zinc-500">{label}</p>
+                        <p className="text-xs text-zinc-500 dark:text-zinc-400">{label}</p>
                         <p
                           className={cn(
                             'text-lg font-bold tabular-nums',
-                            neutral ? 'text-zinc-400' : improved ? 'text-green-700' : 'text-red-600'
+                            neutral ? 'text-zinc-400 dark:text-zinc-500' : improved ? 'text-green-700 dark:text-emerald-300' : 'text-red-600 dark:text-red-300'
                           )}
                         >
                           {delta === null ? '—' : `${delta > 0 ? '+' : ''}${delta}${suffix ?? ''}`}
@@ -905,7 +905,7 @@ const SlottingPage = () => {
                 searchColumn="label"
                 searchPlaceholder="Buscar captura…"
                 emptyMessage="Sin capturas registradas."
-                rowClassName={(row: HistoryRow) => (row.isLatest ? 'bg-blue-50/30' : '')}
+                rowClassName={(row: HistoryRow) => (row.isLatest ? 'bg-blue-50/30 dark:bg-blue-950/20' : '')}
               />
             )}
           </TabPanel>
@@ -920,7 +920,7 @@ const SlottingPage = () => {
         }}
       >
         <DialogContent className="max-w-5xl! gap-0 overflow-hidden p-0">
-          <DialogHeader className="border-b bg-linear-to-r from-blue-50 to-indigo-50 px-6 py-5">
+          <DialogHeader className="border-b bg-linear-to-r from-blue-50 to-indigo-50 px-6 py-5 dark:from-blue-950/40 dark:to-indigo-950/40">
             <DialogTitle className="flex items-center gap-2 text-base">
               <FlaskConical className="size-4 text-blue-600" />
               Simulación de impacto — {simulation?.rows.length ?? 0} reubicaciones
@@ -1016,16 +1016,16 @@ const SlottingPage = () => {
                 <ArrowRight className="text-muted-foreground size-5 shrink-0" />
                 <div className="flex-1 text-center">
                   <p className="text-muted-foreground mb-1 text-xs">Destino</p>
-                  <p className="font-mono text-base font-bold text-green-700">
+                  <p className="font-mono text-base font-bold text-green-700 dark:text-emerald-300">
                     {relocateDialog.data.toCode}
                   </p>
                 </div>
               </div>
 
               {relocateDialog.data.errors.length > 0 && (
-                <div className="space-y-1.5 rounded-lg border border-red-200 bg-red-50 p-3">
+                <div className="space-y-1.5 rounded-lg border border-red-200 bg-red-50 p-3 dark:border-red-900/50 dark:bg-red-950/40">
                   {relocateDialog.data.errors.map((err, i) => (
-                    <div key={i} className="flex items-start gap-2 text-sm text-red-700">
+                    <div key={i} className="flex items-start gap-2 text-sm text-red-700 dark:text-red-300">
                       <TriangleAlert className="mt-0.5 size-3.5 shrink-0" />
                       {err}
                     </div>
@@ -1034,9 +1034,9 @@ const SlottingPage = () => {
               )}
 
               {relocateDialog.data.warnings.length > 0 && (
-                <div className="space-y-1.5 rounded-lg border border-amber-200 bg-amber-50 p-3">
+                <div className="space-y-1.5 rounded-lg border border-amber-200 bg-amber-50 p-3 dark:border-amber-900/50 dark:bg-amber-950/40">
                   {relocateDialog.data.warnings.map((w, i) => (
-                    <div key={i} className="flex items-start gap-2 text-sm text-amber-800">
+                    <div key={i} className="flex items-start gap-2 text-sm text-amber-800 dark:text-amber-300">
                       <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
                       {w}
                     </div>

@@ -174,7 +174,7 @@ const LabelPreview = ({ label }: { label: WmsLabel }) => {
   return (
     <div className="flex justify-center">
       <div
-        className="relative overflow-hidden rounded-lg border-2 border-gray-300 bg-white shadow-sm"
+        className="relative overflow-hidden rounded-lg border-2 border-gray-300 dark:border-zinc-600 bg-white shadow-sm"
         style={{ width: 320, height: 160, fontFamily: 'monospace' }}
         aria-label={`Vista previa etiqueta ${label.code}`}
       >

@@ -73,13 +73,13 @@ const TRIGGER_LABELS: Record<string, string> = {
 }
 
 const TRIGGER_COLORS: Record<string, string> = {
-  fragile: 'bg-orange-100 text-orange-700 border-orange-200',
-  liquid: 'bg-blue-100 text-blue-700 border-blue-200',
-  heavy: 'bg-amber-100 text-amber-700 border-amber-200',
-  oversized: 'bg-purple-100 text-purple-700 border-purple-200',
-  hazmat: 'bg-red-100 text-red-700 border-red-200',
-  cold_chain: 'bg-cyan-100 text-cyan-700 border-cyan-200',
-  high_value: 'bg-yellow-100 text-yellow-700 border-yellow-200',
+  fragile: 'bg-orange-100 dark:bg-amber-950/40 text-orange-700 dark:text-amber-300 border-orange-200 dark:border-amber-900/50',
+  liquid: 'bg-blue-100 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-900/50',
+  heavy: 'bg-amber-100 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-900/50',
+  oversized: 'bg-purple-100 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-900/50',
+  hazmat: 'bg-red-100 dark:bg-red-950/40 text-red-700 dark:text-red-300 border-red-200 dark:border-red-900/50',
+  cold_chain: 'bg-cyan-100 dark:bg-cyan-950/40 text-cyan-700 dark:text-cyan-300 border-cyan-200 dark:border-cyan-900/50',
+  high_value: 'bg-yellow-100 dark:bg-amber-950/40 text-yellow-700 dark:text-amber-300 border-yellow-200 dark:border-amber-900/50',
 }
 
 interface VerifyDialogData {
@@ -182,7 +182,7 @@ const PackingPage = () => {
                 <span className="font-semibold">{formatNumber(o.scannedItems)}</span>
                 <span className="text-muted-foreground"> / {formatNumber(o.expectedItems)}</span>
               </span>
-              <span className="text-xs font-bold text-blue-600">{pct}%</span>
+              <span className="text-xs font-bold text-blue-600 dark:text-blue-300">{pct}%</span>
             </div>
             <Progress
               value={pct}
@@ -290,7 +290,7 @@ const PackingPage = () => {
               <Button
                 size="sm"
                 variant="outline"
-                className="border-red-300 text-red-700 hover:bg-red-50"
+                className="border-red-300 dark:border-red-900/50 text-red-700 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-950/40"
                 onClick={() => {
                   setVerifyDialog({ order: o })
                   setScannedQty(String(o.scannedItems))
@@ -311,7 +311,7 @@ const PackingPage = () => {
               </Button>
             )}
             {o.status === 'dispatched' && (
-              <Badge variant="secondary" className="text-xs text-emerald-700">
+              <Badge variant="secondary" className="text-xs text-emerald-700 dark:text-emerald-300">
                 <CheckCircle2 className="mr-1 size-3" /> Despachado
               </Badge>
             )}
@@ -366,22 +366,22 @@ const PackingPage = () => {
         return (
           <div className="flex flex-wrap gap-1">
             {r.requiresBubbleWrap && (
-              <Badge variant="outline" className="text-[10px] bg-orange-50 text-orange-700 border-orange-200">
+              <Badge variant="outline" className="text-[10px] bg-orange-50 dark:bg-amber-950/40 text-orange-700 dark:text-amber-300 border-orange-200 dark:border-amber-900/50">
                 Burbuja
               </Badge>
             )}
             {r.requiresDoublePacking && (
-              <Badge variant="outline" className="text-[10px] bg-purple-50 text-purple-700 border-purple-200">
+              <Badge variant="outline" className="text-[10px] bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-900/50">
                 Doble empaque
               </Badge>
             )}
             {r.requiresDryIce && (
-              <Badge variant="outline" className="text-[10px] bg-cyan-50 text-cyan-700 border-cyan-200">
+              <Badge variant="outline" className="text-[10px] bg-cyan-50 dark:bg-cyan-950/40 text-cyan-700 dark:text-cyan-300 border-cyan-200 dark:border-cyan-900/50">
                 Hielo seco
               </Badge>
             )}
             {r.requiresVoidFill && (
-              <Badge variant="outline" className="text-[10px] bg-zinc-50 text-zinc-600 border-zinc-200">
+              <Badge variant="outline" className="text-[10px] bg-zinc-50 dark:bg-zinc-800/50 text-zinc-600 dark:text-zinc-300 border-zinc-200 dark:border-zinc-700/50">
                 Relleno
               </Badge>
             )}
@@ -393,7 +393,7 @@ const PackingPage = () => {
       accessorKey: 'labelNote',
       header: ({ column }) => <DataTableColumnHeader column={column} title="Nota etiqueta" />,
       cell: ({ row }) => (
-        <span className="text-xs font-medium text-amber-700">{row.original.labelNote}</span>
+        <span className="text-xs font-medium text-amber-700 dark:text-amber-300">{row.original.labelNote}</span>
       ),
     },
     {
@@ -406,8 +406,8 @@ const PackingPage = () => {
           className={cn(
             'text-xs',
             row.original.active
-              ? 'border-green-300 text-green-700 hover:bg-green-50'
-              : 'border-zinc-300 text-zinc-500 hover:bg-zinc-50'
+              ? 'border-green-300 dark:border-emerald-900/50 text-green-700 dark:text-emerald-300 hover:bg-green-50 dark:hover:bg-emerald-950/30'
+              : 'border-zinc-300 dark:border-zinc-700/50 text-zinc-500 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50'
           )}
           onClick={() => handleToggleRule(row.original.id)}
         >
@@ -451,7 +451,7 @@ const PackingPage = () => {
       header: ({ column }) => <DataTableColumnHeader column={column} title="Código etiqueta" />,
       cell: ({ row }) =>
         row.original.labelCode ? (
-          <span className="font-mono text-xs text-purple-700">{row.original.labelCode}</span>
+          <span className="font-mono text-xs text-purple-700 dark:text-purple-300">{row.original.labelCode}</span>
         ) : (
           <span className="text-muted-foreground text-xs">—</span>
         ),
@@ -487,7 +487,7 @@ const PackingPage = () => {
         return (
           <div className="space-y-0.5">
             {summary.labelNotes.map((note) => (
-              <p key={note} className="text-[10px] font-medium text-amber-700">
+              <p key={note} className="text-[10px] font-medium text-amber-700 dark:text-amber-300">
                 {note}
               </p>
             ))}
@@ -901,7 +901,7 @@ const PackingPage = () => {
                     .map((r) => (
                       <div
                         key={r.id}
-                        className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 p-2 text-xs text-amber-700"
+                        className="flex items-start gap-2 rounded-md border border-amber-200 dark:border-amber-900/50 bg-amber-50 dark:bg-amber-950/40 p-2 text-xs text-amber-700 dark:text-amber-300"
                       >
                         <ShieldAlert className="mt-0.5 size-3 shrink-0" />
                         <span className="font-medium">{r.labelNote}</span>
@@ -923,7 +923,7 @@ const PackingPage = () => {
 
               {scannedQty !== '' &&
                 parseInt(scannedQty, 10) !== currentVerifyOrder.expectedItems && (
-                  <div className="flex items-start gap-2 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                  <div className="flex items-start gap-2 rounded-md border border-red-200 dark:border-red-900/50 bg-red-50 dark:bg-red-950/40 p-3 text-sm text-red-700 dark:text-red-300">
                     <TriangleAlert className="mt-0.5 size-4 shrink-0" />
                     <p>
                       Discrepancia: esperado{' '}
@@ -936,7 +936,7 @@ const PackingPage = () => {
 
               {scannedQty !== '' &&
                 parseInt(scannedQty, 10) === currentVerifyOrder.expectedItems && (
-                  <div className="flex items-center gap-2 rounded-md border border-green-200 bg-green-50 p-3 text-sm text-green-700">
+                  <div className="flex items-center gap-2 rounded-md border border-green-200 dark:border-emerald-900/50 bg-green-50 dark:bg-emerald-950/40 p-3 text-sm text-green-700 dark:text-emerald-300">
                     <CheckCircle2 className="size-4 shrink-0" />
                     <p>Conteo correcto. Se marcará como <strong>verificado</strong>.</p>
                   </div>
@@ -989,7 +989,7 @@ const PackingPage = () => {
                         </div>
                         <p className="text-muted-foreground text-xs">{rule.description}</p>
                         {applied && (
-                          <p className="text-xs font-medium text-amber-700">{rule.labelNote}</p>
+                          <p className="text-xs font-medium text-amber-700 dark:text-amber-300">{rule.labelNote}</p>
                         )}
                       </div>
                       <Button
@@ -1056,7 +1056,7 @@ const PackingPage = () => {
                       key={box.id}
                       className={cn(
                         'flex w-full items-center gap-3 p-3 text-left transition-colors hover:bg-muted/40',
-                        selected && 'bg-blue-50',
+                        selected && 'bg-blue-50 dark:bg-blue-950/40',
                         !fits && 'opacity-40 cursor-not-allowed'
                       )}
                       disabled={!fits}
@@ -1065,7 +1065,7 @@ const PackingPage = () => {
                       <Box
                         className={cn(
                           'size-5 shrink-0',
-                          selected ? 'text-blue-600' : 'text-muted-foreground'
+                          selected ? 'text-blue-600 dark:text-blue-300' : 'text-muted-foreground'
                         )}
                       />
                       <div className="flex-1">
@@ -1075,7 +1075,7 @@ const PackingPage = () => {
                         </p>
                       </div>
                       {selected && (
-                        <CheckCircle2 className="size-4 text-blue-600" />
+                        <CheckCircle2 className="size-4 text-blue-600 dark:text-blue-300" />
                       )}
                       {!fits && (
                         <span className="text-xs text-red-500">No apto</span>

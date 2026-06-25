@@ -36,31 +36,31 @@ const CONDITION_OPTIONS: { value: ItemCondition; label: string; color: string; d
   {
     value: 'new',
     label: 'Nuevo',
-    color: 'bg-green-100 text-green-800 border-green-200',
+    color: 'bg-green-100 dark:bg-emerald-950/40 text-green-800 dark:text-emerald-300 border-green-200 dark:border-emerald-800/50',
     dot: 'bg-green-500',
   },
   {
     value: 'like_new',
     label: 'Como nuevo',
-    color: 'bg-emerald-100 text-emerald-800 border-emerald-200',
+    color: 'bg-emerald-100 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800/50',
     dot: 'bg-emerald-500',
   },
   {
     value: 'good',
     label: 'Buen estado',
-    color: 'bg-blue-100 text-blue-800 border-blue-200',
+    color: 'bg-blue-100 dark:bg-blue-950/40 text-blue-800 dark:text-blue-300 border-blue-200 dark:border-blue-800/50',
     dot: 'bg-blue-500',
   },
   {
     value: 'fair',
     label: 'Aceptable',
-    color: 'bg-amber-100 text-amber-800 border-amber-200',
+    color: 'bg-amber-100 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 border-amber-200 dark:border-amber-800/50',
     dot: 'bg-amber-500',
   },
   {
     value: 'defective',
     label: 'Defectuoso',
-    color: 'bg-red-100 text-red-800 border-red-200',
+    color: 'bg-red-100 dark:bg-red-950/40 text-red-800 dark:text-red-300 border-red-200 dark:border-red-800/50',
     dot: 'bg-red-500',
   },
 ]
@@ -151,9 +151,9 @@ export const InspectReturnDialog = ({
     defectiveCount === 0 ? 'pass' : defectiveCount === items.length ? 'fail' : 'partial_pass'
 
   const RESULT_STYLES: Record<string, string> = {
-    pass: 'bg-green-50 text-green-800 border-green-200',
-    partial_pass: 'bg-amber-50 text-amber-800 border-amber-200',
-    fail: 'bg-red-50 text-red-800 border-red-200',
+    pass: 'bg-green-50 dark:bg-emerald-950/40 text-green-800 dark:text-emerald-300 border-green-200 dark:border-emerald-800/50',
+    partial_pass: 'bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 border-amber-200 dark:border-amber-800/50',
+    fail: 'bg-red-50 dark:bg-red-950/40 text-red-800 dark:text-red-300 border-red-200 dark:border-red-800/50',
   }
 
   const RESULT_LABELS: Record<string, string> = {
@@ -225,7 +225,7 @@ export const InspectReturnDialog = ({
                   className={cn(
                     'space-y-4 rounded-xl border-2 p-4 transition-colors',
                     state.conditionRating === 'defective'
-                      ? 'border-red-200 bg-red-50/40'
+                      ? 'border-red-200 dark:border-red-800/50 bg-red-50/40 dark:bg-red-950/40'
                       : 'border-border bg-card'
                   )}
                 >

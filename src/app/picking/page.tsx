@@ -81,7 +81,7 @@ const GROUP_BY_LABELS: Record<PickingWave['groupBy'], string> = {
 
 const ZONE_COLORS: Record<string, string> = {
   A: 'border-green-200 bg-green-100 text-green-800',
-  B: 'border-blue-200 bg-blue-100 text-blue-800',
+  B: 'border-blue-200 bg-blue-100 text-blue-800 dark:border-blue-800/50 dark:bg-blue-950/50 dark:text-blue-300',
   R: 'border-slate-200 bg-slate-100 text-slate-700',
   S: 'border-orange-200 bg-orange-100 text-orange-800',
   QC: 'border-purple-200 bg-purple-100 text-purple-800',

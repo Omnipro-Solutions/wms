@@ -86,9 +86,9 @@ export const AsnLeftPanel = ({ asn, po, isOverdue, progressPct, pendingQty, isDo
             <Field label="Fecha de cita">
               <div className="flex items-center gap-1.5">
                 <CalendarDays
-                  className={cn('size-3.5 shrink-0', isOverdue ? 'text-red-500' : 'text-muted-foreground/60')}
+                  className={cn('size-3.5 shrink-0', isOverdue ? 'text-red-500 dark:text-red-400' : 'text-muted-foreground/60')}
                 />
-                <span className={cn('text-sm font-semibold', isOverdue && 'text-red-600')}>
+                <span className={cn('text-sm font-semibold', isOverdue && 'text-red-600 dark:text-red-300')}>
                   {formatDate(asn.appointmentDate)}
                 </span>
               </div>
@@ -134,9 +134,9 @@ export const AsnLeftPanel = ({ asn, po, isOverdue, progressPct, pendingQty, isDo
                 className={cn(
                   'text-2xl font-bold tabular-nums',
                   isGreen
-                    ? 'text-emerald-600'
+                    ? 'text-emerald-600 dark:text-emerald-300'
                     : progressPct > 0
-                      ? 'text-amber-600'
+                      ? 'text-amber-600 dark:text-amber-300'
                       : 'text-muted-foreground/40'
                 )}
               >
@@ -154,25 +154,25 @@ export const AsnLeftPanel = ({ asn, po, isOverdue, progressPct, pendingQty, isDo
             />
 
             {asn.damagedQuantity > 0 && (
-              <p className="text-xs font-medium text-red-500">
+              <p className="text-xs font-medium text-red-500 dark:text-red-400">
                 {formatNumber(asn.damagedQuantity)} unidades dañadas registradas
               </p>
             )}
 
             <div className="grid grid-cols-3 gap-2">
-              <div className="rounded-lg bg-emerald-50 px-2 py-2.5 text-center">
-                <p className="text-lg font-bold text-emerald-600 tabular-nums">
+              <div className="rounded-lg bg-emerald-50 dark:bg-emerald-950/40 px-2 py-2.5 text-center">
+                <p className="text-lg font-bold text-emerald-600 dark:text-emerald-300 tabular-nums">
                   {formatNumber(asn.receivedQuantity)}
                 </p>
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-emerald-600/70">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-emerald-600/70 dark:text-emerald-300/70">
                   Recibidas
                 </p>
               </div>
-              <div className="rounded-lg bg-amber-50 px-2 py-2.5 text-center">
-                <p className="text-lg font-bold text-amber-600 tabular-nums">
+              <div className="rounded-lg bg-amber-50 dark:bg-amber-950/40 px-2 py-2.5 text-center">
+                <p className="text-lg font-bold text-amber-600 dark:text-amber-300 tabular-nums">
                   {formatNumber(pendingQty)}
                 </p>
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-amber-600/70">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-amber-600/70 dark:text-amber-300/70">
                   Pendientes
                 </p>
               </div>
@@ -195,29 +195,29 @@ export const AsnLeftPanel = ({ asn, po, isOverdue, progressPct, pendingQty, isDo
               <div className="mt-3 space-y-2">
                 {asn.requiresQualityControl && (
                   qcApproved ? (
-                    <div className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2">
+                    <div className="flex items-center gap-2 rounded-lg border border-emerald-200 dark:border-emerald-900/50 bg-emerald-50 dark:bg-emerald-950/40 px-3 py-2">
                       <ShieldCheck className="size-3.5 shrink-0 text-emerald-500" />
-                      <span className="text-xs font-semibold text-emerald-800">Inspección QC completada</span>
+                      <span className="text-xs font-semibold text-emerald-800 dark:text-emerald-300">Inspección QC completada</span>
                     </div>
                   ) : (
-                    <div className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
+                    <div className="flex items-center gap-2 rounded-lg border border-amber-200 dark:border-amber-900/50 bg-amber-50 dark:bg-amber-950/40 px-3 py-2">
                       <ShieldCheck className="size-3.5 shrink-0 text-amber-500" />
-                      <span className="text-xs font-semibold text-amber-800">Requiere inspección de calidad</span>
+                      <span className="text-xs font-semibold text-amber-800 dark:text-amber-300">Requiere inspección de calidad</span>
                     </div>
                   )
                 )}
                 {asn.crossDocking && (
-                  <div className="flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2">
+                  <div className="flex items-center gap-2 rounded-lg border border-blue-200 dark:border-blue-900/50 bg-blue-50 dark:bg-blue-950/40 px-3 py-2">
                     <Zap className="size-3.5 shrink-0 text-blue-500" />
-                    <span className="text-xs font-semibold text-blue-800">Cross-docking — salida directa</span>
+                    <span className="text-xs font-semibold text-blue-800 dark:text-blue-300">Cross-docking — salida directa</span>
                   </div>
                 )}
                 {asn.closeReason && (
-                  <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2">
+                  <div className="flex items-start gap-2 rounded-lg border border-red-200 dark:border-red-900/50 bg-red-50 dark:bg-red-950/40 px-3 py-2">
                     <XCircle className="mt-0.5 size-3.5 shrink-0 text-red-500" />
                     <div>
-                      <p className="text-xs font-semibold text-red-800">Cerrada con diferencia</p>
-                      <p className="mt-0.5 text-[11px] text-red-600">
+                      <p className="text-xs font-semibold text-red-800 dark:text-red-300">Cerrada con diferencia</p>
+                      <p className="mt-0.5 text-[11px] text-red-600 dark:text-red-400">
                         {DISCREPANCY_REASONS.find((r) => r.value === asn.closeReason)?.label ?? asn.closeReason}
                       </p>
                     </div>
@@ -246,13 +246,13 @@ interface CompletionBannerProps {
 }
 
 export const CompletionBanner = ({ receivedQty, finalLocationCode }: CompletionBannerProps) => (
-  <div className="mb-4 flex items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3">
+  <div className="mb-4 flex items-center gap-3 rounded-xl border border-emerald-200 dark:border-emerald-900/50 bg-emerald-50 dark:bg-emerald-950/40 px-4 py-3">
     <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-emerald-500">
       <CheckCircle2 className="size-4 text-white" />
     </div>
     <div className="min-w-0 flex-1">
-      <p className="text-sm font-semibold text-emerald-800">Recepción completada</p>
-      <p className="text-xs text-emerald-700">
+      <p className="text-sm font-semibold text-emerald-800 dark:text-emerald-300">Recepción completada</p>
+      <p className="text-xs text-emerald-700 dark:text-emerald-400">
         Mercancía ubicada
         {finalLocationCode && (
           <> en posición <span className="font-mono font-bold">{finalLocationCode}</span></>

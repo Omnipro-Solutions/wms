@@ -3,6 +3,7 @@ import { Inter, Geist_Mono } from 'next/font/google'
 import './globals.css'
 import { AppShell } from '@/components/layout/app-shell'
 import { OperatorPickerProvider } from '@/components/layout/operator-picker-provider'
+import { ThemeProvider } from '@/components/layout/theme-provider'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { ServiceWorkerRegister } from '@/components/pwa/service-worker-register'
 
@@ -40,14 +41,16 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="es" className={`${inter.variable} ${geistMono.variable} h-full antialiased`}>
+    <html lang="es" className={`${inter.variable} ${geistMono.variable} h-full antialiased`} suppressHydrationWarning>
       <body className="min-h-full font-sans">
         <ServiceWorkerRegister />
-        <TooltipProvider>
-          <OperatorPickerProvider>
-            <AppShell>{children}</AppShell>
-          </OperatorPickerProvider>
-        </TooltipProvider>
+        <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false} disableTransitionOnChange>
+          <TooltipProvider>
+            <OperatorPickerProvider>
+              <AppShell>{children}</AppShell>
+            </OperatorPickerProvider>
+          </TooltipProvider>
+        </ThemeProvider>
       </body>
     </html>
   )
