@@ -3,9 +3,9 @@
 import { CheckCircle2, MapPin, MapPinned, Package, Truck } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { StatusBadge } from '@/components/shared/status-badge'
-import { formatNumber } from '@/lib/formatters'
+import { formatDate, formatNumber, formatVolume } from '@/lib/formatters'
 import type { CommerceOrder, LoadManifest, ReturnOrder, TransferOrder, Warehouse } from '@/types/wms'
 
 interface Props {
@@ -34,47 +34,45 @@ export const ManifestCard = ({
 
   return (
     <Card>
-      <CardHeader className="pb-2">
-        <CardTitle className="flex flex-wrap items-center gap-2 text-sm">
+      <CardHeader className="pb-3">
+        {/* Fila 1: identidad */}
+        <div className="flex flex-wrap items-center gap-2">
           <MapPinned className="size-4 text-blue-600" />
-          <span className="font-mono font-semibold">{manifest.code}</span>
+          <span className="font-mono text-sm font-semibold">{manifest.code}</span>
           <StatusBadge status={manifest.status} />
-          <span className="text-muted-foreground font-normal">{manifest.manifestDate}</span>
+          <span className="text-muted-foreground text-xs">{formatDate(manifest.manifestDate)}</span>
+          <span className="text-muted-foreground text-xs">·</span>
+          <span className="text-muted-foreground text-xs">Ruta SAP: <span className="font-mono">{manifest.sapRouteId}</span></span>
+        </div>
 
-          {/* Summary badges */}
-          <div className="ml-auto flex flex-wrap items-center gap-2">
-            <Badge variant="outline" className="text-xs">
-              {manifest.carrierName}
-            </Badge>
-            <Badge variant="outline" className="font-mono text-xs">
-              {manifest.truckPlate}
-            </Badge>
-            <span className="text-muted-foreground text-xs">
-              {manifest.stops.length} parada{manifest.stops.length !== 1 ? 's' : ''} ·{' '}
-              {formatNumber(manifest.totalPackages)} paq. ·{' '}
-              {formatNumber(manifest.totalWeightKg)} kg
+        {/* Fila 2: metadatos + acciones */}
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          <Badge variant="outline" className="text-xs">{manifest.carrierName}</Badge>
+          <Badge variant="outline" className="font-mono text-xs">{manifest.truckPlate}</Badge>
+          {manifest.driverName && (
+            <span className="text-muted-foreground flex items-center gap-1 text-xs">
+              <Truck className="size-3" /> {manifest.driverName}
             </span>
-
-            {/* Actions */}
+          )}
+          <span className="text-muted-foreground text-xs">
+            {manifest.stops.length} parada{manifest.stops.length !== 1 ? 's' : ''} ·{' '}
+            {formatNumber(manifest.totalPackages)} paq. ·{' '}
+            {formatNumber(manifest.totalWeightKg)} kg ·{' '}
+            {formatVolume(manifest.totalVolumeM3)}
+          </span>
+          <div className="ml-auto flex gap-2">
             {canDispatch && (
-              <Button
-                size="sm"
-                onClick={() => onDispatch(manifest.id)}
-              >
+              <Button size="sm" onClick={() => onDispatch(manifest.id)}>
                 <Truck className="mr-1 size-3" /> Despachar
               </Button>
             )}
             {canClose && (
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => onClose(manifest.id)}
-              >
+              <Button size="sm" variant="outline" onClick={() => onClose(manifest.id)}>
                 <CheckCircle2 className="mr-1 size-3" /> Cerrar manifiesto
               </Button>
             )}
           </div>
-        </CardTitle>
+        </div>
       </CardHeader>
 
       <CardContent className="space-y-3">
