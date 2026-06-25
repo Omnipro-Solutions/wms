@@ -60,6 +60,7 @@ export const NAV_GROUPS: NavGroup[] = [
     title: 'Sistema',
     icon: BarChart3,
     items: [
+      { label: 'Reportes', href: '/reports', icon: BarChart3 },
       { label: 'Integraciones', href: '/integrations', icon: Cable },
       { label: 'Administración', href: '/admin', icon: Settings2 },
     ],
