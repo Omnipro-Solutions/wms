@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { Activity, MapPinned, Package, Plus, Scale, TriangleAlert, Truck } from 'lucide-react'
+import { Activity, MapPinned, Package, Plus, Scale, Search, TriangleAlert, Truck } from 'lucide-react'
 
 import { useWmsStore } from '@/store/wms-store'
 import { useDialogState } from '@/hooks/use-dialog-state'
@@ -23,6 +23,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { Input } from '@/components/ui/input'
 import { formatNumber, formatWeight } from '@/lib/formatters'
 import { CreateManifestDialog } from './_components/create-manifest-dialog'
 import { ManifestCard } from './_components/manifest-card'
@@ -39,6 +40,7 @@ export default function LoadManifestsPage() {
   const [createOpen, setCreateOpen] = useState(false)
   const [createError, setCreateError] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
+  const [searchQuery, setSearchQuery] = useState('')
 
   const closeDialog = useDialogState<CloseDialogData>()
 
@@ -61,13 +63,19 @@ export default function LoadManifestsPage() {
 
   // ── Filtered manifests ─────────────────────────────────────────────────────
 
-  const filtered = useMemo(
-    () =>
-      statusFilter === 'all'
-        ? state.loadManifests
-        : state.loadManifests.filter((m) => m.status === statusFilter),
-    [state.loadManifests, statusFilter]
-  )
+  const filtered = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase()
+    return state.loadManifests.filter((m) => {
+      const matchStatus = statusFilter === 'all' || m.status === statusFilter
+      const matchQuery =
+        !q ||
+        m.code.toLowerCase().includes(q) ||
+        m.carrierName.toLowerCase().includes(q) ||
+        m.truckPlate.toLowerCase().includes(q) ||
+        m.sapRouteId.toLowerCase().includes(q)
+      return matchStatus && matchQuery
+    })
+  }, [state.loadManifests, statusFilter, searchQuery])
 
   // ── KPIs ──────────────────────────────────────────────────────────────────
 
@@ -159,6 +167,15 @@ export default function LoadManifestsPage() {
         <div className="flex items-center gap-2 text-base font-semibold">
           <MapPinned className="size-4" /> Manifiestos
           <span className="text-muted-foreground font-normal">({filtered.length})</span>
+        </div>
+        <div className="relative">
+          <Search className="text-muted-foreground absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2" />
+          <Input
+            className="h-8 w-48 pl-8"
+            placeholder="Código, transportista, placa..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
         </div>
         <Select value={statusFilter} onValueChange={setStatusFilter}>
           <SelectTrigger className="h-8 w-44">
