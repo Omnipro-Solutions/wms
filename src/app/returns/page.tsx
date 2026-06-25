@@ -18,6 +18,7 @@ import {
   User,
   Tag,
   ChevronRight,
+  Search,
 } from 'lucide-react'
 
 import { formatDistanceToNow, parseISO, format } from 'date-fns'
@@ -33,6 +34,7 @@ import { DataTable } from '@/components/data-table'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
 import {
   Dialog,
   DialogContent,
@@ -201,6 +203,7 @@ export default function ReturnsPage() {
 
   const [dispositionFilter, setDispositionFilter] = useState('all')
   const [statusFilter, setStatusFilter] = useState('all')
+  const [search, setSearch] = useState('')
 
   const advanceDialog = useDialogState<AdvanceReturnDialogData>()
   const inspectDialog = useDialogState<ReturnActionDialogData>()
@@ -237,9 +240,14 @@ export default function ReturnsPage() {
       rows.filter((r) => {
         if (dispositionFilter !== 'all' && r.disposition !== dispositionFilter) return false
         if (statusFilter !== 'all' && r.status !== statusFilter) return false
+        if (search.trim()) {
+          const q = search.toLowerCase()
+          if (!r.rmaCode.toLowerCase().includes(q) && !r.customerName.toLowerCase().includes(q))
+            return false
+        }
         return true
       }),
-    [rows, dispositionFilter, statusFilter]
+    [rows, dispositionFilter, statusFilter, search]
   )
 
   const activeReturns = useMemo(
@@ -506,11 +514,20 @@ export default function ReturnsPage() {
           <div className="mb-3 flex items-center gap-2 text-base font-semibold">
             <Undo2 className="size-4" /> Todas las devoluciones (RMA)
           </div>
+          <div className="mb-3 flex items-center gap-2">
+            <div className="relative flex-1 max-w-sm">
+              <Search className="absolute left-2.5 top-2.5 size-3.5 text-muted-foreground" />
+              <Input
+                placeholder="Buscar por RMA o cliente..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="h-8 pl-8 text-sm"
+              />
+            </div>
+          </div>
           <DataTable
             columns={columns}
             data={filteredRows}
-            searchColumn="rmaCode"
-            searchPlaceholder="Buscar RMA..."
             filters={filtersNode}
             emptyMessage="No hay devoluciones con los filtros seleccionados."
           />
