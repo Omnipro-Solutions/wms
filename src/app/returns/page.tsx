@@ -5,6 +5,7 @@ import {
   ArrowRight,
   Calendar,
   CheckCircle2,
+  ChevronDown,
   Clock,
   ClipboardCheck,
   Hash,
@@ -483,6 +484,44 @@ export default function ReturnsPage() {
     }
   }
 
+  const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set())
+  const toggleCard = (id: string) =>
+    setExpandedCards((prev) => {
+      const next = new Set(prev)
+      next.has(id) ? next.delete(id) : next.add(id)
+      return next
+    })
+
+  const URGENCY_ORDER: Partial<Record<string, number>> = {
+    sent_to_scrap: 0,
+    under_validation: 1,
+    sent_to_quality_control: 1,
+    reentered: 2,
+    sent_to_repair: 3,
+    in_transit_to_dc: 4,
+    received_at_dc: 5,
+    received_at_store: 6,
+    requested: 7,
+  }
+
+  const URGENCY_BORDER: Partial<Record<string, string>> = {
+    sent_to_scrap: 'border-l-red-500',
+    under_validation: 'border-l-amber-400',
+    sent_to_quality_control: 'border-l-amber-400',
+    reentered: 'border-l-green-500',
+    sent_to_repair: 'border-l-orange-400',
+    in_transit_to_dc: 'border-l-blue-400',
+  }
+
+  const sortedActiveReturns = useMemo(
+    () =>
+      [...activeReturns].sort(
+        (a, b) => (URGENCY_ORDER[a.status] ?? 99) - (URGENCY_ORDER[b.status] ?? 99)
+      ),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [activeReturns]
+  )
+
   const columns = useMemo(
     () => buildReturnColumns(handleOpenAdvance, (row) => setDetailReturnId(row.id)),
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -585,16 +624,18 @@ export default function ReturnsPage() {
       </Card>
 
       {/* Cards de RMAs activas — requieren acción */}
-      {activeReturns.length > 0 && (
-        <div className="space-y-3">
+      {sortedActiveReturns.length > 0 && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-4 space-y-3">
+          {/* Encabezado de sección */}
           <div className="flex items-center gap-2">
-            <h2 className="text-base font-semibold">Requieren acción</h2>
-            <Badge variant="outline" className="tabular-nums">
-              {activeReturns.length}
+            <TriangleAlert className="size-4 text-amber-600 shrink-0" />
+            <h2 className="text-sm font-semibold text-amber-900">Requieren acción</h2>
+            <Badge className="tabular-nums bg-amber-500 text-white border-0 text-xs">
+              {sortedActiveReturns.length}
             </Badge>
           </div>
 
-          {activeReturns.map((ret) => {
+          {sortedActiveReturns.map((ret) => {
             const inspection = ret.inspectionId
               ? state.returnInspections.find((i) => i.id === ret.inspectionId)
               : undefined
@@ -606,16 +647,18 @@ export default function ReturnsPage() {
                 t.status !== 'completed' &&
                 t.status !== 'failed'
             )
+            const isExpanded = expandedCards.has(ret.id)
+            const urgencyBorder = URGENCY_BORDER[ret.status] ?? 'border-l-muted-foreground/30'
 
             return (
-              <Card key={ret.id} className="overflow-hidden">
-                {/* Header de la card */}
-                <CardHeader className="pb-0 pt-4 px-5">
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                    {/* Identidad del RMA */}
-                    <div className="space-y-2">
+              <Card key={ret.id} className={`overflow-hidden border-l-4 ${urgencyBorder}`}>
+                {/* Header clickeable para expandir/colapsar */}
+                <CardHeader className="pb-0 pt-3 px-4">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                    {/* Identidad + instrucción */}
+                    <div className="space-y-1.5 flex-1 min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
-                        <span className="font-semibold text-base">{ret.rmaCode}</span>
+                        <span className="font-semibold text-sm">{ret.rmaCode}</span>
                         <StatusBadge status={ret.status} />
                         <Badge
                           variant="outline"
@@ -624,7 +667,13 @@ export default function ReturnsPage() {
                           {DISPOSITION_LABELS[ret.disposition]}
                         </Badge>
                       </div>
-                      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                      {/* Instrucción de acción justo bajo el título */}
+                      {banner && (
+                        <p className={`text-xs font-medium px-2 py-1 rounded-md border inline-block ${banner.color}`}>
+                          {banner.message}
+                        </p>
+                      )}
+                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
                         <span className="flex items-center gap-1">
                           <User className="size-3" /> {ret.customerName}
                         </span>
@@ -633,9 +682,6 @@ export default function ReturnsPage() {
                           {warehouseName(ret.originId)}
                           <ChevronRight className="size-3" />
                           {warehouseName(ret.destinationId)}
-                        </span>
-                        <span className="flex items-center gap-1">
-                          <Tag className="size-3" /> {TYPE_LABELS[ret.type]}
                         </span>
                         {reason && (
                           <span className="flex items-center gap-1">
@@ -653,7 +699,7 @@ export default function ReturnsPage() {
                       </div>
                     </div>
 
-                    {/* Acciones principales */}
+                    {/* Acciones + toggle */}
                     <div className="flex shrink-0 flex-wrap items-center gap-2">
                       {ret.status === 'under_validation' && (
                         <>
@@ -670,13 +716,11 @@ export default function ReturnsPage() {
                           </Button>
                         </>
                       )}
-
                       {ret.status === 'reentered' && (
                         <Button size="sm" onClick={() => handleOpenReentry(ret)}>
                           <PackageCheck className="mr-1.5 size-3.5" /> Reingresar al stock
                         </Button>
                       )}
-
                       {ret.status === 'sent_to_repair' && (
                         <>
                           {!openTicket && (
@@ -691,143 +735,147 @@ export default function ReturnsPage() {
                           )}
                         </>
                       )}
-
                       {ret.status === 'sent_to_scrap' && (
                         <Button size="sm" variant="destructive" onClick={() => handleOpenScrap(ret)}>
                           <Trash2 className="mr-1.5 size-3.5" /> Confirmar baja
                         </Button>
                       )}
+                      {/* Toggle ítems */}
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => toggleCard(ret.id)}
+                        className="text-muted-foreground px-2"
+                      >
+                        <ChevronDown className={`size-4 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+                        <span className="ml-1 text-xs">{ret.items.length} ítem{ret.items.length !== 1 ? 's' : ''}</span>
+                      </Button>
                     </div>
                   </div>
                 </CardHeader>
 
-                <CardContent className="px-5 pb-4 pt-3 space-y-3">
-                  {/* Banner contextual de estado */}
-                  {banner && (
-                    <div className={`rounded-lg border px-3 py-2 text-xs ${banner.color}`}>
-                      {banner.message}
+                {/* Contenido expandible */}
+                {isExpanded && (
+                  <CardContent className="px-4 pb-4 pt-3 space-y-3">
+                    {/* Tabla de ítems */}
+                    <div className="overflow-hidden rounded-lg border">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="bg-muted/40 border-b">
+                            <th className="text-left px-3 py-2 font-medium text-muted-foreground text-xs">Producto</th>
+                            <th className="text-right px-3 py-2 font-medium text-muted-foreground text-xs w-20">Uds.</th>
+                            {inspection && (
+                              <th className="text-left px-3 py-2 font-medium text-muted-foreground text-xs w-32">Condición</th>
+                            )}
+                            {inspection && (
+                              <th className="text-left px-3 py-2 font-medium text-muted-foreground text-xs w-40">Disposición rec.</th>
+                            )}
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y">
+                          {ret.items.map((line) => {
+                            const itemInspection = inspection?.items.find(
+                              (i) => i.returnLineId === line.id
+                            )
+                            return (
+                              <tr key={line.id} className="hover:bg-muted/20 transition-colors">
+                                <td className="px-3 py-2">{productName(line.productId)}</td>
+                                <td className="px-3 py-2 text-right tabular-nums">
+                                  {formatNumber(line.requestedQuantity)}
+                                </td>
+                                {inspection && (
+                                  <td className="px-3 py-2">
+                                    {itemInspection ? (
+                                      <Badge
+                                        className={CONDITION_COLORS[itemInspection.conditionRating]}
+                                        variant="outline"
+                                      >
+                                        {CONDITION_LABELS[itemInspection.conditionRating]}
+                                      </Badge>
+                                    ) : (
+                                      <span className="text-muted-foreground text-xs">—</span>
+                                    )}
+                                  </td>
+                                )}
+                                {inspection && (
+                                  <td className="px-3 py-2 text-muted-foreground text-xs">
+                                    {itemInspection
+                                      ? DISPOSITION_LABELS[
+                                          itemInspection.recommendedDisposition as ReturnOrder['disposition']
+                                        ] ?? itemInspection.recommendedDisposition
+                                      : '—'}
+                                  </td>
+                                )}
+                              </tr>
+                            )
+                          })}
+                        </tbody>
+                      </table>
                     </div>
-                  )}
 
-                  {/* Tabla de ítems */}
-                  <div className="overflow-hidden rounded-lg border">
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="bg-muted/40 border-b">
-                          <th className="text-left px-3 py-2 font-medium text-muted-foreground text-xs">Producto</th>
-                          <th className="text-right px-3 py-2 font-medium text-muted-foreground text-xs w-20">Uds.</th>
-                          {inspection && (
-                            <th className="text-left px-3 py-2 font-medium text-muted-foreground text-xs w-32">Condición</th>
-                          )}
-                          {inspection && (
-                            <th className="text-left px-3 py-2 font-medium text-muted-foreground text-xs w-40">Disposición rec.</th>
-                          )}
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y">
-                        {ret.items.map((line) => {
-                          const itemInspection = inspection?.items.find(
-                            (i) => i.returnLineId === line.id
-                          )
-                          return (
-                            <tr key={line.id} className="hover:bg-muted/20 transition-colors">
-                              <td className="px-3 py-2">{productName(line.productId)}</td>
-                              <td className="px-3 py-2 text-right tabular-nums">
-                                {formatNumber(line.requestedQuantity)}
-                              </td>
-                              {inspection && (
-                                <td className="px-3 py-2">
-                                  {itemInspection ? (
-                                    <Badge
-                                      className={CONDITION_COLORS[itemInspection.conditionRating]}
-                                      variant="outline"
-                                    >
-                                      {CONDITION_LABELS[itemInspection.conditionRating]}
-                                    </Badge>
-                                  ) : (
-                                    <span className="text-muted-foreground text-xs">—</span>
-                                  )}
-                                </td>
-                              )}
-                              {inspection && (
-                                <td className="px-3 py-2 text-muted-foreground text-xs">
-                                  {itemInspection
-                                    ? DISPOSITION_LABELS[
-                                        itemInspection.recommendedDisposition as ReturnOrder['disposition']
-                                      ] ?? itemInspection.recommendedDisposition
-                                    : '—'}
-                                </td>
-                              )}
-                            </tr>
-                          )
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
+                    {/* Resultado de inspección */}
+                    {inspection && (
+                      <div className="space-y-2">
+                        <div className={`flex items-center justify-between rounded-lg border px-4 py-2.5 text-sm ${RESULT_STYLES[inspection.overallResult]}`}>
+                          <p className="text-xs font-medium">
+                            Inspección por{' '}
+                            <span className="font-semibold">{inspection.inspectorName}</span>
+                            {inspection.notes && (
+                              <span className="font-normal"> — {inspection.notes}</span>
+                            )}
+                          </p>
+                          <Badge
+                            variant="outline"
+                            className={`shrink-0 font-semibold ${RESULT_STYLES[inspection.overallResult]}`}
+                          >
+                            {RESULT_LABELS[inspection.overallResult]}
+                          </Badge>
+                        </div>
+                        {inspection.items.some((i) => i.serial) && (
+                          <div className="space-y-1">
+                            {inspection.items.filter((i) => i.serial).map((item) => (
+                              <div
+                                key={item.returnLineId}
+                                className={`flex items-center gap-2 rounded-md border px-3 py-1.5 text-xs ${
+                                  item.serialMatchesDispatch === false
+                                    ? 'border-red-200 bg-red-50 text-red-700'
+                                    : item.serialMatchesDispatch === true
+                                      ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                                      : 'border-border bg-muted/30 text-muted-foreground'
+                                }`}
+                              >
+                                <Hash className="size-3 shrink-0" />
+                                <span className="font-mono font-semibold">{item.serial}</span>
+                                <span className="text-[10px]">
+                                  {item.serialMatchesDispatch === true && '✓ Serial verificado contra despacho'}
+                                  {item.serialMatchesDispatch === false && '⚠ Serial NO encontrado en historial de despachos'}
+                                  {item.serialMatchesDispatch === undefined && '— Sin verificación de despacho'}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
 
-                  {/* Resultado de inspección */}
-                  {inspection && (
-                    <div className="space-y-2">
-                      <div className={`flex items-center justify-between rounded-lg border px-4 py-2.5 text-sm ${RESULT_STYLES[inspection.overallResult]}`}>
-                        <p className="text-xs font-medium">
-                          Inspección por{' '}
-                          <span className="font-semibold">{inspection.inspectorName}</span>
-                          {inspection.notes && (
-                            <span className="font-normal"> — {inspection.notes}</span>
-                          )}
-                        </p>
-                        <Badge
-                          variant="outline"
-                          className={`shrink-0 font-semibold ${RESULT_STYLES[inspection.overallResult]}`}
-                        >
-                          {RESULT_LABELS[inspection.overallResult]}
+                    {/* Info del ticket de reparación activo */}
+                    {openTicket && ret.status === 'sent_to_repair' && (
+                      <div className="flex items-center justify-between rounded-lg border border-orange-200 bg-orange-50 px-4 py-2.5 text-sm text-orange-800">
+                        <div className="space-y-0.5">
+                          <p className="font-medium text-xs">
+                            Ticket con <span className="font-semibold">{openTicket.vendorName}</span>
+                          </p>
+                          <p className="text-xs opacity-80">
+                            Retorno esperado: {openTicket.expectedReturnDate}
+                          </p>
+                        </div>
+                        <Badge variant="outline" className="border-orange-300 bg-orange-100 text-orange-800 text-xs">
+                          {openTicket.repairType === 'cosmetic' ? 'Cosmética' : openTicket.repairType === 'functional' ? 'Funcional' : 'Garantía'}
                         </Badge>
                       </div>
-                      {/* Serial validation results */}
-                      {inspection.items.some((i) => i.serial) && (
-                        <div className="space-y-1">
-                          {inspection.items.filter((i) => i.serial).map((item) => (
-                            <div
-                              key={item.returnLineId}
-                              className={`flex items-center gap-2 rounded-md border px-3 py-1.5 text-xs ${
-                                item.serialMatchesDispatch === false
-                                  ? 'border-red-200 bg-red-50 text-red-700'
-                                  : item.serialMatchesDispatch === true
-                                    ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
-                                    : 'border-border bg-muted/30 text-muted-foreground'
-                              }`}
-                            >
-                              <Hash className="size-3 shrink-0" />
-                              <span className="font-mono font-semibold">{item.serial}</span>
-                              <span className="text-[10px]">
-                                {item.serialMatchesDispatch === true && '✓ Serial verificado contra despacho'}
-                                {item.serialMatchesDispatch === false && '⚠ Serial NO encontrado en historial de despachos'}
-                                {item.serialMatchesDispatch === undefined && '— Sin verificación de despacho'}
-                              </span>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Info del ticket de reparación activo */}
-                  {openTicket && ret.status === 'sent_to_repair' && (
-                    <div className="flex items-center justify-between rounded-lg border border-orange-200 bg-orange-50 px-4 py-2.5 text-sm text-orange-800">
-                      <div className="space-y-0.5">
-                        <p className="font-medium text-xs">
-                          Ticket con <span className="font-semibold">{openTicket.vendorName}</span>
-                        </p>
-                        <p className="text-xs opacity-80">
-                          Retorno esperado: {openTicket.expectedReturnDate}
-                        </p>
-                      </div>
-                      <Badge variant="outline" className="border-orange-300 bg-orange-100 text-orange-800 text-xs">
-                        {openTicket.repairType === 'cosmetic' ? 'Cosmética' : openTicket.repairType === 'functional' ? 'Funcional' : 'Garantía'}
-                      </Badge>
-                    </div>
-                  )}
-                </CardContent>
+                    )}
+                  </CardContent>
+                )}
               </Card>
             )
           })}
