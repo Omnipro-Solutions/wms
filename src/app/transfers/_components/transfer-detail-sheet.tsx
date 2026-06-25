@@ -52,7 +52,7 @@ interface Props {
   transfer: TransferOrder | null
   originName: string
   destinationName: string
-  productName: (id: string) => string
+  getProduct: (id: string) => { name: string; imageUrl?: string } | undefined
   open: boolean
   onClose: () => void
 }
@@ -61,7 +61,7 @@ export const TransferDetailSheet = ({
   transfer,
   originName,
   destinationName,
-  productName,
+  getProduct,
   open,
   onClose,
 }: Props) => {
@@ -94,15 +94,15 @@ export const TransferDetailSheet = ({
 
   return (
     <Sheet open={open} onOpenChange={(o) => { if (!o) onClose() }}>
-      <SheetContent className="flex w-full flex-col gap-0 overflow-y-auto sm:max-w-[480px]">
-        <SheetHeader className="border-b pb-4">
+      <SheetContent className="flex w-full flex-col gap-0 overflow-y-auto sm:max-w-[560px]">
+        <SheetHeader className="border-b px-6 pb-4">
           <SheetTitle className="flex items-center gap-2">
             {transfer.code}
             <StatusBadge status={transfer.status} />
           </SheetTitle>
         </SheetHeader>
 
-        <div className="flex-1 space-y-6 py-6">
+        <div className="flex-1 space-y-6 px-6 py-6">
           {/* Ruta y fechas */}
           <section className="space-y-2">
             <h3 className="text-muted-foreground text-xs font-semibold uppercase tracking-wide">
@@ -183,17 +183,33 @@ export const TransferDetailSheet = ({
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {transfer.items.map((line) => (
-                    <TableRow key={line.id}>
-                      <TableCell className="text-sm">{productName(line.productId)}</TableCell>
-                      <TableCell className="text-right tabular-nums">
-                        {formatNumber(line.requestedQuantity)}
-                      </TableCell>
-                      <TableCell className="text-muted-foreground text-right tabular-nums">
-                        {line.pickedQuantity != null ? formatNumber(line.pickedQuantity) : '—'}
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                  {transfer.items.map((line) => {
+                    const product = getProduct(line.productId)
+                    return (
+                      <TableRow key={line.id}>
+                        <TableCell>
+                          <div className="flex items-center gap-2.5">
+                            {product?.imageUrl ? (
+                              <img
+                                src={product.imageUrl}
+                                alt={product.name}
+                                className="size-9 rounded-md border object-cover"
+                              />
+                            ) : (
+                              <div className="bg-muted size-9 rounded-md border" />
+                            )}
+                            <span className="text-sm">{product?.name ?? line.productId}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums">
+                          {formatNumber(line.requestedQuantity)}
+                        </TableCell>
+                        <TableCell className="text-muted-foreground text-right tabular-nums">
+                          {line.pickedQuantity != null ? formatNumber(line.pickedQuantity) : '—'}
+                        </TableCell>
+                      </TableRow>
+                    )
+                  })}
                 </TableBody>
               </Table>
             </div>
@@ -201,7 +217,7 @@ export const TransferDetailSheet = ({
         </div>
 
         {/* Pie con acción de avance */}
-        <SheetFooter className="border-t pt-4">
+        <SheetFooter className="border-t px-6 pt-4">
           {canAdvance ? (
             <div className="flex w-full flex-col gap-2">
               {nextStatus === 'completed' && (

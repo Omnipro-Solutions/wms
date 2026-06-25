@@ -26,7 +26,7 @@ const TERMINAL_STATUSES = new Set(['completed', 'cancelled'])
 
 export default function TransfersPage() {
   const state = useWmsStore()
-  const { warehouseName, productName } = useStoreHelpers()
+  const { warehouseName, getProduct } = useStoreHelpers()
 
   const [typeFilter, setTypeFilter] = useState('all')
   const [statusFilter, setStatusFilter] = useState('all')
@@ -147,7 +147,7 @@ export default function TransfersPage() {
         transfer={detailSheet.data}
         originName={detailSheet.data ? warehouseName(detailSheet.data.originId) : ''}
         destinationName={detailSheet.data ? warehouseName(detailSheet.data.destinationId) : ''}
-        productName={productName}
+        getProduct={getProduct}
         open={!!detailSheet.data}
         onClose={detailSheet.close}
       />
