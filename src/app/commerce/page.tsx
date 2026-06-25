@@ -1,18 +1,24 @@
 'use client'
 
-import { useState } from 'react'
+import React, { useState } from 'react'
+import { isToday, isBefore, parseISO } from 'date-fns'
 import {
   ArrowUpDown,
+  CheckCircle2,
   ChevronDown,
   ChevronUp,
+  Clock,
   PackageCheck,
+  ShoppingBag,
   ShoppingCart,
   TriangleAlert,
 } from 'lucide-react'
 import { useWmsStore } from '@/store/wms-store'
 import { useStoreHelpers } from '@/hooks/use-store-helpers'
 import { useDialogState } from '@/hooks/use-dialog-state'
+import { useCurrentOperator } from '@/hooks/use-current-operator'
 import { PageHeader } from '@/components/shared/page-header'
+import { KpiCard } from '@/components/shared/kpi-card'
 import { StatusBadge } from '@/components/shared/status-badge'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -39,7 +45,8 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { formatNumber } from '@/lib/formatters'
+import { formatDate, formatNumber } from '@/lib/formatters'
+import { cn } from '@/lib/utils'
 
 type SortField = 'orderNumber' | 'customer' | 'channel' | 'status' | 'createdAt' | 'delivery'
 type SortDir = 'asc' | 'desc'
@@ -76,10 +83,18 @@ function SortIcon({ field, active, dir }: { field: string; active: string; dir: 
   )
 }
 
+const isOverdue = (promisedDeliveryDate: string) =>
+  isBefore(parseISO(promisedDeliveryDate), new Date()) &&
+  !isToday(parseISO(promisedDeliveryDate))
+
+const isUrgent = (promisedDeliveryDate: string) =>
+  isToday(parseISO(promisedDeliveryDate))
+
 export default function CommercePage() {
   const state = useWmsStore()
-  const { reserveInventory } = useWmsStore()
+  const { reserveInventory, markReadyForPickup, confirmPickup } = useWmsStore()
   const { productName } = useStoreHelpers()
+  const { operator } = useCurrentOperator()
 
   const [sortField, setSortField] = useState<SortField>('createdAt')
   const [sortDir, setSortDir] = useState<SortDir>('desc')
@@ -140,6 +155,8 @@ export default function CommercePage() {
   const pendingCount = state.commerceOrders.filter((o) => o.status === 'pending').length
   const inProgressCount = state.commerceOrders.filter((o) => o.status === 'in_progress').length
   const completedCount = state.commerceOrders.filter((o) => o.status === 'completed').length
+  const readyForPickupCount = state.commerceOrders.filter((o) => o.status === 'ready_for_pickup').length
+  const operatorName = operator?.name ?? 'Sistema'
 
   return (
     <>
@@ -148,31 +165,32 @@ export default function CommercePage() {
         description="Gestión de pedidos multicanal. Reserva inventario, supervisa estados y sigue la promesa de entrega."
       />
 
-      <div className="grid gap-4 sm:grid-cols-3">
-        <Card>
-          <CardContent className="pt-6">
-            <p className="text-muted-foreground text-sm">Pendientes de reserva</p>
-            <p className="text-2xl font-bold text-amber-600 tabular-nums">
-              {formatNumber(pendingCount)}
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <p className="text-muted-foreground text-sm">En operación</p>
-            <p className="text-2xl font-bold text-blue-600 tabular-nums">
-              {formatNumber(inProgressCount)}
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <p className="text-muted-foreground text-sm">Completados</p>
-            <p className="text-2xl font-bold text-green-700 tabular-nums">
-              {formatNumber(completedCount)}
-            </p>
-          </CardContent>
-        </Card>
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <KpiCard
+          icon={TriangleAlert}
+          value={pendingCount}
+          label="Pendientes de reserva"
+          tone="amber"
+          alert={pendingCount > 0}
+        />
+        <KpiCard
+          icon={ShoppingCart}
+          value={inProgressCount}
+          label="En operación"
+          tone="blue"
+        />
+        <KpiCard
+          icon={ShoppingBag}
+          value={readyForPickupCount}
+          label="Listos para recoger"
+          tone="green"
+        />
+        <KpiCard
+          icon={CheckCircle2}
+          value={completedCount}
+          label="Completados"
+          tone="neutral"
+        />
       </div>
 
       <Card>
@@ -204,6 +222,7 @@ export default function CommercePage() {
                   <SelectItem value="pending">Pendiente</SelectItem>
                   <SelectItem value="assigned">Reservado</SelectItem>
                   <SelectItem value="in_progress">En operación</SelectItem>
+                  <SelectItem value="ready_for_pickup">Listo para recoger</SelectItem>
                   <SelectItem value="completed">Completado</SelectItem>
                   <SelectItem value="cancelled">Cancelado</SelectItem>
                 </SelectContent>
@@ -254,11 +273,32 @@ export default function CommercePage() {
                     <StatusBadge status={order.status} />
                   </TableCell>
                   <TableCell>
-                    {order.status === 'pending' && (
-                      <Button size="sm" onClick={() => openReserveDialog(order.id)}>
-                        <PackageCheck className="mr-1 size-3" /> Reservar
-                      </Button>
-                    )}
+                    <div className="flex items-center gap-1">
+                      {order.status === 'pending' && (
+                        <Button size="sm" onClick={() => openReserveDialog(order.id)}>
+                          <PackageCheck className="mr-1 size-3" /> Reservar
+                        </Button>
+                      )}
+                      {order.status === 'in_progress' &&
+                        (order.fulfillmentType === 'pickup_in_store' || order.fulfillmentType === 'ship_from_store') && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => markReadyForPickup(order.id, operatorName)}
+                        >
+                          <ShoppingBag className="mr-1 size-3" /> Listo
+                        </Button>
+                      )}
+                      {order.status === 'ready_for_pickup' && (
+                        <Button
+                          size="sm"
+                          className="bg-green-600 hover:bg-green-700 text-white"
+                          onClick={() => confirmPickup(order.id, operatorName)}
+                        >
+                          <CheckCircle2 className="mr-1 size-3" /> Confirmar recogida
+                        </Button>
+                      )}
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}
