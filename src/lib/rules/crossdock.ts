@@ -19,6 +19,6 @@ export function matchCrossDockOrders(productId: string, orders: CommerceOrder[])
     o =>
       o.fulfillmentType === 'cross_docking' &&
       o.status === 'pending' &&
-      o.items.some(i => i.productId === productId && i.pickedQuantity < i.quantity)
+      o.items.some(i => i.productId === productId && (i.pickedQuantity ?? 0) < i.requestedQuantity)
   )
 }

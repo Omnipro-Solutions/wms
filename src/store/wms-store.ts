@@ -34,6 +34,7 @@ import type {
   CarrierRateQuote,
   ClusterTask,
   CommerceOrder,
+  CrossDockTask,
   CyclicCountPlan,
   IntegrationConnection,
   InventoryAdjustmentRequest,
@@ -70,6 +71,7 @@ import type {
   WmsSettings,
   WavelessOrder,
 } from '@/types/wms'
+import { canCrossDock } from '@/lib/rules/crossdock'
 import { toBaseQty } from '@/lib/rules/uom'
 
 let movementCounter = seed.stockMovements.length
@@ -109,6 +111,7 @@ export interface WmsState {
   labels: WmsLabel[]
   integrations: IntegrationConnection[]
   replenishmentTasks: ReplenishmentTask[]
+  crossDockTasks: CrossDockTask[]
   slottingSnapshots: SlottingSnapshot[]
   operators: Operator[]
   reasons: Reason[]
@@ -302,6 +305,10 @@ export interface WmsState {
   createUom: (data: Omit<UnitOfMeasure, 'id'>) => UnitOfMeasure
   updateUom: (id: string, data: Partial<Omit<UnitOfMeasure, 'id'>>) => UnitOfMeasure
   toggleUom: (id: string) => UnitOfMeasure
+  // Cross-dock (Sprint 9)
+  createCrossDockTask: (asnId: string, commerceOrderId: string, quantity: number, stagingLocationId: string, operatorName: string) => void
+  completeCrossDockTask: (taskId: string, operatorName: string) => void
+  updateProductStockLimits: (productId: string, minStockUnits: number, maxStockUnits: number) => void
 }
 
 const recordMovement = (partial: Omit<StockMovement, 'id' | 'createdAt'>): StockMovement => ({
@@ -341,6 +348,7 @@ const buildSeedState = () => ({
   labels: seed.labels,
   integrations: seed.integrations,
   replenishmentTasks: seed.replenishmentTasks,
+  crossDockTasks: [] as CrossDockTask[],
   slottingSnapshots: [] as SlottingSnapshot[],
   operators: seed.operators,
   reasons: seed.reasons,
@@ -2789,6 +2797,65 @@ export const useWmsStore = create<WmsState>()(
   },
 
   setCurrentOperator: (operatorId) => set({ currentOperatorId: operatorId }),
+
+  // Cross-dock (Sprint 9)
+  createCrossDockTask: (asnId, commerceOrderId, quantity, stagingLocationId, operatorName) => {
+    const state = get()
+    const asn = state.asnRecords.find(a => a.id === asnId)
+    if (!asn) throw new Error('ASN no encontrado')
+    if (!canCrossDock(asn)) throw new Error('ASN no elegible para cross-docking')
+    const warehouseId = asn.suggestedPutawayLocationId
+      ? (state.locations.find(l => l.id === asn.suggestedPutawayLocationId)?.warehouseId ?? 'wh-bog')
+      : 'wh-bog'
+    const task: CrossDockTask = {
+      id: `cdtask-${Date.now()}`,
+      asnId,
+      commerceOrderId,
+      productId: asn.productId,
+      warehouseId,
+      quantity,
+      stagingLocationId,
+      status: 'pending',
+      assignedOperatorId: operatorName,
+      createdAt: new Date().toISOString(),
+    }
+    set({ crossDockTasks: [...state.crossDockTasks, task] })
+  },
+
+  completeCrossDockTask: (taskId, operatorName) => {
+    const state = get()
+    const task = state.crossDockTasks.find(t => t.id === taskId)
+    if (!task) throw new Error('Tarea cross-dock no encontrada')
+    if (task.status === 'completed') throw new Error('Tarea ya completada')
+    const updatedTasks = state.crossDockTasks.map(t =>
+      t.id === taskId ? { ...t, status: 'completed' as const, completedAt: new Date().toISOString() } : t
+    )
+    const updatedOrders = state.commerceOrders.map(o => {
+      if (o.id !== task.commerceOrderId) return o
+      const updatedItems = o.items.map(i =>
+        i.productId === task.productId
+          ? { ...i, pickedQuantity: Math.min(i.requestedQuantity, (i.pickedQuantity ?? 0) + task.quantity) }
+          : i
+      )
+      return { ...o, items: updatedItems }
+    })
+    const movement = recordMovement({
+      productId: task.productId,
+      warehouseId: task.warehouseId,
+      fromLocationId: task.stagingLocationId,
+      type: 'pick',
+      quantity: task.quantity,
+      referenceType: 'commerce_order',
+      referenceId: task.commerceOrderId,
+      operatorName,
+    })
+    set({ crossDockTasks: updatedTasks, commerceOrders: updatedOrders, stockMovements: [...state.stockMovements, movement] })
+  },
+
+  updateProductStockLimits: (productId, minStockUnits, maxStockUnits) => {
+    const state = get()
+    set({ products: state.products.map(p => p.id === productId ? { ...p, minStockUnits, maxStockUnits } : p) })
+  },
   }),
   {
     name: 'wms-store-v2',

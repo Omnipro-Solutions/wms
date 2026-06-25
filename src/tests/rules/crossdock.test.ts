@@ -11,11 +11,11 @@ const makeAsn = (overrides: Partial<Asn>): Asn => ({
 })
 
 const makeOrder = (overrides: Partial<CommerceOrder>): CommerceOrder => ({
-  id: 'order-1', code: 'ORD-001', customerId: 'cust-1', customerName: 'Cliente',
-  warehouseId: 'wh-1', channel: 'ecommerce', fulfillmentType: 'cross_docking',
-  status: 'pending', priority: 'normal', isUrgent: false,
-  items: [{ productId: 'p-1', quantity: 50, pickedQuantity: 0 }],
-  createdAt: '2026-07-01T08:00:00Z', promisedDeliveryAt: '2026-07-02T08:00:00Z',
+  id: 'order-1', orderNumber: 'ORD-001', customerName: 'Cliente',
+  channel: 'ecommerce', fulfillmentType: 'cross_docking',
+  status: 'pending',
+  items: [{ id: 'li-1', productId: 'p-1', requestedQuantity: 50, pickedQuantity: 0 }],
+  createdAt: '2026-07-01T08:00:00Z', promisedDeliveryDate: '2026-07-02',
   ...overrides,
 })
 
@@ -42,8 +42,8 @@ describe('matchCrossDockOrders', () => {
   it('returns pending cross_docking orders that need the product', () => {
     const orders = [
       makeOrder({}),
-      makeOrder({ id: 'order-2', code: 'ORD-002', items: [{ productId: 'p-2', quantity: 10, pickedQuantity: 0 }] }),
-      makeOrder({ id: 'order-3', code: 'ORD-003', status: 'completed', items: [{ productId: 'p-1', quantity: 5, pickedQuantity: 5 }] }),
+      makeOrder({ id: 'order-2', orderNumber: 'ORD-002', items: [{ id: 'li-2', productId: 'p-2', requestedQuantity: 10, pickedQuantity: 0 }] }),
+      makeOrder({ id: 'order-3', orderNumber: 'ORD-003', status: 'completed', items: [{ id: 'li-3', productId: 'p-1', requestedQuantity: 5, pickedQuantity: 5 }] }),
     ]
     const result = matchCrossDockOrders('p-1', orders)
     expect(result).toHaveLength(1)
