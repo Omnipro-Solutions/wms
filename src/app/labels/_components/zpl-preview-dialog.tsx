@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Check, ChevronDown, ChevronUp, Clipboard, Printer, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
@@ -14,6 +14,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { buildZpl, printZpl } from '@/lib/rules/zpl'
+import { cn } from '@/lib/utils'
 import type { WmsLabel } from '@/types/wms'
 
 const TYPE_ES: Record<WmsLabel['type'], string> = {
@@ -35,6 +36,14 @@ export const ZplPreviewDialog = ({ label, open, onClose }: ZplPreviewDialogProps
   const [printerIp, setPrinterIp] = useState('')
   const [copied, setCopied] = useState(false)
   const [showZpl, setShowZpl] = useState(false)
+
+  useEffect(() => {
+    if (open) {
+      setPrinterIp('')
+      setShowZpl(false)
+      setCopied(false)
+    }
+  }, [open])
 
   if (!label) return null
 
@@ -170,7 +179,7 @@ const LabelPreview = ({ label }: { label: WmsLabel }) => {
         aria-label={`Vista previa etiqueta ${label.code}`}
       >
         {/* Header bar */}
-        <div className={`${headerBg} flex items-center justify-between px-3 py-1`}>
+        <div className={cn(headerBg, 'flex items-center justify-between px-3 py-1')}>
           <span className="text-xs font-bold tracking-widest text-white">
             {TYPE_ES[label.type].toUpperCase()}
           </span>

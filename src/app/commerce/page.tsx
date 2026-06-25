@@ -259,8 +259,8 @@ export default function CommercePage() {
             </TableHeader>
             <TableBody>
               {sorted.map((order) => {
-                const overdue = isOverdue(order.promisedDeliveryDate)
-                const urgent = isUrgent(order.promisedDeliveryDate)
+                const overdue = !['completed', 'cancelled'].includes(order.status) && isOverdue(order.promisedDeliveryDate)
+                const urgent = !['completed', 'cancelled'].includes(order.status) && isUrgent(order.promisedDeliveryDate)
                 const isExpanded = expandedRow === order.id
 
                 return (
@@ -346,14 +346,13 @@ export default function CommercePage() {
                                 </Button>
                               )}
                               {order.status === 'in_progress' &&
-                                (order.fulfillmentType === 'pickup_in_store' ||
-                                  order.fulfillmentType === 'ship_from_store') && (
+                                order.fulfillmentType === 'pickup_in_store' && (
                                   <Button
                                     size="sm"
                                     variant="outline"
                                     onClick={(e) => {
                                       e.stopPropagation()
-                                      markReadyForPickup(order.id, operatorName)
+                                      try { markReadyForPickup(order.id, operatorName) } catch { /* ignore */ }
                                     }}
                                   >
                                     <ShoppingBag className="mr-1 size-3" /> Listo para recoger
@@ -365,7 +364,7 @@ export default function CommercePage() {
                                   className="bg-green-600 hover:bg-green-700 text-white"
                                   onClick={(e) => {
                                     e.stopPropagation()
-                                    confirmPickup(order.id, operatorName)
+                                    try { confirmPickup(order.id, operatorName) } catch { /* ignore */ }
                                   }}
                                 >
                                   <CheckCircle2 className="mr-1 size-3" /> Confirmar recogida
