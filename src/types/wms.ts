@@ -219,6 +219,23 @@ export interface TransferOrder {
   items: OrderLine[]
 }
 
+// --- Cross-docking (Sprint 9 — #7) ---
+export type CrossDockStatus = 'pending' | 'in_progress' | 'completed' | 'cancelled'
+
+export interface CrossDockTask {
+  id: string
+  asnId: string
+  commerceOrderId: string
+  productId: string
+  warehouseId: string
+  quantity: number
+  stagingLocationId: string   // where inbound stock temporarily lands
+  status: CrossDockStatus
+  assignedOperatorId?: string
+  createdAt: string
+  completedAt?: string
+}
+
 export type ReturnStatus =
   | 'requested'
   | 'received_at_store'
