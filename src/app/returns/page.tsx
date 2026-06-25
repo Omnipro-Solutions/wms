@@ -1,7 +1,8 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
+  ArrowDown,
   ArrowRight,
   Calendar,
   CheckCircle2,
@@ -209,6 +210,21 @@ export default function ReturnsPage() {
   const [statusFilter, setStatusFilter] = useState('all')
   const [search, setSearch] = useState('')
   const [detailReturnId, setDetailReturnId] = useState<string | null>(null)
+  const [actionSectionVisible, setActionSectionVisible] = useState(false)
+  const actionSectionRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const el = actionSectionRef.current
+    if (!el) return
+    const observer = new IntersectionObserver(
+      ([entry]) => setActionSectionVisible(entry.isIntersecting),
+      { threshold: 0.1 }
+    )
+    observer.observe(el)
+    return () => observer.disconnect()
+    // re-observe when active returns appear/disappear
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const advanceDialog = useDialogState<AdvanceReturnDialogData>()
   const inspectDialog = useDialogState<ReturnActionDialogData>()
@@ -625,7 +641,7 @@ export default function ReturnsPage() {
 
       {/* Cards de RMAs activas — requieren acción */}
       {sortedActiveReturns.length > 0 && (
-        <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-4 space-y-3">
+        <div ref={actionSectionRef} className="rounded-xl border border-amber-200 bg-amber-50/60 p-4 space-y-3">
           {/* Encabezado de sección */}
           <div className="flex items-center gap-2">
             <TriangleAlert className="size-4 text-amber-600 shrink-0" />
@@ -1045,6 +1061,20 @@ export default function ReturnsPage() {
         getProduct={getProduct}
         onClose={() => setDetailReturnId(null)}
       />
+
+      {/* Floating badge — visible solo cuando la sección de acción existe y está fuera del viewport */}
+      {sortedActiveReturns.length > 0 && !actionSectionVisible && (
+        <button
+          onClick={() =>
+            actionSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+          }
+          className="fixed bottom-6 right-6 z-50 flex items-center gap-2 rounded-full bg-amber-500 px-4 py-2.5 text-sm font-semibold text-white shadow-lg ring-2 ring-amber-300 hover:bg-amber-600 transition-colors animate-bounce"
+        >
+          <TriangleAlert className="size-4 shrink-0" />
+          {sortedActiveReturns.length} requieren acción
+          <ArrowDown className="size-4 shrink-0" />
+        </button>
+      )}
     </>
   )
 }
