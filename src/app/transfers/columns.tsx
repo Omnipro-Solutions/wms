@@ -1,11 +1,12 @@
 'use client'
 
 import { type ColumnDef } from '@tanstack/react-table'
-import { ArrowRight } from 'lucide-react'
+import { ArrowRight, AlertCircle } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
 import { StatusBadge } from '@/components/shared/status-badge'
 import { DataTableColumnHeader } from '@/components/data-table'
+import { formatDate } from '@/lib/formatters'
+import { cn } from '@/lib/utils'
 import type { TransferOrder } from '@/types/wms'
 
 export interface TransferRow {
@@ -27,31 +28,32 @@ export const TYPE_LABELS: Record<TransferOrder['type'], string> = {
   dc_to_dc: 'DC → DC',
 }
 
-export const buildTransferColumns = (
-  onAdvance: (row: TransferRow) => void
-): ColumnDef<TransferRow>[] => [
+const TERMINAL_STATUSES = new Set(['completed', 'cancelled'])
+
+const isOverdue = (eta: string, status: string) =>
+  !TERMINAL_STATUSES.has(status) && new Date(eta) < new Date()
+
+export const buildTransferColumns = (): ColumnDef<TransferRow>[] => [
   {
     accessorKey: 'code',
-    header: ({ column }) => <DataTableColumnHeader column={column} title="Código" />,
-    cell: ({ row }) => <span className="font-medium">{row.getValue('code')}</span>,
-  },
-  {
-    accessorKey: 'type',
-    header: ({ column }) => <DataTableColumnHeader column={column} title="Tipo" />,
+    header: ({ column }) => <DataTableColumnHeader column={column} title="Código / Tipo" />,
     cell: ({ row }) => (
-      <Badge variant="outline" className="text-xs">
-        {TYPE_LABELS[row.getValue<TransferOrder['type']>('type')]}
-      </Badge>
+      <div className="space-y-0.5">
+        <p className="font-medium">{row.getValue('code')}</p>
+        <Badge variant="outline" className="text-xs">
+          {TYPE_LABELS[row.original.type]}
+        </Badge>
+      </div>
     ),
   },
   {
     id: 'route',
     header: 'Ruta',
     cell: ({ row }) => (
-      <div className="flex items-center gap-1 text-sm">
-        <span>{row.original.originName}</span>
+      <div className="flex max-w-[220px] items-center gap-1 text-sm">
+        <span className="truncate">{row.original.originName}</span>
         <ArrowRight className="text-muted-foreground size-3.5 shrink-0" />
-        <span>{row.original.destinationName}</span>
+        <span className="truncate">{row.original.destinationName}</span>
       </div>
     ),
     enableSorting: false,
@@ -61,35 +63,27 @@ export const buildTransferColumns = (
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Líneas" className="justify-end" />
     ),
-    cell: ({ row }) => <div className="text-right tabular-nums">{row.getValue('linesCount')}</div>,
+    cell: ({ row }) => (
+      <div className="text-right tabular-nums">{row.getValue('linesCount')}</div>
+    ),
   },
   {
     accessorKey: 'estimatedArrivalDate',
     header: ({ column }) => <DataTableColumnHeader column={column} title="ETA" />,
-    cell: ({ row }) => <span className="text-sm">{row.getValue('estimatedArrivalDate')}</span>,
+    cell: ({ row }) => {
+      const eta = row.getValue<string>('estimatedArrivalDate')
+      const overdue = isOverdue(eta, row.original.status)
+      return (
+        <div className={cn('flex items-center gap-1 text-sm', overdue && 'text-red-600')}>
+          {overdue && <AlertCircle className="size-3.5 shrink-0" />}
+          {formatDate(eta)}
+        </div>
+      )
+    },
   },
   {
     accessorKey: 'status',
     header: ({ column }) => <DataTableColumnHeader column={column} title="Estado" />,
     cell: ({ row }) => <StatusBadge status={row.getValue('status')} />,
-  },
-  {
-    id: 'actions',
-    enableHiding: false,
-    enableSorting: false,
-    cell: ({ row }) => {
-      if (!row.original.canAdvance) return null
-      return (
-        <Button
-          size="sm"
-          onClick={(e) => {
-            e.stopPropagation()
-            onAdvance(row.original)
-          }}
-        >
-          Avanzar
-        </Button>
-      )
-    },
   },
 ]

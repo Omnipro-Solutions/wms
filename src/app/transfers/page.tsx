@@ -1,24 +1,15 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { ArrowRight, ArrowRightLeft, CheckCircle2, TriangleAlert, Truck, Clock } from 'lucide-react'
+import { ArrowRightLeft, CheckCircle2, Truck, Clock } from 'lucide-react'
 
 import { useWmsStore } from '@/store/wms-store'
 import { useStoreHelpers } from '@/hooks/use-store-helpers'
-import { useDialogState } from '@/hooks/use-dialog-state'
 import { PageHeader } from '@/components/shared/page-header'
 import { StatusBadge } from '@/components/shared/status-badge'
 import { KpiCard } from '@/components/shared/kpi-card'
 import { DataTable } from '@/components/data-table'
-import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
 import {
   Select,
   SelectContent,
@@ -37,15 +28,7 @@ import {
 import { formatNumber } from '@/lib/formatters'
 import { buildTransferColumns, type TransferRow } from './columns'
 
-interface AdvanceDialogData {
-  transferId: string
-  code: string
-  currentStatus: string
-  nextStatus: string
-  originName: string
-  destinationName: string
-}
-
+const TERMINAL_STATUSES = new Set(['completed', 'cancelled'])
 const NEXT_MAP: Partial<Record<string, string>> = {
   draft: 'pending',
   pending: 'in_progress',
@@ -54,17 +37,12 @@ const NEXT_MAP: Partial<Record<string, string>> = {
   partial: 'completed',
 }
 
-const TERMINAL_STATUSES = new Set(['completed', 'cancelled'])
-
 export default function TransfersPage() {
   const state = useWmsStore()
-  const { advanceTransfer } = useWmsStore()
   const { warehouseName, productName } = useStoreHelpers()
 
   const [typeFilter, setTypeFilter] = useState('all')
   const [statusFilter, setStatusFilter] = useState('all')
-
-  const advanceDialog = useDialogState<AdvanceDialogData>()
 
   const rows = useMemo<TransferRow[]>(
     () =>
@@ -104,34 +82,7 @@ export default function TransfersPage() {
   ).length
   const completedCount = state.transfers.filter((t) => t.status === 'completed').length
 
-  const openAdvanceDialog = (row: TransferRow) => {
-    const next = NEXT_MAP[row.status]
-    if (!next) return
-    advanceDialog.open({
-      transferId: row.id,
-      code: row.code,
-      currentStatus: row.status,
-      nextStatus: next,
-      originName: row.originName,
-      destinationName: row.destinationName,
-    })
-  }
-
-  const handleAdvance = () => {
-    if (!advanceDialog.data) return
-    try {
-      advanceTransfer(advanceDialog.data.transferId, 'Operador')
-      advanceDialog.close()
-    } catch (e: unknown) {
-      advanceDialog.setError(e instanceof Error ? e.message : 'Error al avanzar traslado')
-    }
-  }
-
-  const columns = useMemo(
-    () => buildTransferColumns(openAdvanceDialog),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    []
-  )
+  const columns = useMemo(() => buildTransferColumns(), [])
 
   const filtersNode = (
     <>
@@ -243,65 +194,6 @@ export default function TransfersPage() {
           </CardContent>
         </Card>
       ))}
-
-      <Dialog
-        open={!!advanceDialog.data}
-        onOpenChange={(o) => {
-          if (!o) advanceDialog.close()
-        }}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Avanzar estado del traslado</DialogTitle>
-          </DialogHeader>
-          {advanceDialog.data && (
-            <div className="space-y-4 py-2">
-              <div className="text-muted-foreground space-y-1 text-sm">
-                <p>
-                  Traslado:{' '}
-                  <span className="text-foreground font-medium">{advanceDialog.data.code}</span>
-                </p>
-                <p>
-                  Ruta:{' '}
-                  <span className="text-foreground font-medium">
-                    {advanceDialog.data.originName} → {advanceDialog.data.destinationName}
-                  </span>
-                </p>
-              </div>
-              <div className="flex items-center gap-3 rounded-md border p-4">
-                <div className="text-center">
-                  <p className="text-muted-foreground text-xs">Estado actual</p>
-                  <StatusBadge status={advanceDialog.data.currentStatus} />
-                </div>
-                <ArrowRight className="text-muted-foreground size-5" />
-                <div className="text-center">
-                  <p className="text-muted-foreground text-xs">Nuevo estado</p>
-                  <StatusBadge status={advanceDialog.data.nextStatus} />
-                </div>
-              </div>
-              {advanceDialog.data.nextStatus === 'completed' && (
-                <p className="text-muted-foreground text-sm">
-                  Al completar se registrarán movimientos de inventario de tipo{' '}
-                  <strong>transfer</strong> por cada línea.
-                </p>
-              )}
-              {advanceDialog.error && (
-                <p className="text-destructive flex items-center gap-1 text-sm">
-                  <TriangleAlert className="size-3" /> {advanceDialog.error}
-                </p>
-              )}
-            </div>
-          )}
-          <DialogFooter>
-            <Button variant="outline" onClick={advanceDialog.close}>
-              Cancelar
-            </Button>
-            <Button onClick={handleAdvance}>
-              <CheckCircle2 className="mr-1 size-4" /> Confirmar
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </>
   )
 }
