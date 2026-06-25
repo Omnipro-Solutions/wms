@@ -106,6 +106,8 @@ const ADMIN_TABS: SubNavItem[] = [
   { value: 'settings', label: 'Configuración' },
 ]
 
+const PRODUCT_BLANK = { rotationStrategy: undefined as Product['rotationStrategy'], minStockUnits: '' as number | '', maxStockUnits: '' as number | '' }
+
 const AdminPage = () => {
   const searchParams = useSearchParams()
   const activeTab = searchParams.get('tab') ?? 'operators'
@@ -273,7 +275,6 @@ const AdminPage = () => {
   }
 
   // Product edit dialog state
-  const PRODUCT_BLANK = { rotationStrategy: undefined as Product['rotationStrategy'], minStockUnits: '' as number | '', maxStockUnits: '' as number | '' }
   const [productEditOpen, setProductEditOpen] = useState(false)
   const [productEditId, setProductEditId] = useState<string | null>(null)
   const [productForm, setProductForm] = useState(PRODUCT_BLANK)
