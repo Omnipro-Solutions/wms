@@ -99,11 +99,17 @@ export const ManifestCard = ({
                   </div>
                   <MapPin className="text-muted-foreground size-3.5" />
                   <span className="text-sm font-medium">{warehouseName(stop.destinationId)}</span>
-                  {isEmpty && (
-                    <Badge variant="outline" className="ml-auto text-xs text-amber-600">
-                      Sin documentos
-                    </Badge>
-                  )}
+                  <div className="ml-auto flex items-center gap-2">
+                    {isEmpty ? (
+                      <Badge variant="outline" className="text-xs text-amber-600">
+                        Sin documentos
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline" className="text-xs">
+                        {stopOrders.length + stopTransfers.length + stopReturns.length} doc{stopOrders.length + stopTransfers.length + stopReturns.length !== 1 ? 's' : ''}
+                      </Badge>
+                    )}
+                  </div>
                 </div>
 
                 {!isEmpty && (
