@@ -2806,7 +2806,7 @@ export const useWmsStore = create<WmsState>()(
     if (!canCrossDock(asn)) throw new Error('ASN no elegible para cross-docking')
     const warehouseId = asn.suggestedPutawayLocationId
       ? (state.locations.find(l => l.id === asn.suggestedPutawayLocationId)?.warehouseId ?? 'wh-bog')
-      : 'wh-bog'
+      : 'wh-bog' // ponytail: fallback until Asn gains a warehouseId field
     const task: CrossDockTask = {
       id: `cdtask-${Date.now()}`,
       asnId,
