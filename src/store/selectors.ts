@@ -10,8 +10,10 @@ import {
 } from '@/lib/rules/slotting'
 import type { ProductAffinityPair } from '@/lib/rules/slotting'
 import { otifPercentage } from '@/lib/rules/shipping'
+import { productivityByOperator } from '@/lib/rules/picking'
+import { dashboardHistory } from '@/data/seed'
 import type { WmsState } from './wms-store'
-import type { AbcClass, SlottingRecommendation, XyzClass } from '@/types/wms'
+import type { AbcClass, ProductivityRow, SlottingRecommendation, XyzClass } from '@/types/wms'
 
 export interface DashboardKpis {
   pendingOrders: number
@@ -612,4 +614,76 @@ export const selectSlaBreaches = (state: WmsState, nowMs = 0): SlaBreachRecord[]
     }
   }
   return results.sort((a, b) => b.breachPercent - a.breachPercent)
+}
+
+// ─── Dashboard chart data ────────────────────────────────────────────────────
+
+export interface DashboardChartData {
+  gauges: { name: string; value: number; fill: string }[]
+  weeklyDemand: Record<string, string | number>[]
+  ordersByStatus: { status: string; count: number; fill: string }[]
+  operatorProductivity: ProductivityRow[]
+}
+
+export function selectDashboardChartData(state: WmsState): DashboardChartData {
+  const otif = otifPercentage(state.shipments)
+  const { ira } = selectInventoryAccuracy(state)
+
+  const gauges = [
+    {
+      name: 'OTIF',
+      value: Math.round(otif * 10) / 10,
+      // ponytail: hex instead of var(--color-*) — Tailwind 4 CSS vars don't resolve in recharts fill props
+      fill: otif >= 90 ? '#22c55e' : otif >= 80 ? '#f59e0b' : '#ef4444',
+    },
+    {
+      name: 'IRA',
+      value: Math.round(ira * 10) / 10,
+      fill: '#3b82f6',
+    },
+  ]
+
+  const top5Ids = Object.keys(dashboardHistory.weeklyDemand)
+  const productNames: Record<string, string> = {}
+  for (const id of top5Ids) {
+    const product = state.products.find((p) => p.id === id)
+    productNames[id] = product?.name ?? id
+  }
+
+  const demandByProduct = dashboardHistory.weeklyDemand as Record<string, number[]>
+  const weeklyDemand: Record<string, string | number>[] = Array.from({ length: 8 }, (_, i) => {
+    const row: Record<string, string | number> = { week: `Sem ${i + 1}` }
+    for (const id of top5Ids) {
+      row[productNames[id]] = demandByProduct[id][i]
+    }
+    return row
+  })
+
+  const statusCounts = { pending: 0, in_progress: 0, completed: 0, cancelled: 0 }
+  for (const o of state.commerceOrders) {
+    if (o.status in statusCounts) statusCounts[o.status as keyof typeof statusCounts]++
+  }
+  const statusLabels: Record<string, string> = {
+    pending: 'Pendiente',
+    in_progress: 'En progreso',
+    completed: 'Completado',
+    cancelled: 'Cancelado',
+  }
+  const statusColors: Record<string, string> = {
+    pending: '#3b82f6',
+    in_progress: '#f59e0b',
+    completed: '#22c55e',
+    cancelled: '#6b7280',
+  }
+  const ordersByStatus = Object.entries(statusCounts).map(([key, count]) => ({
+    status: statusLabels[key],
+    count,
+    fill: statusColors[key],
+  }))
+
+  const operatorProductivity = productivityByOperator(state.pickingTasks)
+    .sort((a, b) => b.unitsPicked - a.unitsPicked)
+    .slice(0, 8)
+
+  return { gauges, weeklyDemand, ordersByStatus, operatorProductivity }
 }
