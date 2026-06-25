@@ -354,9 +354,10 @@ export function selectReplenishmentNeeds(state: WmsState): ReplenishmentNeed[] {
       const demand = state.demandStats.find((d) => d.productId === item.productId)
       if (!demand) continue
 
-      // Infer min/max from demand stats. Min = pickingFrequency × 2 periods, max = × 6.
-      const minStock = Math.round(demand.pickingFrequency * 2)
-      const maxStock = Math.round(demand.pickingFrequency * 6)
+      // Use explicit product limits if set; otherwise infer from demand stats.
+      const product = state.products.find((p) => p.id === item.productId)
+      const minStock = product?.minStockUnits ?? Math.round(demand.pickingFrequency * 2)
+      const maxStock = product?.maxStockUnits ?? Math.round(demand.pickingFrequency * 6)
       if (minStock <= 0) continue
 
       const currentStock = item.onHandQuantity - item.reservedQuantity - item.holdQuantity

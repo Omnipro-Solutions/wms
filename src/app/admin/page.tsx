@@ -58,7 +58,7 @@ import {
 } from '@/components/ui/table'
 import { SubNav, type SubNavItem } from '@/components/shared/sub-nav'
 import { cn } from '@/lib/utils'
-import type { CyclicCountMethod, UnitOfMeasure } from '@/types/wms'
+import type { CyclicCountMethod, Product, UnitOfMeasure } from '@/types/wms'
 
 const ROLE_LABELS: Record<string, string> = {
   picker: 'Picker',
@@ -83,10 +83,16 @@ const COUNT_METHOD_LABELS: Record<CyclicCountMethod, string> = {
 }
 
 const COUNT_STATUS_COLORS: Record<string, string> = {
-  pending: 'bg-amber-50 text-amber-700 border-amber-200',
-  in_progress: 'bg-blue-50 text-blue-700 border-blue-200',
-  completed: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-  cancelled: 'bg-zinc-50 text-zinc-500 border-zinc-200',
+  pending: 'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-900/50',
+  in_progress: 'bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-900/50',
+  completed: 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-900/50',
+  cancelled: 'bg-zinc-50 dark:bg-zinc-800/50 text-zinc-500 dark:text-zinc-300 border-zinc-200 dark:border-zinc-700/50',
+}
+
+const ROTATION_LABELS: Record<string, string> = {
+  fifo: 'FIFO — Primero en entrar, primero en salir',
+  fefo: 'FEFO — Primero en vencer, primero en salir',
+  lifo: 'LIFO — Último en entrar, primero en salir',
 }
 
 const ADMIN_TABS: SubNavItem[] = [
@@ -96,6 +102,7 @@ const ADMIN_TABS: SubNavItem[] = [
   { value: 'inventory-control', label: 'Control inventario' },
   { value: 'cyclic-counts', label: 'Conteos cíclicos' },
   { value: 'uom', label: 'Unidades de medida' },
+  { value: 'products', label: 'Productos' },
   { value: 'settings', label: 'Configuración' },
 ]
 
@@ -131,6 +138,7 @@ const AdminPage = () => {
     createUom,
     updateUom,
     toggleUom,
+    updateProduct,
   } = useWmsStore()
 
   const accuracy = selectInventoryAccuracy(state)
@@ -264,6 +272,32 @@ const AdminPage = () => {
     setUomFormOpen(false)
   }
 
+  // Product edit dialog state
+  const PRODUCT_BLANK = { rotationStrategy: undefined as Product['rotationStrategy'], minStockUnits: '' as number | '', maxStockUnits: '' as number | '' }
+  const [productEditOpen, setProductEditOpen] = useState(false)
+  const [productEditId, setProductEditId] = useState<string | null>(null)
+  const [productForm, setProductForm] = useState(PRODUCT_BLANK)
+
+  const handleOpenProductEdit = (product: Product) => {
+    setProductEditId(product.id)
+    setProductForm({
+      rotationStrategy: product.rotationStrategy,
+      minStockUnits: product.minStockUnits ?? '',
+      maxStockUnits: product.maxStockUnits ?? '',
+    })
+    setProductEditOpen(true)
+  }
+
+  const handleSaveProduct = () => {
+    if (!productEditId) return
+    updateProduct(productEditId, {
+      rotationStrategy: productForm.rotationStrategy,
+      minStockUnits: productForm.minStockUnits === '' ? undefined : Number(productForm.minStockUnits),
+      maxStockUnits: productForm.maxStockUnits === '' ? undefined : Number(productForm.maxStockUnits),
+    })
+    setProductEditOpen(false)
+  }
+
   const totalInventoryUnits = inventoryItems.reduce((s, i) => s + i.onHandQuantity, 0)
 
   const storeStats = [
@@ -294,13 +328,13 @@ const AdminPage = () => {
 
       {/* Freeze banner */}
       {settings.inventoryFreezeActive && (
-        <div className="flex items-center gap-3 rounded-lg border border-blue-300 bg-blue-50 px-4 py-3">
-          <Snowflake className="size-5 shrink-0 text-blue-600" />
-          <div className="flex-1 text-sm text-blue-800">
+        <div className="flex items-center gap-3 rounded-lg border border-blue-300 dark:border-blue-900/50 bg-blue-50 dark:bg-blue-950/40 px-4 py-3">
+          <Snowflake className="size-5 shrink-0 text-blue-600 dark:text-blue-300" />
+          <div className="flex-1 text-sm text-blue-800 dark:text-blue-300">
             <p className="font-semibold">Inventario congelado</p>
-            <p className="text-blue-700">Los ajustes, bloqueos y liberaciones de stock están deshabilitados hasta que se desactive el modo congelado.</p>
+            <p className="text-blue-700 dark:text-blue-300">Los ajustes, bloqueos y liberaciones de stock están deshabilitados hasta que se desactive el modo congelado.</p>
           </div>
-          <Button size="sm" variant="outline" className="border-blue-300 text-blue-700 hover:bg-blue-100" onClick={handleToggleFreeze}>
+          <Button size="sm" variant="outline" className="border-blue-300 dark:border-blue-900/50 text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-950/50" onClick={handleToggleFreeze}>
             Descongelar
           </Button>
         </div>
@@ -308,12 +342,12 @@ const AdminPage = () => {
 
       {/* Pending adjustments alert */}
       {pendingAdj.length > 0 && (
-        <div className="flex items-center gap-3 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3">
-          <AlertTriangle className="size-5 shrink-0 text-amber-600" />
-          <p className="flex-1 text-sm text-amber-800">
+        <div className="flex items-center gap-3 rounded-lg border border-amber-300 dark:border-amber-900/50 bg-amber-50 dark:bg-amber-950/40 px-4 py-3">
+          <AlertTriangle className="size-5 shrink-0 text-amber-600 dark:text-amber-300" />
+          <p className="flex-1 text-sm text-amber-800 dark:text-amber-300">
             <span className="font-semibold">{pendingAdj.length} ajuste(s) de inventario</span> esperan aprobación de supervisor.
           </p>
-          <Button size="sm" variant="outline" className="border-amber-300 text-amber-700 hover:bg-amber-100" onClick={() => {}}>
+          <Button size="sm" variant="outline" className="border-amber-300 dark:border-amber-900/50 text-amber-700 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-950/50" onClick={() => {}}>
             Ver en Inventario
           </Button>
         </div>
@@ -331,10 +365,10 @@ const AdminPage = () => {
         <CardContent>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             {storeStats.map(({ label, value, icon: Icon }) => (
-              <div key={label} className="flex items-center gap-3 rounded-lg border bg-zinc-50 p-3">
+              <div key={label} className="flex items-center gap-3 rounded-lg border dark:border-zinc-700/50 bg-zinc-50 dark:bg-zinc-800/50 p-3">
                 <Icon className="size-5 shrink-0 text-zinc-400" />
                 <div>
-                  <p className="text-lg font-bold tabular-nums text-zinc-800">{value}</p>
+                  <p className="text-lg font-bold tabular-nums text-zinc-800 dark:text-zinc-300">{value}</p>
                   <p className="text-xs text-zinc-500">{label}</p>
                 </div>
               </div>
@@ -489,10 +523,10 @@ const AdminPage = () => {
 
           {/* IRA KPI + Freeze toggle */}
           <div className="grid gap-4 sm:grid-cols-3">
-            <Card className={cn('border-2', accuracy.ira >= 95 ? 'border-emerald-200 bg-emerald-50' : accuracy.ira >= 80 ? 'border-amber-200 bg-amber-50' : 'border-red-200 bg-red-50')}>
+            <Card className={cn('border-2', accuracy.ira >= 95 ? 'border-emerald-200 dark:border-emerald-900/50 bg-emerald-50 dark:bg-emerald-950/40' : accuracy.ira >= 80 ? 'border-amber-200 dark:border-amber-900/50 bg-amber-50 dark:bg-amber-950/40' : 'border-red-200 dark:border-red-900/50 bg-red-50 dark:bg-red-950/40')}>
               <CardContent className="pt-5">
                 <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">IRA — Exactitud de inventario</p>
-                <p className={cn('mt-1 text-4xl font-bold tabular-nums', accuracy.ira >= 95 ? 'text-emerald-700' : accuracy.ira >= 80 ? 'text-amber-700' : 'text-red-700')}>
+                <p className={cn('mt-1 text-4xl font-bold tabular-nums', accuracy.ira >= 95 ? 'text-emerald-700 dark:text-emerald-300' : accuracy.ira >= 80 ? 'text-amber-700 dark:text-amber-300' : 'text-red-700 dark:text-red-300')}>
                   {accuracy.ira}%
                 </p>
                 <p className="mt-1 text-xs text-zinc-500">
@@ -521,7 +555,7 @@ const AdminPage = () => {
             <Card>
               <CardContent className="pt-5">
                 <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Ajustes pendientes</p>
-                <p className="mt-1 text-4xl font-bold tabular-nums text-amber-600">{accuracy.adjustmentsPending}</p>
+                <p className="mt-1 text-4xl font-bold tabular-nums text-amber-600 dark:text-amber-300">{accuracy.adjustmentsPending}</p>
                 <p className="mt-1 text-xs text-zinc-500">
                   {accuracy.adjustmentsApproved} aprobados · {accuracy.adjustmentsRejected} rechazados
                 </p>
@@ -576,7 +610,7 @@ const AdminPage = () => {
                           <TableCell>
                             <Badge
                               variant="outline"
-                              className={cn('text-xs', req.status === 'pending_approval' ? 'border-amber-200 bg-amber-50 text-amber-700' : req.status === 'approved' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-zinc-200 bg-zinc-50 text-zinc-500')}
+                              className={cn('text-xs', req.status === 'pending_approval' ? 'border-amber-200 dark:border-amber-900/50 bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300' : req.status === 'approved' ? 'border-emerald-200 dark:border-emerald-900/50 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300' : 'border-zinc-200 dark:border-zinc-700/50 bg-zinc-50 dark:bg-zinc-800/50 text-zinc-500 dark:text-zinc-300')}
                             >
                               {req.status === 'pending_approval' ? 'Pendiente' : req.status === 'approved' ? 'Aprobado' : 'Rechazado'}
                             </Badge>
@@ -728,8 +762,8 @@ const AdminPage = () => {
                           variant="outline"
                           className={cn(
                             uom.active
-                              ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
-                              : 'border-zinc-200 bg-zinc-50 text-zinc-400'
+                              ? 'border-emerald-200 dark:border-emerald-900/50 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300'
+                              : 'border-zinc-200 dark:border-zinc-700/50 bg-zinc-50 dark:bg-zinc-800/50 text-zinc-400 dark:text-zinc-300'
                           )}
                         >
                           {uom.active ? 'Activa' : 'Inactiva'}
@@ -821,6 +855,117 @@ const AdminPage = () => {
         </>
       )}
 
+      {/* ── Products ── */}
+      {activeTab === 'products' && (
+        <>
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-sm">
+                <Package className="size-4" /> Productos ({products.length})
+              </CardTitle>
+              <CardDescription>Estrategia de rotación y límites de stock por SKU.</CardDescription>
+            </CardHeader>
+            <CardContent className="p-0">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>SKU</TableHead>
+                    <TableHead>Nombre</TableHead>
+                    <TableHead>Rotación</TableHead>
+                    <TableHead className="text-right">Stock mín.</TableHead>
+                    <TableHead className="text-right">Stock máx.</TableHead>
+                    <TableHead />
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {products.map((p) => (
+                    <TableRow key={p.id}>
+                      <TableCell className="font-mono text-xs font-semibold">{p.sku}</TableCell>
+                      <TableCell className="max-w-48 truncate font-medium">{p.name}</TableCell>
+                      <TableCell className="text-muted-foreground text-sm">
+                        {p.rotationStrategy ? ROTATION_LABELS[p.rotationStrategy] : <span className="text-zinc-400">Auto</span>}
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums text-sm">
+                        {p.minStockUnits ?? <span className="text-zinc-400">—</span>}
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums text-sm">
+                        {p.maxStockUnits ?? <span className="text-zinc-400">—</span>}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => handleOpenProductEdit(p)}>
+                          <Pencil className="size-3" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+
+          {/* Product edit dialog */}
+          <Dialog open={productEditOpen} onOpenChange={(o) => { if (!o) setProductEditOpen(false) }}>
+            <DialogContent className="max-w-sm">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <Package className="size-4 text-blue-600" />
+                  Editar parámetros de producto
+                </DialogTitle>
+                <DialogDescription className="sr-only">
+                  Editar estrategia de rotación y límites de stock del producto
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4 py-1">
+                <div className="space-y-1.5">
+                  <Label>Estrategia de rotación</Label>
+                  <Select
+                    value={productForm.rotationStrategy ?? ''}
+                    onValueChange={(v) => setProductForm((f) => ({ ...f, rotationStrategy: (v || undefined) as Product['rotationStrategy'] }))}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Auto (sin estrategia explícita)" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="fefo">FEFO — Primero en vencer, primero en salir</SelectItem>
+                      <SelectItem value="fifo">FIFO — Primero en entrar, primero en salir</SelectItem>
+                      <SelectItem value="lifo">LIFO — Último en entrar, primero en salir</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="min-stock">Stock mínimo (uds)</Label>
+                    <Input
+                      id="min-stock"
+                      type="number"
+                      min={0}
+                      placeholder="Auto"
+                      value={productForm.minStockUnits}
+                      onChange={(e) => setProductForm((f) => ({ ...f, minStockUnits: e.target.value === '' ? '' : Number(e.target.value) }))}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="max-stock">Stock máximo (uds)</Label>
+                    <Input
+                      id="max-stock"
+                      type="number"
+                      min={0}
+                      placeholder="Auto"
+                      value={productForm.maxStockUnits}
+                      onChange={(e) => setProductForm((f) => ({ ...f, maxStockUnits: e.target.value === '' ? '' : Number(e.target.value) }))}
+                    />
+                  </div>
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setProductEditOpen(false)}>Cancelar</Button>
+                <Button onClick={handleSaveProduct}>Guardar cambios</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </>
+      )}
+
       {/* ── Settings ── */}
       {activeTab === 'settings' && (
           <Card>
@@ -839,7 +984,7 @@ const AdminPage = () => {
             </CardHeader>
             <CardContent className="flex flex-col gap-6">
               <div>
-                <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-zinc-500">Clasificación ABC</p>
+                <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-300">Clasificación ABC</p>
                 <div className="grid gap-4 sm:grid-cols-2">
                   <SettingField label="Umbral clase A" description="% acumulado de pickeos que define la clase A (ej. 0.80 = 80%)." value={localSettings.abcThresholdA} min={0.5} max={0.95} step={0.05} onChange={(v) => handleSettingChange('abcThresholdA', v)} />
                   <SettingField label="Umbral clase B" description="% acumulado que separa B de C (debe ser > umbral A)." value={localSettings.abcThresholdB} min={0.6} max={0.99} step={0.05} onChange={(v) => handleSettingChange('abcThresholdB', v)} />
@@ -849,7 +994,7 @@ const AdminPage = () => {
               <Separator />
 
               <div>
-                <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-zinc-500">Clasificación XYZ</p>
+                <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-300">Clasificación XYZ</p>
                 <div className="grid gap-4 sm:grid-cols-2">
                   <SettingField label="CV límite X/Y" description="Coeficiente de variación máximo para clase X (demanda estable)." value={localSettings.xyzCvX} min={0.1} max={0.8} step={0.1} onChange={(v) => handleSettingChange('xyzCvX', v)} />
                   <SettingField label="CV límite Y/Z" description="Coeficiente de variación máximo para clase Y (demanda media)." value={localSettings.xyzCvY} min={0.5} max={2.0} step={0.1} onChange={(v) => handleSettingChange('xyzCvY', v)} />
@@ -859,7 +1004,7 @@ const AdminPage = () => {
               <Separator />
 
               <div>
-                <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-zinc-500">Reabastecimiento</p>
+                <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-300">Reabastecimiento</p>
                 <div className="grid gap-4 sm:grid-cols-2">
                   <SettingField label="Factor prioridad alta" description="Si stock < minStock × factor → prioridad alta. Ej. 0.5 = por debajo del 50% del mínimo." value={localSettings.replenishmentHighFactor} min={0.1} max={0.9} step={0.1} onChange={(v) => handleSettingChange('replenishmentHighFactor', v)} />
                 </div>
@@ -868,7 +1013,7 @@ const AdminPage = () => {
               <Separator />
 
               <div>
-                <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-zinc-500">Control de inventario</p>
+                <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-300">Control de inventario</p>
                 <div className="grid gap-4 sm:grid-cols-2">
                   <SettingField label="Umbral aprobación ajuste (uds)" description="Delta absoluto en unidades por encima del cual el ajuste requiere aprobación de supervisor." value={localSettings.adjustmentApprovalThreshold} min={1} max={500} step={1} onChange={(v) => handleSettingChange('adjustmentApprovalThreshold', v)} />
                 </div>
@@ -985,10 +1130,10 @@ interface SettingFieldProps {
 }
 
 const SettingField = ({ label, description, value, min, max, step, onChange }: SettingFieldProps) => (
-  <div className="flex flex-col gap-1.5 rounded-lg border bg-zinc-50 p-4">
+  <div className="flex flex-col gap-1.5 rounded-lg border dark:border-zinc-700/50 bg-zinc-50 dark:bg-zinc-800/50 p-4">
     <div className="flex items-center justify-between">
       <p className="text-sm font-medium">{label}</p>
-      <span className="rounded bg-white px-2 py-0.5 text-sm font-bold tabular-nums shadow-sm ring-1 ring-zinc-200">
+      <span className="rounded bg-white dark:bg-zinc-800 px-2 py-0.5 text-sm font-bold tabular-nums shadow-sm ring-1 ring-zinc-200 dark:ring-zinc-700">
         {value % 1 === 0 ? value : value.toFixed(2)}
       </span>
     </div>
