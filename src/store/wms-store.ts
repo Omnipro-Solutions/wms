@@ -308,7 +308,6 @@ export interface WmsState {
   // Cross-dock (Sprint 9)
   createCrossDockTask: (asnId: string, commerceOrderId: string, quantity: number, stagingLocationId: string, operatorName: string) => void
   completeCrossDockTask: (taskId: string, operatorName: string) => void
-  updateProductStockLimits: (productId: string, minStockUnits: number, maxStockUnits: number) => void
 }
 
 const recordMovement = (partial: Omit<StockMovement, 'id' | 'createdAt'>): StockMovement => ({
@@ -2849,13 +2848,14 @@ export const useWmsStore = create<WmsState>()(
       referenceId: task.commerceOrderId,
       operatorName,
     })
-    set({ crossDockTasks: updatedTasks, commerceOrders: updatedOrders, stockMovements: [...state.stockMovements, movement] })
+    const updatedInventory = state.inventoryItems.map(i =>
+      i.productId === task.productId && i.locationId === task.stagingLocationId
+        ? { ...i, onHandQuantity: Math.max(0, i.onHandQuantity - task.quantity) }
+        : i
+    )
+    set({ crossDockTasks: updatedTasks, commerceOrders: updatedOrders, stockMovements: [...state.stockMovements, movement], inventoryItems: updatedInventory })
   },
 
-  updateProductStockLimits: (productId, minStockUnits, maxStockUnits) => {
-    const state = get()
-    set({ products: state.products.map(p => p.id === productId ? { ...p, minStockUnits, maxStockUnits } : p) })
-  },
   }),
   {
     name: 'wms-store-v2',

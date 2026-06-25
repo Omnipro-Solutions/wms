@@ -6,7 +6,7 @@ import { selectInventoryAccuracy } from '@/store/selectors'
 import { DataTable } from '@/components/data-table'
 import { KpiCard } from '@/components/shared/kpi-card'
 import { ShieldCheck, PackageX } from 'lucide-react'
-import { ColumnDef } from '@tanstack/react-table'
+import type { ColumnDef } from '@tanstack/react-table'
 import { useStoreHelpers } from '@/hooks/use-store-helpers'
 
 interface ScrapRow {

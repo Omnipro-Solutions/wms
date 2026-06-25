@@ -6,7 +6,7 @@ import { forecastDemand } from '@/lib/rules/forecast'
 import { DataTable } from '@/components/data-table'
 import { KpiCard } from '@/components/shared/kpi-card'
 import { TrendingUp } from 'lucide-react'
-import { ColumnDef } from '@tanstack/react-table'
+import type { ColumnDef } from '@tanstack/react-table'
 import { useStoreHelpers } from '@/hooks/use-store-helpers'
 import { Badge } from '@/components/ui/badge'
 

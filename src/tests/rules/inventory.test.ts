@@ -103,6 +103,16 @@ describe('selectByStrategy', () => {
     expect(result.map(i => i.id)).toEqual(['i3', 'i2', 'i1'])
   })
 
+  it('fifo: handles multi-digit IDs correctly (numeric sort)', () => {
+    const multiDigit = [
+      { ...base, id: 'inv-10', onHandQuantity: 5, expirationDate: undefined, status: 'available' as const },
+      { ...base, id: 'inv-9', onHandQuantity: 5, expirationDate: undefined, status: 'available' as const },
+      { ...base, id: 'inv-2', onHandQuantity: 5, expirationDate: undefined, status: 'available' as const },
+    ]
+    const result = selectByStrategy(multiDigit, 'fifo')
+    expect(result.map(i => i.id)).toEqual(['inv-2', 'inv-9', 'inv-10'])
+  })
+
   it('excludes on_hold and expired items', () => {
     const withHeld = [
       { ...base, id: 'i4', onHandQuantity: 5, status: 'on_hold' as const },

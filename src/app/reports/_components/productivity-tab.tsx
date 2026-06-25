@@ -6,7 +6,7 @@ import { productivityByOperator } from '@/lib/rules/picking'
 import { DataTable } from '@/components/data-table'
 import { KpiCard } from '@/components/shared/kpi-card'
 import { BarChart3, CheckCircle2, AlertTriangle } from 'lucide-react'
-import { ColumnDef } from '@tanstack/react-table'
+import type { ColumnDef } from '@tanstack/react-table'
 import type { ProductivityRow } from '@/types/wms'
 
 const columns: ColumnDef<ProductivityRow>[] = [

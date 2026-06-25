@@ -6,7 +6,7 @@ import { otifPercentage, otifByCarrier } from '@/lib/rules/shipping'
 import { DataTable } from '@/components/data-table'
 import { KpiCard } from '@/components/shared/kpi-card'
 import { Truck, TrendingUp, TrendingDown } from 'lucide-react'
-import { ColumnDef } from '@tanstack/react-table'
+import type { ColumnDef } from '@tanstack/react-table'
 
 interface CarrierOtifRow {
   carrierName: string

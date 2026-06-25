@@ -91,7 +91,7 @@ export function selectByStrategy(
     })
   }
   if (strategy === 'lifo') {
-    return [...eligible].sort((a, b) => b.id.localeCompare(a.id))
+    return [...eligible].sort((a, b) => b.id.localeCompare(a.id, undefined, { numeric: true }))
   }
-  return [...eligible].sort((a, b) => a.id.localeCompare(b.id))
+  return [...eligible].sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric: true }))
 }
