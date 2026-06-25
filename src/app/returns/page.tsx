@@ -3,7 +3,9 @@
 import { useMemo, useState } from 'react'
 import {
   ArrowRight,
+  Calendar,
   CheckCircle2,
+  Clock,
   ClipboardCheck,
   Hash,
   PackageCheck,
@@ -17,6 +19,9 @@ import {
   Tag,
   ChevronRight,
 } from 'lucide-react'
+
+import { formatDistanceToNow, parseISO, format } from 'date-fns'
+import { es } from 'date-fns/locale'
 
 import { useWmsStore } from '@/store/wms-store'
 import { useStoreHelpers } from '@/hooks/use-store-helpers'
@@ -156,6 +161,9 @@ const resolveNextStatus = (ret: ReturnOrder): string | null => {
   if (ret.disposition === 'repair') return 'sent_to_repair'
   return 'sent_to_quality_control'
 }
+
+const daysInStatus = (ret: ReturnOrder): string =>
+  formatDistanceToNow(parseISO(ret.createdAt), { locale: es, addSuffix: false })
 
 /* ─── Action banner por estado ────────────────────────────────────────── */
 
@@ -567,6 +575,14 @@ export default function ReturnsPage() {
                             <TriangleAlert className="size-3" /> {reason.label}
                           </span>
                         )}
+                        <span className="flex items-center gap-1">
+                          <Calendar className="size-3" />
+                          {format(parseISO(ret.createdAt), 'dd MMM yyyy', { locale: es })}
+                        </span>
+                        <span className="flex items-center gap-1 font-medium text-foreground/70">
+                          <Clock className="size-3" />
+                          {daysInStatus(ret)}
+                        </span>
                       </div>
                     </div>
 
