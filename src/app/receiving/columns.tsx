@@ -49,7 +49,7 @@ export interface PoRow {
 
 // ── Action types ──────────────────────────────────────────────────────────────
 
-export type ActionType = 'confirm' | 'receive' | 'close' | 'putaway' | 'qc'
+export type ActionType = 'confirm' | 'receive' | 'close' | 'putaway' | 'qc' | 'crossdock'
 
 // ── Column builders (re-exported from per-tab files) ──────────────────────────
 

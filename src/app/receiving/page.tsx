@@ -39,6 +39,8 @@ import { PutawayDialog, usePutawayDialog } from './_components/putaway-dialog'
 import { ReceptionSheet } from './_components/reception-sheet'
 import { EmptyState } from './_components/empty-state'
 import { TabPanel } from './_components/tab-panel'
+import { CrossDockDialog } from './_components/cross-dock-dialog'
+import type { Asn } from '@/types/wms'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -60,6 +62,8 @@ const ReceivingPage = () => {
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const [poStatusFilter, setPoStatusFilter] = useState<Set<string>>(new Set())
+  const [crossDockAsn, setCrossDockAsn] = useState<Asn | null>(null)
+  const [crossDockOpen, setCrossDockOpen] = useState(false)
 
   const activeTab = (searchParams.get('tab') as TabValue) ?? 'ordenes'
 
@@ -185,6 +189,11 @@ const ReceivingPage = () => {
           blockedQty: row.receivedQuantity,
           supplierName: row.supplierName,
         }),
+      crossdock: (row) => {
+        const asn = state.asnRecords.find((a) => a.id === row.id) ?? null
+        setCrossDockAsn(asn)
+        setCrossDockOpen(true)
+      },
     }),
     [state, receiveDialogState, closeDialogState, putawayDialogState, qcDialogState]
   )
@@ -474,6 +483,11 @@ const ReceivingPage = () => {
       <QcDialog state={qcDialogState} />
       <PutawayDialog state={putawayDialogState} />
       <ReceptionSheet state={sheetState} />
+      <CrossDockDialog
+        asn={crossDockAsn}
+        open={crossDockOpen}
+        onClose={() => setCrossDockOpen(false)}
+      />
     </>
   )
 }

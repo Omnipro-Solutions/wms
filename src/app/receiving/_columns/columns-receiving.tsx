@@ -65,18 +65,34 @@ export const buildReceivingColumns = (onAction: ActionHandler): ColumnDef<AsnRow
     enableSorting: false,
     enableHiding: false,
     cell: ({ row }) => {
-      if (!row.original.canReceive) return null
+      const { canReceive, crossDocking } = row.original
       return (
-        <Button
-          size="sm"
-          onClick={(e) => {
-            e.stopPropagation()
-            onAction('receive', row.original)
-          }}
-        >
-          <PackageCheck className="mr-1.5 size-3.5" />
-          Registrar conteo
-        </Button>
+        <div className="flex items-center gap-2">
+          {canReceive && (
+            <Button
+              size="sm"
+              onClick={(e) => {
+                e.stopPropagation()
+                onAction('receive', row.original)
+              }}
+            >
+              <PackageCheck className="mr-1.5 size-3.5" />
+              Registrar conteo
+            </Button>
+          )}
+          {crossDocking && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={(e) => {
+                e.stopPropagation()
+                onAction('crossdock', row.original)
+              }}
+            >
+              Cross-dock
+            </Button>
+          )}
+        </div>
       )
     },
   },
