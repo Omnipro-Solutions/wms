@@ -228,7 +228,7 @@ const buildColumns = (onAction: BlockHandler): ColumnDef<LocationRow>[] => [
       return (
         <div className="text-muted-foreground text-[11px] tabular-nums">
           <p>{loc.maxWeightKg} kg</p>
-          <p>{loc.volumeCapacityM3} m³</p>
+          <p>{loc.maxVolumeM3 > 0 ? `${loc.maxVolumeM3} m³` : '—'}</p>
         </div>
       )
     },
