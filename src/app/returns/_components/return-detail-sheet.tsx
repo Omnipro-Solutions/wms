@@ -10,7 +10,6 @@ import {
   Hash,
   MapPin,
   PackageCheck,
-  Tag,
   Trash2,
   User,
   Wrench,
