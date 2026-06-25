@@ -20,6 +20,7 @@ import { useCurrentOperator } from '@/hooks/use-current-operator'
 import { PageHeader } from '@/components/shared/page-header'
 import { KpiCard } from '@/components/shared/kpi-card'
 import { StatusBadge } from '@/components/shared/status-badge'
+import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -257,16 +258,40 @@ export default function CommercePage() {
                 const overdue = !['completed', 'cancelled'].includes(order.status) && isOverdue(order.promisedDeliveryDate)
                 const urgent = !['completed', 'cancelled'].includes(order.status) && isUrgent(order.promisedDeliveryDate)
 
+                const initials = order.customerName
+                  .split(' ')
+                  .slice(0, 2)
+                  .map((w) => w[0])
+                  .join('')
+                  .toUpperCase()
+
                 return (
                   <TableRow key={order.id}>
-                    <TableCell className="font-medium">
-                      <div className="flex items-center gap-1.5">
-                        {overdue && <TriangleAlert className="size-3 shrink-0 text-red-500" />}
-                        {urgent && !overdue && <Clock className="size-3 shrink-0 text-amber-500" />}
-                        {order.orderNumber}
+                    <TableCell>
+                      <div className="flex flex-col gap-1">
+                        <span className="font-medium text-sm">{order.orderNumber}</span>
+                        {overdue && (
+                          <span className="inline-flex w-fit items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-semibold text-red-700">
+                            <TriangleAlert className="size-2.5" /> Vencida
+                          </span>
+                        )}
+                        {urgent && !overdue && (
+                          <span className="inline-flex w-fit items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-700">
+                            <Clock className="size-2.5" /> Entrega hoy
+                          </span>
+                        )}
                       </div>
                     </TableCell>
-                    <TableCell>{order.customerName}</TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2.5">
+                        <Avatar className="size-8 shrink-0">
+                          <AvatarFallback className="bg-muted text-muted-foreground text-xs font-semibold">
+                            {initials}
+                          </AvatarFallback>
+                        </Avatar>
+                        <span className="text-sm">{order.customerName}</span>
+                      </div>
+                    </TableCell>
                     <TableCell>
                       <div className="flex flex-wrap items-center gap-1">
                         <Badge variant="outline" className="text-xs">
@@ -277,16 +302,15 @@ export default function CommercePage() {
                         </Badge>
                       </div>
                     </TableCell>
-                    <TableCell className="tabular-nums">{order.items.length}</TableCell>
-                    <TableCell className="text-sm">
+                    <TableCell className="tabular-nums text-sm">{order.items.length}</TableCell>
+                    <TableCell>
                       <span className={cn(
+                        'text-sm',
                         overdue && 'font-semibold text-red-600',
                         urgent && !overdue && 'font-semibold text-amber-600'
                       )}>
                         {formatDate(order.promisedDeliveryDate)}
                       </span>
-                      {overdue && <span className="ml-1 text-xs text-red-500">(vencida)</span>}
-                      {urgent && !overdue && <span className="ml-1 text-xs text-amber-500">(hoy)</span>}
                     </TableCell>
                     <TableCell>
                       <StatusBadge status={order.status} />
