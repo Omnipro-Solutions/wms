@@ -250,6 +250,14 @@ export default function ReturnsPage() {
     [rows, dispositionFilter, statusFilter, search]
   )
 
+  const hasActiveFilters = dispositionFilter !== 'all' || statusFilter !== 'all' || search.trim() !== ''
+
+  const handleClearFilters = () => {
+    setDispositionFilter('all')
+    setStatusFilter('all')
+    setSearch('')
+  }
+
   const activeReturns = useMemo(
     () => state.returnOrders.filter((r) => !TERMINAL_STATUSES.has(r.status)),
     [state.returnOrders]
@@ -529,7 +537,19 @@ export default function ReturnsPage() {
             columns={columns}
             data={filteredRows}
             filters={filtersNode}
-            emptyMessage="No hay devoluciones con los filtros seleccionados."
+            emptyState={
+              hasActiveFilters ? (
+                <div className="flex flex-col items-center gap-3 py-8 text-center">
+                  <p className="text-sm text-muted-foreground">
+                    No hay devoluciones con los filtros seleccionados.
+                  </p>
+                  <Button variant="outline" size="sm" onClick={handleClearFilters}>
+                    Limpiar filtros
+                  </Button>
+                </div>
+              ) : undefined
+            }
+            emptyMessage="No hay devoluciones registradas."
           />
         </CardContent>
       </Card>

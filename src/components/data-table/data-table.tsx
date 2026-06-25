@@ -58,6 +58,8 @@ interface DataTableProps<TData, TValue> {
   className?: string
   /** Empty state message */
   emptyMessage?: string
+  /** Custom empty state node (overrides emptyMessage when provided) */
+  emptyState?: ReactNode
   /** Callback when a row is clicked (optional) */
   onRowClick?: (row: TData) => void
   /** Optional className per row based on row data */
@@ -81,6 +83,7 @@ export const DataTable = <TData, TValue>({
   pageSizeOptions,
   className,
   emptyMessage = 'Sin resultados.',
+  emptyState,
   onRowClick,
   rowClassName,
 }: DataTableProps<TData, TValue>) => {
@@ -184,7 +187,7 @@ export const DataTable = <TData, TValue>({
                   colSpan={columns.length}
                   className="text-muted-foreground h-24 text-center"
                 >
-                  {emptyMessage}
+                  {emptyState ?? emptyMessage}
                 </TableCell>
               </TableRow>
             )}
