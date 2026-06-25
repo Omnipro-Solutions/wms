@@ -2517,3 +2517,16 @@ export const unitsOfMeasure: UnitOfMeasure[] = [
 ]
 
 export const seedTimestamp = NOW
+
+// Chart-only historical data — NOT used by selectors or business rules.
+// Index 0 = 8 weeks ago, index 7 = current week.
+export const dashboardHistory = {
+  weeklyOtif: [91, 89, 92, 88, 85, 90, 87, 91],
+  weeklyDemand: {
+    'p-tshirt': [285, 298, 310, 302, 318, 312, 305, 322],
+    'p-socks':  [270, 280, 288, 292, 282, 298, 285, 293],
+    'p-cap':    [175, 220, 195, 245, 205, 255, 215, 230],
+    'p-jeans':  [105, 122, 112, 128, 118, 125, 115, 122],
+    'p-hoodie': [45,  140, 55,  145, 68,  150, 72,  140],
+  },
+}
