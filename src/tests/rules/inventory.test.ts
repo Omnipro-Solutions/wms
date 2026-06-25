@@ -8,6 +8,7 @@ import {
   applyReserve,
   applyScrap,
   availableStock,
+  selectByStrategy,
 } from '@/lib/rules/inventory'
 
 const base = { onHandQuantity: 10, reservedQuantity: 2, holdQuantity: 1 }
@@ -73,5 +74,41 @@ describe('applyAdjustment', () => {
   })
   it('throws on negative count', () => {
     expect(() => applyAdjustment(base, -1)).toThrow()
+  })
+})
+
+describe('selectByStrategy', () => {
+  const items = [
+    { id: 'i1', onHandQuantity: 5, expirationDate: '2026-08-01', status: 'available' as const },
+    { id: 'i2', onHandQuantity: 5, expirationDate: '2026-07-01', status: 'available' as const },
+    { id: 'i3', onHandQuantity: 5, expirationDate: undefined,    status: 'available' as const },
+  ]
+  const base = { productId: 'p1', warehouseId: 'wh-1', locationId: 'loc-1', reservedQuantity: 0, holdQuantity: 0 }
+  const withBase = items.map(i => ({ ...base, ...i }))
+
+  it('fefo: orders by earliest expiration first, no-date last', () => {
+    const result = selectByStrategy(withBase, 'fefo')
+    expect(result[0].id).toBe('i2')  // Jul expires first
+    expect(result[1].id).toBe('i1')  // Aug second
+    expect(result[2].id).toBe('i3')  // no date last
+  })
+
+  it('fifo: orders by id ascending (insertion order proxy)', () => {
+    const result = selectByStrategy(withBase, 'fifo')
+    expect(result.map(i => i.id)).toEqual(['i1', 'i2', 'i3'])
+  })
+
+  it('lifo: orders by id descending', () => {
+    const result = selectByStrategy(withBase, 'lifo')
+    expect(result.map(i => i.id)).toEqual(['i3', 'i2', 'i1'])
+  })
+
+  it('excludes on_hold and expired items', () => {
+    const withHeld = [
+      { ...base, id: 'i4', onHandQuantity: 5, status: 'on_hold' as const },
+      ...withBase,
+    ]
+    const result = selectByStrategy(withHeld, 'fefo')
+    expect(result.every(i => i.status !== 'on_hold')).toBe(true)
   })
 })

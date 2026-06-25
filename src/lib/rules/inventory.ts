@@ -1,6 +1,8 @@
 // Pure inventory quantity rules. The store pairs each successful transform
 // with an appended StockMovement so the log and the stock never diverge.
 
+import { InventoryItem } from '@/types/wms'
+
 export interface StockLevels {
   onHandQuantity: number
   reservedQuantity: number
@@ -71,4 +73,25 @@ export function applyScrap(item: StockLevels, qty: number): StockLevels {
 export function applyAdjustment(item: StockLevels, countedOnHand: number): StockLevels {
   if (countedOnHand < 0) throw new Error('counted quantity cannot be negative')
   return { ...item, onHandQuantity: countedOnHand }
+}
+
+export function selectByStrategy(
+  items: Pick<InventoryItem, 'id' | 'onHandQuantity' | 'expirationDate' | 'status' | 'reservedQuantity' | 'holdQuantity'>[],
+  strategy: 'fifo' | 'fefo' | 'lifo'
+): typeof items {
+  const eligible = items.filter(
+    i => i.status !== 'on_hold' && i.status !== 'expired' && availableStock(i as InventoryItem) > 0
+  )
+  if (strategy === 'fefo') {
+    return [...eligible].sort((a, b) => {
+      if (!a.expirationDate && !b.expirationDate) return 0
+      if (!a.expirationDate) return 1
+      if (!b.expirationDate) return -1
+      return a.expirationDate.localeCompare(b.expirationDate)
+    })
+  }
+  if (strategy === 'lifo') {
+    return [...eligible].sort((a, b) => b.id.localeCompare(a.id))
+  }
+  return [...eligible].sort((a, b) => a.id.localeCompare(b.id))
 }
