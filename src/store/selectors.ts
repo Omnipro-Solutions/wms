@@ -12,6 +12,7 @@ import type { ProductAffinityPair } from '@/lib/rules/slotting'
 import { otifPercentage } from '@/lib/rules/shipping'
 import { productivityByOperator } from '@/lib/rules/picking'
 import { dashboardHistory } from '@/data/seed'
+import { statusLabel } from '@/lib/status'
 import type { WmsState } from './wms-store'
 import type { AbcClass, ProductivityRow, SlottingRecommendation, XyzClass } from '@/types/wms'
 
@@ -629,17 +630,18 @@ export function selectDashboardChartData(state: WmsState): DashboardChartData {
   const otif = otifPercentage(state.shipments)
   const { ira } = selectInventoryAccuracy(state)
 
+  // IRA first → inner ring, OTIF second → outer ring (recharts RadialBarChart: first item = innermost)
   const gauges = [
+    {
+      name: 'IRA',
+      value: Math.round(ira * 10) / 10,
+      fill: '#3b82f6',
+    },
     {
       name: 'OTIF',
       value: Math.round(otif * 10) / 10,
       // ponytail: hex instead of var(--color-*) — Tailwind 4 CSS vars don't resolve in recharts fill props
       fill: otif >= 90 ? '#22c55e' : otif >= 80 ? '#f59e0b' : '#ef4444',
-    },
-    {
-      name: 'IRA',
-      value: Math.round(ira * 10) / 10,
-      fill: '#3b82f6',
     },
   ]
 
@@ -663,12 +665,6 @@ export function selectDashboardChartData(state: WmsState): DashboardChartData {
   for (const o of state.commerceOrders) {
     if (o.status in statusCounts) statusCounts[o.status as keyof typeof statusCounts]++
   }
-  const statusLabels: Record<string, string> = {
-    pending: 'Pendiente',
-    in_progress: 'En progreso',
-    completed: 'Completado',
-    cancelled: 'Cancelado',
-  }
   const statusColors: Record<string, string> = {
     pending: '#3b82f6',
     in_progress: '#f59e0b',
@@ -676,14 +672,12 @@ export function selectDashboardChartData(state: WmsState): DashboardChartData {
     cancelled: '#6b7280',
   }
   const ordersByStatus = Object.entries(statusCounts).map(([key, count]) => ({
-    status: statusLabels[key],
+    status: statusLabel(key),
     count,
     fill: statusColors[key],
   }))
 
-  const operatorProductivity = productivityByOperator(state.pickingTasks)
-    .sort((a, b) => b.unitsPicked - a.unitsPicked)
-    .slice(0, 8)
+  const operatorProductivity = productivityByOperator(state.pickingTasks).slice(0, 8)
 
   return { gauges, weeklyDemand, ordersByStatus, operatorProductivity }
 }
