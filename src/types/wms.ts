@@ -66,6 +66,7 @@ export interface StorageLocation {
   accessibilityScore: number // 0-100; higher = easier/faster to pick
   maxWeightKg: number
   volumeCapacityM3: number
+  maxVolumeM3: number // max volume this slot holds (0 = unlimited)
   distanceToDispatchM: number // meters from location to dispatch/packing
 }
 
@@ -84,6 +85,16 @@ export interface Product {
   baseUomId?: string
   // Conversion rules for receiving/picking in larger units (e.g. boxes, pallets).
   uomConversions?: UomConversion[]
+  // Sprint 9: rotation and expiration handling
+  rotationStrategy?: 'fifo' | 'fefo' | 'lifo'
+  expirationPolicy?: {
+    categoryMatch: string // e.g. 'lacteos', 'frutas' — matches product.category
+    alertDays: number // days before expiry to flag
+    blockAfterExpiry: boolean // if true, blocks picking of expired items
+  }
+  // Replenishment stock limits (replaces derived proxy from demand stats)
+  minStockUnits?: number // if set, overrides selector's demand-based minStock
+  maxStockUnits?: number // if set, overrides selector's demand-based maxStock
 }
 
 export interface InventoryItem {

@@ -71,6 +71,7 @@ export const locations: StorageLocation[] = [
     accessibilityScore: 95,
     maxWeightKg: 25,
     volumeCapacityM3: 2,
+    maxVolumeM3: 0.5,
     distanceToDispatchM: 8,
   },
   {
@@ -85,6 +86,7 @@ export const locations: StorageLocation[] = [
     accessibilityScore: 90,
     maxWeightKg: 25,
     volumeCapacityM3: 2,
+    maxVolumeM3: 0.5,
     distanceToDispatchM: 10,
   },
   {
@@ -99,6 +101,7 @@ export const locations: StorageLocation[] = [
     accessibilityScore: 98,
     maxWeightKg: 20,
     volumeCapacityM3: 1.5,
+    maxVolumeM3: 0.5,
     distanceToDispatchM: 5,
   },
   {
@@ -113,6 +116,7 @@ export const locations: StorageLocation[] = [
     accessibilityScore: 96,
     maxWeightKg: 20,
     volumeCapacityM3: 1.5,
+    maxVolumeM3: 0.5,
     distanceToDispatchM: 6,
   },
   {
@@ -127,6 +131,7 @@ export const locations: StorageLocation[] = [
     accessibilityScore: 40,
     maxWeightKg: 30,
     volumeCapacityM3: 3,
+    maxVolumeM3: 0.5,
     distanceToDispatchM: 45,
   },
   {
@@ -141,6 +146,7 @@ export const locations: StorageLocation[] = [
     accessibilityScore: 20,
     maxWeightKg: 100,
     volumeCapacityM3: 12,
+    maxVolumeM3: 2.0,
     distanceToDispatchM: 70,
   },
   {
@@ -155,6 +161,7 @@ export const locations: StorageLocation[] = [
     accessibilityScore: 50,
     maxWeightKg: 50,
     volumeCapacityM3: 5,
+    maxVolumeM3: 3.0,
     distanceToDispatchM: 30,
   },
   {
@@ -169,6 +176,7 @@ export const locations: StorageLocation[] = [
     accessibilityScore: 60,
     maxWeightKg: 200,
     volumeCapacityM3: 20,
+    maxVolumeM3: 5.0,
     distanceToDispatchM: 2,
   },
   {
@@ -183,6 +191,7 @@ export const locations: StorageLocation[] = [
     accessibilityScore: 45,
     maxWeightKg: 40,
     volumeCapacityM3: 4,
+    maxVolumeM3: 2.0,
     distanceToDispatchM: 35,
   },
 ]
@@ -204,6 +213,9 @@ export const products: Product[] = [
     ],
     imageUrl:
       'https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=80&h=80&fit=crop&auto=format',
+    rotationStrategy: 'fifo',
+    minStockUnits: 10,
+    maxStockUnits: 100,
   },
   {
     id: 'p-jeans',
@@ -221,6 +233,9 @@ export const products: Product[] = [
     ],
     imageUrl:
       'https://images.unsplash.com/photo-1542272604-787c3835535d?w=80&h=80&fit=crop&auto=format',
+    rotationStrategy: 'fifo',
+    minStockUnits: 10,
+    maxStockUnits: 100,
   },
   {
     id: 'p-sneakers',
@@ -237,6 +252,9 @@ export const products: Product[] = [
     ],
     imageUrl:
       'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=80&h=80&fit=crop&auto=format',
+    rotationStrategy: 'fifo',
+    minStockUnits: 10,
+    maxStockUnits: 100,
   },
   {
     id: 'p-jacket',
@@ -253,6 +271,9 @@ export const products: Product[] = [
     ],
     imageUrl:
       'https://images.unsplash.com/photo-1551698618-1dfe5d97d256?w=80&h=80&fit=crop&auto=format',
+    rotationStrategy: 'fifo',
+    minStockUnits: 10,
+    maxStockUnits: 100,
   },
   {
     id: 'p-bag',
@@ -269,6 +290,9 @@ export const products: Product[] = [
     ],
     imageUrl:
       'https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=80&h=80&fit=crop&auto=format',
+    rotationStrategy: 'fifo',
+    minStockUnits: 10,
+    maxStockUnits: 100,
   },
   {
     id: 'p-cap',
@@ -286,6 +310,9 @@ export const products: Product[] = [
     ],
     imageUrl:
       'https://images.unsplash.com/photo-1588850561407-ed78c282e89b?w=80&h=80&fit=crop&auto=format',
+    rotationStrategy: 'fifo',
+    minStockUnits: 10,
+    maxStockUnits: 100,
   },
   {
     id: 'p-socks',
@@ -303,6 +330,9 @@ export const products: Product[] = [
     ],
     imageUrl:
       'https://images.unsplash.com/photo-1586350977771-b3b0abd50c82?w=80&h=80&fit=crop&auto=format',
+    rotationStrategy: 'fifo',
+    minStockUnits: 10,
+    maxStockUnits: 100,
   },
   {
     id: 'p-dress',
@@ -319,6 +349,9 @@ export const products: Product[] = [
     ],
     imageUrl:
       'https://images.unsplash.com/photo-1496747611176-843222e1e57c?w=80&h=80&fit=crop&auto=format',
+    rotationStrategy: 'fifo',
+    minStockUnits: 10,
+    maxStockUnits: 100,
   },
   {
     id: 'p-cargo',
@@ -335,6 +368,9 @@ export const products: Product[] = [
     ],
     imageUrl:
       'https://images.unsplash.com/photo-1624378439575-d8705ad7ae80?w=80&h=80&fit=crop&auto=format',
+    rotationStrategy: 'fifo',
+    minStockUnits: 10,
+    maxStockUnits: 100,
   },
   {
     id: 'p-hoodie',
@@ -352,6 +388,9 @@ export const products: Product[] = [
     ],
     imageUrl:
       'https://images.unsplash.com/photo-1556821840-3a63f15732ce?w=80&h=80&fit=crop&auto=format',
+    rotationStrategy: 'fifo',
+    minStockUnits: 10,
+    maxStockUnits: 100,
   },
 ]
 
