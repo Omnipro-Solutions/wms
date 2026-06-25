@@ -94,7 +94,17 @@ export const CreateManifestDialog = ({
 
         <div className="space-y-5 py-1">
           {/* Route + date */}
-          <div className="grid grid-cols-1 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label className="flex items-center gap-1">
+                <MapPinned className="size-3.5" /> Ruta SAP
+              </Label>
+              <Input
+                placeholder="Ej. R-001"
+                value={sapRouteId}
+                onChange={(e) => setSapRouteId(e.target.value)}
+              />
+            </div>
             <div className="space-y-1.5">
               <Label className="flex items-center gap-1">
                 <CalendarDays className="size-3.5" /> Fecha
