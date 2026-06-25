@@ -73,7 +73,9 @@ export const TransferDetailSheet = ({
   const nextStatus = NEXT_MAP[transfer.status]
   const canAdvance = !!nextStatus
 
-  const currentStepIndex = STEPS.findIndex((s) => s.key === transfer.status)
+  const rawStepIndex = STEPS.findIndex((s) => s.key === transfer.status)
+  // partial maps toward completed; clamp to in_transit step if status not in STEPS
+  const currentStepIndex = rawStepIndex === -1 ? STEPS.length - 2 : rawStepIndex
 
   const handleAdvance = () => {
     try {

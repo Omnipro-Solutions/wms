@@ -44,7 +44,6 @@ export default function TransfersPage() {
         linesCount: t.items.length,
         estimatedArrivalDate: t.estimatedArrivalDate,
         status: t.status,
-        canAdvance: !TERMINAL_STATUSES.has(t.status),
       })),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [state.transfers]

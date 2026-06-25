@@ -18,7 +18,6 @@ export interface TransferRow {
   linesCount: number
   estimatedArrivalDate: string
   status: string
-  canAdvance: boolean
 }
 
 export const TYPE_LABELS: Record<TransferOrder['type'], string> = {
