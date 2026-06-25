@@ -6,6 +6,7 @@ import { useWmsStore } from '@/store/wms-store'
 import { useStoreHelpers } from '@/hooks/use-store-helpers'
 import { selectSlottingRecommendations, abcByProduct, xyzByProduct } from '@/store/selectors'
 import { idealLocationTier } from '@/lib/rules/slotting'
+import { suggestPutawayLocation } from '@/lib/rules/putaway'
 import type { AbcClass, XyzClass } from '@/types/wms'
 
 export interface PutawayDialogData {
@@ -69,9 +70,26 @@ export const usePutawayDialog = () => {
           reason: 'Sugerencia estática del ASN (sin recomendación de slotting activa)',
         }
       }
+      // ABC-directed fallback: derive from product weight/volume + class
+      const product = state.products.find((p) => p.id === asn.productId)
+      const abcClass: AbcClass = (abc[asn.productId] ?? 'C') as AbcClass
+      const abcLoc = product
+        ? suggestPutawayLocation({
+            abcClass,
+            productWeightKg: product.unitWeightKg,
+            productVolumeM3: product.unitVolumeM3,
+            locations: allLocations,
+          })
+        : null
+      if (abcLoc) {
+        return {
+          locationId: abcLoc.id,
+          reason: `Sugerencia automática (clase ${abcClass}) — ${abcLoc.golden ? 'zona dorada' : `zona ${abcLoc.zone}`}`,
+        }
+      }
       return { locationId: null, reason: 'Sin sugerencia disponible — selecciona manualmente.' }
     },
-    [state.asnRecords, state.locations, recommendations]
+    [state.asnRecords, state.locations, state.products, recommendations, abc, allLocations]
   )
 
   const open = (
