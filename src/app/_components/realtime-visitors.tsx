@@ -6,6 +6,7 @@ import { useShallow } from "zustand/react/shallow"
 import { Bar, BarChart, XAxis, YAxis } from "recharts"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { type ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
+import { cn } from "@/lib/utils"
 
 const chartConfig = {
   unitsPicked: {
@@ -57,12 +58,12 @@ export const RealtimeVisitors = () => {
             return (
               <div
                 key={row.operatorName}
-                className={[
+                className={cn(
                   "flex items-center gap-3",
-                  !isLastRow ? "border-b border-border/50" : "",
+                  !isLastRow && "border-b border-border/50",
                   !isRightCol ? "border-r border-border/50 pr-5" : "pl-5",
                   isLastRow ? "pt-4 pb-1" : "pt-1 pb-4",
-                ].join(" ")}
+                )}
               >
                 <span className="size-2 rounded-full bg-chart-3 shrink-0" />
                 <span className="min-w-0 flex-1 truncate text-sm">{row.operatorName}</span>
