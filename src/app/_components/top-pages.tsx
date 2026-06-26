@@ -3,7 +3,6 @@
 import { useWmsStore } from "@/store/wms-store"
 import { selectDashboardKpis, selectSlaBreaches } from "@/store/selectors"
 import { useShallow } from "zustand/react/shallow"
-import { cn } from "@/lib/utils"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
@@ -75,10 +74,10 @@ export const TopPages = () => {
 
   const urgencyBadge = (urgency: AlertRow["urgency"]) => {
     if (urgency === "critica")
-      return <Badge className={cn("bg-destructive/10 text-destructive")}>Crítica</Badge>
+      return <Badge className="bg-destructive/10 text-destructive">Crítica</Badge>
     if (urgency === "advertencia")
       return (
-        <Badge className={cn("bg-amber-500/10 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300")}>
+        <Badge className="bg-amber-500/10 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300">
           Advertencia
         </Badge>
       )
