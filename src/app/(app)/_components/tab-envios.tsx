@@ -69,7 +69,7 @@ const DISPATCH_POINTS = [
   0, 0, 0, 2, 8, 18, 34, 52, 68, 74, 82, 88,
   76, 64, 58, 72, 88, 96, 84, 66, 48, 32, 18, 8,
   4, 2, 0, 0, 0, 0, 0, 0,
-] as const
+] satisfies readonly number[]
 
 const dispatchConfig = {
   despachos:  { label: "Despachos",  color: "var(--chart-1)" },
