@@ -1,16 +1,15 @@
 "use client"
 
 import { ArrowDownRight, ArrowUpRight } from "lucide-react"
-import { useWmsStore } from "@/store/wms-store"
-import { selectDashboardKpis } from "@/store/selectors"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { cn } from "@/lib/utils"
+import { useDashboardFilters } from "./dashboard-filters"
+import { getMockKpis } from "./dashboard-mock-data"
 
 export const AnalyticsKpiStrip = () => {
-  const kpis = useWmsStore(selectDashboardKpis)
-
-  if (!kpis) return null
+  const { warehouseId, days } = useDashboardFilters()
+  const kpis = getMockKpis(warehouseId, days)
 
   const otifColor =
     kpis.otif >= 90

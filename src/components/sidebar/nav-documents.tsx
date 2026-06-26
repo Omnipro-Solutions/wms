@@ -1,4 +1,6 @@
-'use client'
+"use client";
+
+import { Ellipsis, Folder, Forward, type LucideIcon, Trash2 } from "lucide-react";
 
 import {
   DropdownMenu,
@@ -6,7 +8,7 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
+} from "@/components/ui/dropdown-menu";
 import {
   SidebarGroup,
   SidebarGroupLabel,
@@ -15,68 +17,67 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   useSidebar,
-} from '@/components/ui/sidebar'
-import { MoreHorizontalIcon, FolderIcon, ShareIcon, Trash2Icon } from 'lucide-react'
+} from "@/components/ui/sidebar";
 
-export function NavProjects({
-  projects,
+export function NavDocuments({
+  items,
 }: {
-  projects: {
-    name: string
-    url: string
-    icon: React.ReactNode
-  }[]
+  readonly items: readonly {
+    readonly name: string;
+    readonly url: string;
+    readonly icon: LucideIcon;
+  }[];
 }) {
-  const { isMobile } = useSidebar()
+  const { isMobile } = useSidebar();
 
   return (
     <SidebarGroup className="group-data-[collapsible=icon]:hidden">
-      <SidebarGroupLabel>Projects</SidebarGroupLabel>
+      <SidebarGroupLabel>Documents</SidebarGroupLabel>
       <SidebarMenu>
-        {projects.map((item) => (
+        {items.map((item) => (
           <SidebarMenuItem key={item.name}>
             <SidebarMenuButton asChild>
               <a href={item.url}>
-                {item.icon}
+                <item.icon />
                 <span>{item.name}</span>
               </a>
             </SidebarMenuButton>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <SidebarMenuAction showOnHover className="aria-expanded:bg-muted">
-                  <MoreHorizontalIcon />
+                <SidebarMenuAction showOnHover className="rounded-sm data-[state=open]:bg-accent">
+                  <Ellipsis />
                   <span className="sr-only">More</span>
                 </SidebarMenuAction>
               </DropdownMenuTrigger>
               <DropdownMenuContent
-                className="w-48"
-                side={isMobile ? 'bottom' : 'right'}
-                align={isMobile ? 'end' : 'start'}
+                className="w-24 rounded-lg"
+                side={isMobile ? "bottom" : "right"}
+                align={isMobile ? "end" : "start"}
               >
                 <DropdownMenuItem>
-                  <FolderIcon className="text-muted-foreground" />
-                  <span>View Project</span>
+                  <Folder />
+                  <span>Open</span>
                 </DropdownMenuItem>
                 <DropdownMenuItem>
-                  <ShareIcon className="text-muted-foreground" />
-                  <span>Share Project</span>
+                  <Forward />
+                  <span>Share</span>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem>
-                  <Trash2Icon className="text-muted-foreground" />
-                  <span>Delete Project</span>
+                <DropdownMenuItem variant="destructive">
+                  <Trash2 />
+                  <span>Delete</span>
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           </SidebarMenuItem>
         ))}
         <SidebarMenuItem>
-          <SidebarMenuButton>
-            <MoreHorizontalIcon />
+          <SidebarMenuButton className="text-sidebar-foreground/70">
+            <Ellipsis className="text-sidebar-foreground/70" />
             <span>More</span>
           </SidebarMenuButton>
         </SidebarMenuItem>
       </SidebarMenu>
     </SidebarGroup>
-  )
+  );
 }

@@ -159,7 +159,7 @@ export default function CommercePage() {
   const operatorName = operator?.name ?? 'Sistema'
 
   return (
-    <>
+    <div className="flex flex-col gap-6">
       <PageHeader
         title="Commerce — Pedidos"
         description="Gestión de pedidos multicanal. Reserva inventario, supervisa estados y sigue la promesa de entrega."
@@ -421,6 +421,6 @@ export default function CommercePage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </>
+    </div>
   )
 }

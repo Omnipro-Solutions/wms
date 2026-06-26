@@ -1,26 +1,21 @@
 "use client"
 
-import { useWmsStore } from "@/store/wms-store"
-import { selectDashboardChartData } from "@/store/selectors"
-import { useShallow } from "zustand/react/shallow"
 import { Bar, BarChart, XAxis, YAxis } from "recharts"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { type ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
 import { cn } from "@/lib/utils"
+import { useDashboardFilters } from "./dashboard-filters"
+import { getMockOperatorProductivity } from "./dashboard-mock-data"
+
+const CHART_MARGIN = { bottom: 0, left: 0, right: 0, top: 0 }
 
 const chartConfig = {
-  unitsPicked: {
-    color: "var(--chart-3)",
-    label: "Unidades",
-  },
+  unitsPicked: { color: "var(--chart-3)", label: "Unidades" },
 } satisfies ChartConfig
 
 export const RealtimeVisitors = () => {
-  const { operatorProductivity } = useWmsStore(
-    useShallow((s) => selectDashboardChartData(s))
-  )
-
-  if (!operatorProductivity || operatorProductivity.length === 0) return null
+  const { warehouseId, days } = useDashboardFilters()
+  const operatorProductivity = getMockOperatorProductivity(warehouseId, days)
 
   const top = operatorProductivity[0]
   const top4 = operatorProductivity.slice(0, 4)
@@ -40,11 +35,7 @@ export const RealtimeVisitors = () => {
           </div>
         </div>
         <ChartContainer config={chartConfig} className="h-36 w-full">
-          <BarChart
-            data={operatorProductivity}
-            margin={{ bottom: 0, left: 0, right: 0, top: 0 }}
-            barCategoryGap={3}
-          >
+          <BarChart data={operatorProductivity} margin={CHART_MARGIN} barCategoryGap={3}>
             <XAxis dataKey="operatorName" hide />
             <YAxis hide />
             <ChartTooltip cursor={false} content={<ChartTooltipContent hideLabel />} />

@@ -41,15 +41,22 @@ const MOVEMENT_LABELS: Record<StockMovement['type'], string> = {
 }
 
 const MOVEMENT_COLORS: Record<StockMovement['type'], string> = {
-  receipt: 'text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800/50',
-  putaway: 'text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-950/40 border-blue-200 dark:border-blue-800/50',
+  receipt:
+    'text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800/50',
+  putaway:
+    'text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-950/40 border-blue-200 dark:border-blue-800/50',
   pick: 'text-violet-700 dark:text-violet-300 bg-violet-50 dark:bg-violet-950/50 border-violet-200 dark:border-violet-800/50',
-  transfer: 'text-sky-700 dark:text-sky-300 bg-sky-50 dark:bg-sky-950/40 border-sky-200 dark:border-sky-800/50',
-  adjustment: 'text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 border-amber-200 dark:border-amber-800/50',
+  transfer:
+    'text-sky-700 dark:text-sky-300 bg-sky-50 dark:bg-sky-950/40 border-sky-200 dark:border-sky-800/50',
+  adjustment:
+    'text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 border-amber-200 dark:border-amber-800/50',
   hold: 'text-orange-700 dark:text-orange-300 bg-orange-50 dark:bg-orange-950/40 border-orange-200 dark:border-orange-800/50',
-  release: 'text-teal-700 dark:text-teal-300 bg-teal-50 dark:bg-teal-950/40 border-teal-200 dark:border-teal-800/50',
-  return: 'text-rose-700 dark:text-rose-300 bg-rose-50 dark:bg-rose-950/40 border-rose-200 dark:border-rose-800/50',
-  scrap: 'text-zinc-600 dark:text-zinc-300 bg-zinc-50 dark:bg-zinc-800/50 border-zinc-200 dark:border-zinc-700/50',
+  release:
+    'text-teal-700 dark:text-teal-300 bg-teal-50 dark:bg-teal-950/40 border-teal-200 dark:border-teal-800/50',
+  return:
+    'text-rose-700 dark:text-rose-300 bg-rose-50 dark:bg-rose-950/40 border-rose-200 dark:border-rose-800/50',
+  scrap:
+    'text-zinc-600 dark:text-zinc-300 bg-zinc-50 dark:bg-zinc-800/50 border-zinc-200 dark:border-zinc-700/50',
 }
 
 const MOVEMENT_ICONS: Record<StockMovement['type'], React.ReactNode> = {
@@ -67,9 +74,11 @@ const MOVEMENT_ICONS: Record<StockMovement['type'], React.ReactNode> = {
 // ── Sub-components ─────────────────────────────────────────────────────────────
 
 const InfoCallout = () => (
-  <Alert className="border-violet-200 dark:border-violet-800/50 bg-violet-50 dark:bg-violet-950/50">
+  <Alert className="border-violet-200 bg-violet-50 dark:border-violet-800/50 dark:bg-violet-950/50">
     <Info className="size-4 text-violet-600 dark:text-violet-300" />
-    <AlertTitle className="text-violet-800 dark:text-violet-300">Trazabilidad completa por número de serie</AlertTitle>
+    <AlertTitle className="text-violet-800 dark:text-violet-300">
+      Trazabilidad completa por número de serie
+    </AlertTitle>
     <AlertDescription className="text-violet-700 dark:text-violet-300">
       <p className="mt-1 text-sm">
         Busca cualquier número de serie (N/S) para ver su ciclo de vida completo: recepción en
@@ -92,12 +101,18 @@ interface StatusChipProps {
 
 const StatusChip = ({ status, serial, locationCode, productName }: StatusChipProps) => {
   const colorMap: Record<string, string> = {
-    available: 'border-emerald-300 dark:border-emerald-800/50 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300',
-    reserved: 'border-blue-300 dark:border-blue-800/50 bg-blue-50 dark:bg-blue-950/40 text-blue-800 dark:text-blue-300',
-    on_hold: 'border-amber-300 dark:border-amber-800/50 bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300',
-    in_transit: 'border-sky-300 dark:border-sky-800/50 bg-sky-50 dark:bg-sky-950/40 text-sky-800 dark:text-sky-300',
-    expired: 'border-red-300 dark:border-red-800/50 bg-red-50 dark:bg-red-950/40 text-red-800 dark:text-red-300',
-    damaged: 'border-zinc-300 dark:border-zinc-700/50 bg-zinc-50 dark:bg-zinc-800/50 text-zinc-800 dark:text-zinc-300',
+    available:
+      'border-emerald-300 dark:border-emerald-800/50 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300',
+    reserved:
+      'border-blue-300 dark:border-blue-800/50 bg-blue-50 dark:bg-blue-950/40 text-blue-800 dark:text-blue-300',
+    on_hold:
+      'border-amber-300 dark:border-amber-800/50 bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300',
+    in_transit:
+      'border-sky-300 dark:border-sky-800/50 bg-sky-50 dark:bg-sky-950/40 text-sky-800 dark:text-sky-300',
+    expired:
+      'border-red-300 dark:border-red-800/50 bg-red-50 dark:bg-red-950/40 text-red-800 dark:text-red-300',
+    damaged:
+      'border-zinc-300 dark:border-zinc-700/50 bg-zinc-50 dark:bg-zinc-800/50 text-zinc-800 dark:text-zinc-300',
   }
   const labelMap: Record<string, string> = {
     available: 'Disponible',
@@ -109,13 +124,15 @@ const StatusChip = ({ status, serial, locationCode, productName }: StatusChipPro
   }
 
   return (
-    <div className="rounded-xl border-2 border-violet-200 dark:border-violet-800/50 bg-violet-50 dark:bg-violet-950/50 p-4">
-      <p className="text-[10px] font-bold uppercase tracking-widest text-violet-500 dark:text-violet-300">
+    <div className="rounded-xl border-2 border-violet-200 bg-violet-50 p-4 dark:border-violet-800/50 dark:bg-violet-950/50">
+      <p className="text-[10px] font-bold tracking-widest text-violet-500 uppercase dark:text-violet-300">
         Estado actual del serial
       </p>
       <div className="mt-2 flex items-start justify-between gap-3">
         <div>
-          <p className="font-mono text-2xl font-bold text-violet-900 dark:text-violet-200">{serial}</p>
+          <p className="font-mono text-2xl font-bold text-violet-900 dark:text-violet-200">
+            {serial}
+          </p>
           <p className="mt-0.5 text-sm text-violet-700 dark:text-violet-300">{productName}</p>
           {locationCode && (
             <p className="mt-1 flex items-center gap-1.5 text-sm text-violet-700 dark:text-violet-300">
@@ -145,7 +162,6 @@ interface TimelineRowProps {
 
 const TimelineRow = ({
   movement: mv,
-  index,
   isLast,
   getLocationCode,
   getProductName,
@@ -182,9 +198,7 @@ const TimelineRow = ({
             <span className="font-mono">{getLocationCode(mv.fromLocationId)}</span>
           )}
           {mv.fromLocationId && mv.toLocationId && <ArrowRight className="size-3" />}
-          {mv.toLocationId && (
-            <span className="font-mono">{getLocationCode(mv.toLocationId)}</span>
-          )}
+          {mv.toLocationId && <span className="font-mono">{getLocationCode(mv.toLocationId)}</span>}
         </p>
       )}
 
@@ -217,8 +231,7 @@ export default function SerialTracePage() {
     if (e.key === 'Enter') handleSearch()
   }
 
-  const getLocationCode = (locationId?: string) =>
-    locationId ? locationCode(locationId) : null
+  const getLocationCode = (locationId?: string) => (locationId ? locationCode(locationId) : null)
 
   const result = useMemo(() => {
     if (!searched) return null
@@ -239,11 +252,10 @@ export default function SerialTracePage() {
     return { inventoryItem, movements, productId }
   }, [searched, state.inventoryItems, state.stockMovements])
 
-  const notFound =
-    result && !result.inventoryItem && result.movements.length === 0
+  const notFound = result && !result.inventoryItem && result.movements.length === 0
 
   return (
-    <>
+    <div className="flex flex-col gap-4">
       <PageHeader
         title="Trazabilidad por N/S"
         description="Historial completo de un número de serie: recepción → ubicación → picking → despacho → devolución."
@@ -276,10 +288,12 @@ export default function SerialTracePage() {
 
       {/* Not found */}
       {notFound && (
-        <Alert className="border-amber-200 dark:border-amber-800/50 bg-amber-50 dark:bg-amber-950/40">
+        <Alert className="border-amber-200 bg-amber-50 dark:border-amber-800/50 dark:bg-amber-950/40">
           <Info className="size-4 text-amber-600 dark:text-amber-300" />
-          <AlertTitle className="text-amber-800 dark:text-amber-300">Serial no encontrado</AlertTitle>
-          <AlertDescription className="text-amber-700 dark:text-amber-300 text-sm">
+          <AlertTitle className="text-amber-800 dark:text-amber-300">
+            Serial no encontrado
+          </AlertTitle>
+          <AlertDescription className="text-sm text-amber-700 dark:text-amber-300">
             No hay inventario ni movimientos registrados para el serial{' '}
             <code className="font-mono font-bold">{searched}</code>. Verifica que el número sea
             correcto o que el producto haya sido recibido con captura de serial.
@@ -299,7 +313,7 @@ export default function SerialTracePage() {
                 productName={productName(result.inventoryItem.productId)}
               />
             ) : (
-              <div className="rounded-xl border-2 border-dashed border-zinc-200 dark:border-zinc-700/50 bg-zinc-50 dark:bg-zinc-800/50 p-4 text-center">
+              <div className="rounded-xl border-2 border-dashed border-zinc-200 bg-zinc-50 p-4 text-center dark:border-zinc-700/50 dark:bg-zinc-800/50">
                 <p className="text-muted-foreground text-sm font-medium">
                   Serial ya no está en inventario
                 </p>
@@ -311,34 +325,41 @@ export default function SerialTracePage() {
 
             {/* Summary KPIs */}
             <Card>
-              <CardHeader className="pb-2 pt-4">
+              <CardHeader className="pt-4 pb-2">
                 <CardTitle className="text-sm">Resumen de movimientos</CardTitle>
               </CardHeader>
               <CardContent className="space-y-1.5 pb-4">
-                {(['receipt', 'putaway', 'pick', 'transfer', 'return', 'scrap'] as StockMovement['type'][]).map(
-                  (type) => {
-                    const count = result.movements.filter((mv) => mv.type === type).length
-                    if (count === 0) return null
-                    return (
-                      <div key={type} className="flex items-center justify-between text-sm">
-                        <span className="flex items-center gap-2 text-muted-foreground text-xs">
-                          <span
-                            className={cn(
-                              'inline-flex size-5 items-center justify-center rounded border',
-                              MOVEMENT_COLORS[type]
-                            )}
-                          >
-                            {MOVEMENT_ICONS[type]}
-                          </span>
-                          {MOVEMENT_LABELS[type]}
+                {(
+                  [
+                    'receipt',
+                    'putaway',
+                    'pick',
+                    'transfer',
+                    'return',
+                    'scrap',
+                  ] as StockMovement['type'][]
+                ).map((type) => {
+                  const count = result.movements.filter((mv) => mv.type === type).length
+                  if (count === 0) return null
+                  return (
+                    <div key={type} className="flex items-center justify-between text-sm">
+                      <span className="text-muted-foreground flex items-center gap-2 text-xs">
+                        <span
+                          className={cn(
+                            'inline-flex size-5 items-center justify-center rounded border',
+                            MOVEMENT_COLORS[type]
+                          )}
+                        >
+                          {MOVEMENT_ICONS[type]}
                         </span>
-                        <Badge variant="outline" className="text-xs tabular-nums">
-                          {count}
-                        </Badge>
-                      </div>
-                    )
-                  }
-                )}
+                        {MOVEMENT_LABELS[type]}
+                      </span>
+                      <Badge variant="outline" className="text-xs tabular-nums">
+                        {count}
+                      </Badge>
+                    </div>
+                  )
+                })}
                 {result.movements.length === 0 && (
                   <p className="text-muted-foreground text-xs">Sin movimientos registrados aún.</p>
                 )}
@@ -349,7 +370,7 @@ export default function SerialTracePage() {
           {/* Right: timeline */}
           <div className="lg:col-span-2">
             <Card>
-              <CardHeader className="pb-3 pt-4">
+              <CardHeader className="pt-4 pb-3">
                 <CardTitle className="flex items-center gap-2 text-sm">
                   <Hash className="text-muted-foreground size-4" />
                   Ciclo de vida del serial{' '}
@@ -380,6 +401,6 @@ export default function SerialTracePage() {
           </div>
         </div>
       )}
-    </>
+    </div>
   )
 }

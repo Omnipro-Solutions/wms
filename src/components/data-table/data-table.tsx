@@ -136,12 +136,12 @@ export const DataTable = <TData, TValue>({
       )}
 
       <div className="overflow-hidden rounded-md border">
-        <Table>
+        <Table className="**:data-[slot='table-cell']:px-4 **:data-[slot='table-head']:px-4">
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
-              <TableRow key={headerGroup.id} className="bg-muted/40 hover:bg-muted/40">
+              <TableRow key={headerGroup.id}>
                 {headerGroup.headers.map((header) => (
-                  <TableHead key={header.id} colSpan={header.colSpan}>
+                  <TableHead key={header.id} colSpan={header.colSpan} className="py-4 font-normal">
                     {header.isPlaceholder
                       ? null
                       : flexRender(header.column.columnDef.header, header.getContext())}
@@ -156,7 +156,7 @@ export const DataTable = <TData, TValue>({
               Array.from({ length: SKELETON_ROWS }).map((_, i) => (
                 <TableRow key={`skeleton-${i}`}>
                   {columns.map((_, j) => (
-                    <TableCell key={j}>
+                    <TableCell key={j} className="px-4 py-4">
                       <Skeleton className="h-4 w-full" />
                     </TableCell>
                   ))}
@@ -169,13 +169,13 @@ export const DataTable = <TData, TValue>({
                   data-state={row.getIsSelected() ? 'selected' : undefined}
                   onClick={onRowClick ? () => onRowClick(row.original) : undefined}
                   className={cn(
-                    'group hover:bg-muted/40 transition-colors',
+                    'border-border/60 hover:bg-white/2.5 transition-colors',
                     onRowClick && 'cursor-pointer',
                     rowClassName?.(row.original)
                   )}
                 >
                   {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id}>
+                    <TableCell key={cell.id} className="px-4 py-4 align-middle">
                       {flexRender(cell.column.columnDef.cell, cell.getContext())}
                     </TableCell>
                   ))}

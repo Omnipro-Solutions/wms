@@ -108,7 +108,7 @@ export default function TransfersPage() {
   )
 
   return (
-    <>
+    <div className="flex flex-col gap-6">
       <PageHeader
         title="Traslados"
         description="Movimientos entre bodegas y tiendas. Avanza el estado del traslado a lo largo del ciclo DC↔Tienda."
@@ -155,6 +155,6 @@ export default function TransfersPage() {
         open={!!detailSheet.data}
         onClose={detailSheet.close}
       />
-    </>
+    </div>
   )
 }

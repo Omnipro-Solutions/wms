@@ -1,91 +1,26 @@
 "use client"
 
-import { useWmsStore } from "@/store/wms-store"
-import { selectDashboardKpis, selectSlaBreaches } from "@/store/selectors"
-import { useShallow } from "zustand/react/shallow"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
+import { useDashboardFilters } from "./dashboard-filters"
+import { getMockAlerts, type MockAlert } from "./dashboard-mock-data"
 
-type AlertRow = {
-  id: string
-  label: string
-  detail: string
-  urgency: "critica" | "advertencia" | "info"
+const urgencyBadge = (urgency: MockAlert["urgency"]) => {
+  if (urgency === "critica")
+    return <Badge className="bg-destructive/10 text-destructive">Crítica</Badge>
+  if (urgency === "advertencia")
+    return (
+      <Badge className="bg-amber-500/10 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300">
+        Advertencia
+      </Badge>
+    )
+  return <Badge variant="outline">Info</Badge>
 }
 
 export const TopPages = () => {
-  const kpis = useWmsStore(selectDashboardKpis)
-  const { slaBreaches, integrationErrors } = useWmsStore(
-    useShallow((s) => ({
-      slaBreaches: selectSlaBreaches(s, Date.now()),
-      integrationErrors: s.integrations.filter((i) => i.status === "error"),
-    }))
-  )
-
-  // Note: slaBreaches array used below is the source of truth for SLA count
-  // to avoid dual Date.now() timestamp drift between kpis and slaBreaches selector
-
-  if (!kpis) return null
-
-  const alerts: AlertRow[] = []
-
-  for (const sla of slaBreaches) {
-    alerts.push({
-      id: `sla-${sla.orderId}`,
-      label: sla.isBreached ? "SLA Incumplido" : "SLA en Riesgo",
-      detail: `Orden ${sla.orderId} — ${sla.elapsedHours}h / ${sla.maxHours}h (${sla.breachPercent}%)`,
-      urgency: sla.isBreached ? "critica" : "advertencia",
-    })
-  }
-
-  for (const integ of integrationErrors) {
-    alerts.push({
-      id: `integ-${integ.id}`,
-      label: "Error de Integración",
-      detail: integ.name,
-      urgency: "critica",
-    })
-  }
-
-  if (kpis.criticalStockItems > 0) {
-    alerts.push({
-      id: "stock-critical",
-      label: "Stock Crítico",
-      detail: `${kpis.criticalStockItems} producto(s) bajo mínimo`,
-      urgency: "critica",
-    })
-  }
-
-  if (kpis.expiringItems > 0) {
-    alerts.push({
-      id: "expiring",
-      label: "Próximos a Vencer",
-      detail: `${kpis.expiringItems} ítem(s) con vencimiento próximo`,
-      urgency: "advertencia",
-    })
-  }
-
-  if (kpis.inventoryOnHold > 0) {
-    alerts.push({
-      id: "hold",
-      label: "Inventario en Hold",
-      detail: `${kpis.inventoryOnHold} unidades bloqueadas`,
-      urgency: "info",
-    })
-  }
-
-  const urgencyBadge = (urgency: AlertRow["urgency"]) => {
-    if (urgency === "critica")
-      return <Badge className="bg-destructive/10 text-destructive">Crítica</Badge>
-    if (urgency === "advertencia")
-      return (
-        <Badge className="bg-amber-500/10 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300">
-          Advertencia
-        </Badge>
-      )
-    return <Badge variant="outline">Info</Badge>
-  }
+  const { warehouseId, days } = useDashboardFilters()
+  const alerts = getMockAlerts(warehouseId, days)
 
   return (
     <Card className="h-full gap-2">

@@ -1,11 +1,12 @@
 "use client"
 
-import { useWmsStore } from "@/store/wms-store"
-import { selectDashboardChartData } from "@/store/selectors"
-import { useShallow } from "zustand/react/shallow"
 import { CartesianGrid, ComposedChart, Line, XAxis, YAxis } from "recharts"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { type ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
+import { useDashboardFilters } from "./dashboard-filters"
+import { getMockWeeklyDemand, WEEKLY_DEMAND_PRODUCT_KEYS } from "./dashboard-mock-data"
+
+const CHART_MARGIN = { bottom: 0, left: 0, right: 0, top: 0 }
 
 const CHART_COLORS = [
   "var(--chart-1)",
@@ -15,19 +16,14 @@ const CHART_COLORS = [
   "var(--chart-5)",
 ]
 
+const chartConfig: ChartConfig = WEEKLY_DEMAND_PRODUCT_KEYS.reduce<ChartConfig>((acc, key, i) => {
+  acc[key] = { color: CHART_COLORS[i], label: key }
+  return acc
+}, {})
+
 export const TrafficQuality = () => {
-  const { weeklyDemand } = useWmsStore(
-    useShallow((s) => selectDashboardChartData(s))
-  )
-
-  if (!weeklyDemand || weeklyDemand.length === 0) return null
-
-  const productKeys = Object.keys(weeklyDemand[0]).filter((k) => k !== "week")
-
-  const chartConfig = productKeys.reduce<ChartConfig>((acc, key, i) => {
-    acc[key] = { color: CHART_COLORS[i % CHART_COLORS.length], label: key }
-    return acc
-  }, {})
+  const { warehouseId, days } = useDashboardFilters()
+  const weeklyDemand = getMockWeeklyDemand(warehouseId, days)
 
   return (
     <Card className="h-full">
@@ -36,31 +32,18 @@ export const TrafficQuality = () => {
       </CardHeader>
       <CardContent>
         <ChartContainer config={chartConfig} className="h-68 w-full">
-          <ComposedChart data={weeklyDemand} margin={{ bottom: 0, left: 0, right: 0, top: 0 }}>
+          <ComposedChart data={weeklyDemand} margin={CHART_MARGIN}>
             <CartesianGrid vertical={false} />
-            <XAxis
-              dataKey="week"
-              axisLine={false}
-              tickLine={false}
-              tickMargin={14}
-            />
-            <YAxis
-              axisLine={false}
-              tickLine={false}
-              tickMargin={10}
-              width={34}
-            />
-            <ChartTooltip
-              cursor={false}
-              content={<ChartTooltipContent className="w-48" />}
-            />
-            {productKeys.map((key, i) => (
+            <XAxis dataKey="week" axisLine={false} tickLine={false} tickMargin={14} />
+            <YAxis axisLine={false} tickLine={false} tickMargin={10} width={34} />
+            <ChartTooltip cursor={false} content={<ChartTooltipContent className="w-48" />} />
+            {WEEKLY_DEMAND_PRODUCT_KEYS.map((key, i) => (
               <Line
                 key={key}
                 dataKey={key}
                 dot={false}
                 activeDot={{ r: 4 }}
-                stroke={CHART_COLORS[i % CHART_COLORS.length]}
+                stroke={CHART_COLORS[i]}
                 strokeWidth={2}
                 type="monotone"
               />

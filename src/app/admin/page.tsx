@@ -378,7 +378,7 @@ const AdminPage = () => {
         </CardContent>
       </Card>
 
-      <SubNav items={ADMIN_TABS} defaultValue="operators" className="mb-4" />
+      <SubNav items={ADMIN_TABS} defaultValue="operators" />
 
       {/* ── Operators ── */}
       {activeTab === 'operators' && (

@@ -25,7 +25,7 @@ export default function ReportsPage() {
   const tab = (searchParams.get('tab') ?? DEFAULT_TAB) as TabValue
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="flex flex-col gap-6">
       <PageHeader
         title="Reportes"
         description="Productividad por operador, exactitud de inventario, OTIF y proyección de demanda"

@@ -17,7 +17,7 @@ export default function IntegrationsPage() {
   const errorIntegrations = integrations.filter((i) => i.status === 'error')
 
   return (
-    <>
+    <div className="flex flex-col gap-6">
       <PageHeader
         title="Integraciones"
         description="Conexiones con sistemas externos: SAP, ecommerce, marketplaces, transportadoras y POS."
@@ -64,6 +64,6 @@ export default function IntegrationsPage() {
       </div>
 
       <IntegrationSummaryTable integrations={integrations} />
-    </>
+    </div>
   )
 }

@@ -1,5 +1,8 @@
 'use client'
 
+import { ChevronsUpDownIcon, MoonIcon, RefreshCwIcon, ShieldCheckIcon, SunIcon } from 'lucide-react'
+import { useTheme } from 'next-themes'
+
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import {
   DropdownMenu,
@@ -10,14 +13,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import {
-  SidebarMenu,
-  SidebarMenuButton,
-  SidebarMenuItem,
-  useSidebar,
-} from '@/components/ui/sidebar'
-import { ChevronsUpDownIcon, MoonIcon, RefreshCwIcon, ShieldCheckIcon, SunIcon } from 'lucide-react'
-import { useTheme } from 'next-themes'
+import { SidebarMenu, SidebarMenuButton, SidebarMenuItem, useSidebar } from '@/components/ui/sidebar'
 import { useCurrentOperator } from '@/hooks/use-current-operator'
 import { useOperatorPicker } from '@/components/layout/operator-picker-provider'
 

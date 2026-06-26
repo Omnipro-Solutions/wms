@@ -112,7 +112,7 @@ export default function LabelsPage() {
   )
 
   return (
-    <>
+    <div className="flex flex-col gap-6">
       <PageHeader
         title="Etiquetas"
         description="Gestión de etiquetas de producto, ubicación, caja, pallet, envío y devolución."
@@ -160,6 +160,6 @@ export default function LabelsPage() {
         open={previewLabel !== null}
         onClose={() => setPreviewLabel(null)}
       />
-    </>
+    </div>
   )
 }

@@ -153,7 +153,7 @@ export default function LoadManifestsPage() {
   }
 
   return (
-    <>
+    <div className="flex flex-col gap-6">
       <PageHeader
         title="Manifiestos de carga"
         description="Crea y gestiona los manifiestos de despacho por ruta SAP. Asigna documentos, despacha y cierra manifiestos."
@@ -306,6 +306,6 @@ export default function LoadManifestsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </>
+    </div>
   )
 }

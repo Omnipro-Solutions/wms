@@ -63,16 +63,22 @@ const HowItWorksCallout = () => (
     <AlertTitle className="text-blue-800">Rastrea un lote o serial en segundos</AlertTitle>
     <AlertDescription className="text-blue-700">
       <p className="mt-1">
-        Escribe el número de lote (ej. <code className="font-mono text-xs">LOT-TS-2601</code>) o el serial (ej.{' '}
-        <code className="font-mono text-xs">SN-2024-0001</code>) del producto que quieres consultar.
-        Obtendrás de inmediato:
+        Escribe el número de lote (ej. <code className="font-mono text-xs">LOT-TS-2601</code>) o el
+        serial (ej. <code className="font-mono text-xs">SN-2024-0001</code>) del producto que
+        quieres consultar. Obtendrás de inmediato:
       </p>
-      <ul className="mt-2 space-y-1 list-disc list-inside text-sm">
-        <li><strong>Dónde está</strong> — ubicación exacta, cantidades disponibles y estado actual.</li>
-        <li><strong>Todo lo que le pasó</strong> — cada recepción, traslado, picking, hold o ajuste registrado.</li>
+      <ul className="mt-2 list-inside list-disc space-y-1 text-sm">
+        <li>
+          <strong>Dónde está</strong> — ubicación exacta, cantidades disponibles y estado actual.
+        </li>
+        <li>
+          <strong>Todo lo que le pasó</strong> — cada recepción, traslado, picking, hold o ajuste
+          registrado.
+        </li>
       </ul>
       <p className="mt-2 text-xs opacity-80">
-        Ideal para auditorías de calidad, recalls y consultas de clientes sobre el origen de un producto.
+        Ideal para auditorías de calidad, recalls y consultas de clientes sobre el origen de un
+        producto.
       </p>
     </AlertDescription>
   </Alert>
@@ -90,13 +96,11 @@ const PositionCard = ({ item, productName, productSku, locationCode }: PositionC
   const avail = availableStock(item)
 
   return (
-    <div className="rounded-lg border bg-zinc-50/50 p-4 space-y-3">
+    <div className="space-y-3 rounded-lg border bg-zinc-50/50 p-4">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="font-medium truncate">{productName}</p>
-          {productSku && (
-            <p className="text-muted-foreground font-mono text-xs">{productSku}</p>
-          )}
+          <p className="truncate font-medium">{productName}</p>
+          {productSku && <p className="text-muted-foreground font-mono text-xs">{productSku}</p>}
         </div>
         <Badge
           variant="outline"
@@ -104,7 +108,7 @@ const PositionCard = ({ item, productName, productSku, locationCode }: PositionC
             'shrink-0 text-xs',
             expired && 'border-red-300 text-red-700',
             !expired && item.status === 'on_hold' && 'border-amber-300 text-amber-700',
-            !expired && item.status === 'available' && 'border-emerald-300 text-emerald-700',
+            !expired && item.status === 'available' && 'border-emerald-300 text-emerald-700'
           )}
         >
           {expired ? 'Vencido' : item.status}
@@ -131,14 +135,19 @@ const PositionCard = ({ item, productName, productSku, locationCode }: PositionC
         {item.expirationDate && (
           <div className="flex items-center gap-2">
             <CalendarClock className="text-muted-foreground size-3.5 shrink-0" />
-            <span className={cn('text-xs', expired ? 'text-destructive font-medium' : 'text-muted-foreground')}>
+            <span
+              className={cn(
+                'text-xs',
+                expired ? 'text-destructive font-medium' : 'text-muted-foreground'
+              )}
+            >
               Vence: {formatDate(item.expirationDate)}
             </span>
           </div>
         )}
       </div>
 
-      <div className="flex gap-4 text-sm border-t pt-2">
+      <div className="flex gap-4 border-t pt-2 text-sm">
         <span className="text-muted-foreground text-xs">
           En mano: <strong className="text-foreground">{formatNumber(item.onHandQuantity)}</strong>
         </span>
@@ -147,7 +156,8 @@ const PositionCard = ({ item, productName, productSku, locationCode }: PositionC
         </span>
         {item.reservedQuantity > 0 && (
           <span className="text-muted-foreground text-xs">
-            Reservado: <strong className="text-blue-600">{formatNumber(item.reservedQuantity)}</strong>
+            Reservado:{' '}
+            <strong className="text-blue-600">{formatNumber(item.reservedQuantity)}</strong>
           </span>
         )}
         {item.holdQuantity > 0 && (
@@ -168,19 +178,27 @@ interface MovementRowProps {
   getProductName: (id: string) => string
 }
 
-const MovementRow = ({ movement: mv, index, isLast, getLocationCode, getProductName }: MovementRowProps) => (
+const MovementRow = ({
+  movement: mv,
+  index,
+  isLast,
+  getLocationCode,
+  getProductName,
+}: MovementRowProps) => (
   <div className="flex gap-3">
     <div className="flex flex-col items-center">
-      <div className={cn(
-        'flex size-7 shrink-0 items-center justify-center rounded-full border text-[10px] font-bold',
-        MOVEMENT_COLORS[mv.type]
-      )}>
+      <div
+        className={cn(
+          'flex size-7 shrink-0 items-center justify-center rounded-full border text-[10px] font-bold',
+          MOVEMENT_COLORS[mv.type]
+        )}
+      >
         {index + 1}
       </div>
-      {!isLast && <div className="bg-border w-px flex-1 my-1" />}
+      {!isLast && <div className="bg-border my-1 w-px flex-1" />}
     </div>
 
-    <div className={cn('pb-4 min-w-0 flex-1', isLast && 'pb-0')}>
+    <div className={cn('min-w-0 flex-1 pb-4', isLast && 'pb-0')}>
       <div className="flex items-center justify-between gap-2">
         <span className={cn('text-xs font-semibold', MOVEMENT_COLORS[mv.type].split(' ')[0])}>
           {MOVEMENT_LABELS[mv.type]}
@@ -192,20 +210,27 @@ const MovementRow = ({ movement: mv, index, isLast, getLocationCode, getProductN
 
       <div className="mt-1 flex flex-wrap items-center gap-2">
         <span className="text-sm font-medium tabular-nums">
-          {DEBIT_TYPES.has(mv.type) ? '−' : '+'}{formatNumber(mv.quantity)} uds.
+          {DEBIT_TYPES.has(mv.type) ? '−' : '+'}
+          {formatNumber(mv.quantity)} uds.
         </span>
         <span className="text-muted-foreground text-xs">{getProductName(mv.productId)}</span>
         {mv.lot && (
-          <Badge variant="outline" className="font-mono text-[10px]">L: {mv.lot}</Badge>
+          <Badge variant="outline" className="font-mono text-[10px]">
+            L: {mv.lot}
+          </Badge>
         )}
         {mv.serial && (
-          <Badge variant="outline" className="font-mono text-[10px]">S: {mv.serial}</Badge>
+          <Badge variant="outline" className="font-mono text-[10px]">
+            S: {mv.serial}
+          </Badge>
         )}
       </div>
 
       {(mv.fromLocationId || mv.toLocationId) && (
-        <p className="text-muted-foreground mt-0.5 text-[11px] flex items-center gap-1">
-          {mv.fromLocationId && <span className="font-mono">{getLocationCode(mv.fromLocationId)}</span>}
+        <p className="text-muted-foreground mt-0.5 flex items-center gap-1 text-[11px]">
+          {mv.fromLocationId && (
+            <span className="font-mono">{getLocationCode(mv.fromLocationId)}</span>
+          )}
           {mv.fromLocationId && mv.toLocationId && <ArrowRight className="size-3" />}
           {mv.toLocationId && <span className="font-mono">{getLocationCode(mv.toLocationId)}</span>}
         </p>
@@ -233,7 +258,7 @@ export default function LotTracePage() {
     if (e.key === 'Enter') handleSearch()
   }
 
-  const getLocationCode = (locationId?: string) => locationId ? locationCode(locationId) : null
+  const getLocationCode = (locationId?: string) => (locationId ? locationCode(locationId) : null)
 
   const result = useMemo(() => {
     if (!searched) return null
@@ -250,9 +275,7 @@ export default function LotTracePage() {
 
     const movements = state.stockMovements
       .filter(
-        (mv) =>
-          (mv.lot && matchedLots.has(mv.lot)) ||
-          (mv.serial && matchedSerials.has(mv.serial))
+        (mv) => (mv.lot && matchedLots.has(mv.lot)) || (mv.serial && matchedSerials.has(mv.serial))
       )
       .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
 
@@ -262,7 +285,7 @@ export default function LotTracePage() {
   const isEmpty = result && result.items.length === 0 && result.movements.length === 0
 
   return (
-    <>
+    <div className="flex flex-col gap-4">
       <PageHeader
         title="Trazabilidad por lote / serial"
         description="Consulta el historial completo de un lote o serial: posiciones actuales, movimientos y estado."
@@ -296,7 +319,9 @@ export default function LotTracePage() {
             <AlertCircle className="text-muted-foreground mx-auto mb-3 size-10 opacity-30" />
             <p className="text-muted-foreground text-sm">
               No se encontraron resultados para{' '}
-              <span className="text-foreground font-mono font-medium">&ldquo;{searched}&rdquo;</span>
+              <span className="text-foreground font-mono font-medium">
+                &ldquo;{searched}&rdquo;
+              </span>
             </p>
             <p className="text-muted-foreground mt-1 text-xs">
               Verifica que el número de lote o serial esté escrito correctamente.
@@ -368,7 +393,9 @@ export default function LotTracePage() {
             <Card>
               <CardContent className="py-8 text-center">
                 <Package className="text-muted-foreground mx-auto mb-2 size-8 opacity-30" />
-                <p className="text-muted-foreground text-sm">Sin movimientos registrados para este lote/serial.</p>
+                <p className="text-muted-foreground text-sm">
+                  Sin movimientos registrados para este lote/serial.
+                </p>
                 <p className="text-muted-foreground mt-1 text-xs">
                   Los movimientos se generan al ejecutar acciones en Inventario o Picking.
                 </p>
@@ -377,6 +404,6 @@ export default function LotTracePage() {
           )}
         </div>
       )}
-    </>
+    </div>
   )
 }

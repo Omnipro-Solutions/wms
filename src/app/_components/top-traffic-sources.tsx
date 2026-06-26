@@ -1,22 +1,20 @@
 "use client"
 
-import { useWmsStore } from "@/store/wms-store"
-import { selectDashboardChartData } from "@/store/selectors"
-import { useShallow } from "zustand/react/shallow"
-import { statusLabel } from "@/lib/status"
 import { Bar, BarChart, CartesianGrid, LabelList, type LabelProps, XAxis, YAxis } from "recharts"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { type ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { useDashboardFilters } from "./dashboard-filters"
+import {
+  getMockOrdersByStatus,
+  getMockPickingByStatus,
+  getMockReturnsByStatus,
+  type StatusDatum,
+} from "./dashboard-mock-data"
 
 const chartConfig = {
-  count: {
-    color: "var(--chart-1)",
-    label: "Cantidad",
-  },
+  count: { color: "var(--chart-1)", label: "Cantidad" },
 } satisfies ChartConfig
-
-type StatusDatum = { label: string; status: string; count: number }
 
 const renderValueLabel = (props: LabelProps) => {
   const { height, value, y } = props
@@ -38,12 +36,7 @@ const renderValueLabel = (props: LabelProps) => {
 
 const StatusBarChart = ({ data }: { data: StatusDatum[] }) => (
   <ChartContainer config={chartConfig} className="h-64 w-full">
-    <BarChart
-      accessibilityLayer
-      data={data}
-      layout="vertical"
-      margin={{ left: 0, right: 48 }}
-    >
+    <BarChart accessibilityLayer data={data} layout="vertical" margin={{ left: 0, right: 48 }}>
       <CartesianGrid horizontal={false} vertical={false} />
       <YAxis dataKey="status" hide tickLine={false} tickMargin={10} type="category" />
       <XAxis dataKey="count" hide type="number" />
@@ -57,41 +50,11 @@ const StatusBarChart = ({ data }: { data: StatusDatum[] }) => (
 )
 
 export const TopTrafficSources = () => {
-  const { ordersByStatus, pickingData, returnData } = useWmsStore(
-    useShallow((s) => {
-      const chart = selectDashboardChartData(s)
+  const { warehouseId, days } = useDashboardFilters()
 
-      const pickingCounts: Record<string, number> = {}
-      for (const t of s.pickingTasks) {
-        pickingCounts[t.status] = (pickingCounts[t.status] ?? 0) + 1
-      }
-      const pickingData: StatusDatum[] = Object.entries(pickingCounts).map(([st, count]) => ({
-        status: statusLabel(st),
-        label: String(count),
-        count,
-      }))
-
-      const returnCounts: Record<string, number> = {}
-      for (const r of s.returnOrders) {
-        returnCounts[r.status] = (returnCounts[r.status] ?? 0) + 1
-      }
-      const returnData: StatusDatum[] = Object.entries(returnCounts).map(([st, count]) => ({
-        status: statusLabel(st),
-        label: String(count),
-        count,
-      }))
-
-      return {
-        ordersByStatus: chart.ordersByStatus.map((o) => ({
-          status: o.status,
-          label: String(o.count),
-          count: o.count,
-        })) as StatusDatum[],
-        pickingData,
-        returnData,
-      }
-    })
-  )
+  const ordersByStatus  = getMockOrdersByStatus(warehouseId, days)
+  const pickingByStatus = getMockPickingByStatus(warehouseId, days)
+  const returnsByStatus = getMockReturnsByStatus(warehouseId, days)
 
   return (
     <Card className="h-full gap-2">
@@ -101,24 +64,18 @@ export const TopTrafficSources = () => {
       <CardContent className="px-0">
         <Tabs defaultValue="orders" className="flex flex-col gap-3">
           <TabsList className="w-full justify-start border-b px-2.5" variant="line">
-            <TabsTrigger className="flex-none font-normal" value="orders">
-              Órdenes
-            </TabsTrigger>
-            <TabsTrigger className="flex-none font-normal" value="picking">
-              Picking
-            </TabsTrigger>
-            <TabsTrigger className="flex-none font-normal" value="devoluciones">
-              Devoluciones
-            </TabsTrigger>
+            <TabsTrigger className="flex-none font-normal" value="orders">Órdenes</TabsTrigger>
+            <TabsTrigger className="flex-none font-normal" value="picking">Picking</TabsTrigger>
+            <TabsTrigger className="flex-none font-normal" value="devoluciones">Devoluciones</TabsTrigger>
           </TabsList>
           <TabsContent value="orders" className="px-4">
             <StatusBarChart data={ordersByStatus} />
           </TabsContent>
           <TabsContent value="picking" className="px-4">
-            <StatusBarChart data={pickingData} />
+            <StatusBarChart data={pickingByStatus} />
           </TabsContent>
           <TabsContent value="devoluciones" className="px-4">
-            <StatusBarChart data={returnData} />
+            <StatusBarChart data={returnsByStatus} />
           </TabsContent>
         </Tabs>
       </CardContent>

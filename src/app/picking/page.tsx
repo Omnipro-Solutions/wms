@@ -739,13 +739,13 @@ const PickingPage = () => {
   // ─── Render ────────────────────────────────────────────────────────────────
 
   return (
-    <>
+    <div className="flex flex-col gap-6">
       <PageHeader
         title="Picking & Fulfillment"
         description="Gestión completa del proceso de picking: tareas individuales, oleadas, estrategias de optimización y distribución a tiendas."
       />
 
-      <SubNav items={pickingTabs} defaultValue="tasks" className="mb-4" />
+      <SubNav items={pickingTabs} defaultValue="tasks" />
 
         {/* ── Tareas ──────────────────────────────────────────────────────── */}
         {activeTab === 'tasks' && (
@@ -1451,7 +1451,7 @@ const PickingPage = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </>
+    </div>
   )
 }
 

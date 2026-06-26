@@ -585,7 +585,7 @@ export default function ReturnsPage() {
   )
 
   return (
-    <>
+    <div className="flex flex-col gap-6">
       <PageHeader
         title="Devoluciones"
         description="Flujo de 11 estados: desde la solicitud del cliente hasta el cierre (reingreso, desecho o reparación)."
@@ -1075,6 +1075,6 @@ export default function ReturnsPage() {
           <ArrowDown className="size-4 shrink-0" />
         </button>
       )}
-    </>
+    </div>
   )
 }

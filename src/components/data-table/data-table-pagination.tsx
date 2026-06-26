@@ -1,7 +1,7 @@
 'use client'
 
 import { type Table } from '@tanstack/react-table'
-import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react'
+import { ChevronLeft, ChevronRight, MoreHorizontal } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import {
@@ -11,10 +11,19 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { Separator } from '@/components/ui/separator'
+import { cn } from '@/lib/utils'
 
 interface DataTablePaginationProps<TData> {
   table: Table<TData>
   pageSizeOptions?: number[]
+}
+
+function getPageNumbers(currentPage: number, pageCount: number) {
+  if (pageCount <= 3) return Array.from({ length: pageCount }, (_, i) => i + 1)
+  if (currentPage <= 2) return [1, 2, 3]
+  if (currentPage >= pageCount - 1) return [pageCount - 2, pageCount - 1, pageCount]
+  return [currentPage - 1, currentPage, currentPage + 1]
 }
 
 export const DataTablePagination = <TData,>({
@@ -23,86 +32,88 @@ export const DataTablePagination = <TData,>({
 }: DataTablePaginationProps<TData>) => {
   const selectedCount = table.getFilteredSelectedRowModel().rows.length
   const totalCount = table.getFilteredRowModel().rows.length
+  const pageCount = Math.max(table.getPageCount(), 1)
+  const currentPage = Math.min(table.getState().pagination.pageIndex + 1, pageCount)
+  const pageNumbers = getPageNumbers(currentPage, pageCount)
 
   return (
-    <div className="flex items-center justify-between px-2 py-3">
-      <div className="text-muted-foreground flex-1 text-sm">
-        {selectedCount > 0 ? (
-          <>
-            <span className="text-foreground font-medium">{selectedCount}</span> de {totalCount}{' '}
-            fila(s) seleccionada(s).
-          </>
-        ) : (
-          <>{totalCount} resultado(s) en total.</>
-        )}
-      </div>
+    <div className="flex flex-1 flex-col gap-4">
+      <Separator />
 
-      <div className="flex items-center gap-6 lg:gap-8">
-        <div className="flex items-center gap-2">
-          <p className="text-sm font-medium whitespace-nowrap">Filas por página</p>
-          <Select
-            value={`${table.getState().pagination.pageSize}`}
-            onValueChange={(value) => table.setPageSize(Number(value))}
-          >
-            <SelectTrigger className="h-8 w-[70px]">
-              <SelectValue placeholder={table.getState().pagination.pageSize} />
-            </SelectTrigger>
-            <SelectContent side="top">
-              {pageSizeOptions.map((pageSize) => (
-                <SelectItem key={pageSize} value={`${pageSize}`}>
-                  {pageSize}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+      <div className="flex items-center justify-between px-4">
+        <div className="flex items-center gap-4 text-muted-foreground text-sm">
+          <div className="flex items-center gap-2">
+            <span>Filas por página</span>
+            <Select
+              value={`${table.getState().pagination.pageSize}`}
+              onValueChange={(value) => table.setPageSize(Number(value))}
+            >
+              <SelectTrigger size="sm" className="w-20">
+                <SelectValue placeholder={`${table.getState().pagination.pageSize}`} />
+              </SelectTrigger>
+              <SelectContent side="top">
+                {pageSizeOptions.map((pageSize) => (
+                  <SelectItem key={pageSize} value={`${pageSize}`}>
+                    {pageSize}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <span>
+            {selectedCount > 0
+              ? `${selectedCount} de ${totalCount} seleccionada(s)`
+              : `Página ${currentPage} de ${pageCount}`}
+          </span>
         </div>
 
-        <div className="flex w-[110px] items-center justify-center text-sm font-medium">
-          Página {table.getState().pagination.pageIndex + 1} de {Math.max(table.getPageCount(), 1)}
-        </div>
-
-        <div className="flex items-center gap-1">
+        <nav className="flex items-center gap-1" aria-label="Paginación">
           <Button
-            variant="outline"
+            variant="ghost"
             size="icon"
-            className="hidden size-8 lg:flex"
-            onClick={() => table.setPageIndex(0)}
-            disabled={!table.getCanPreviousPage()}
-            aria-label="Primera página"
-          >
-            <ChevronsLeft className="size-4" />
-          </Button>
-          <Button
-            variant="outline"
-            size="icon"
-            className="size-8"
+            className={cn('size-8', !table.getCanPreviousPage() && 'pointer-events-none opacity-50')}
             onClick={() => table.previousPage()}
-            disabled={!table.getCanPreviousPage()}
             aria-label="Página anterior"
           >
             <ChevronLeft className="size-4" />
           </Button>
+
+          {pageNumbers[0] > 1 && (
+            <span className="text-muted-foreground flex size-8 items-center justify-center">
+              <MoreHorizontal className="size-4" />
+            </span>
+          )}
+
+          {pageNumbers.map((pageNumber) => (
+            <Button
+              key={`page-${pageNumber}`}
+              variant={currentPage === pageNumber ? 'outline' : 'ghost'}
+              size="icon"
+              className="size-8 text-sm"
+              onClick={() => table.setPageIndex(pageNumber - 1)}
+              aria-label={`Página ${pageNumber}`}
+              aria-current={currentPage === pageNumber ? 'page' : undefined}
+            >
+              {pageNumber}
+            </Button>
+          ))}
+
+          {pageNumbers[pageNumbers.length - 1] < pageCount && (
+            <span className="text-muted-foreground flex size-8 items-center justify-center">
+              <MoreHorizontal className="size-4" />
+            </span>
+          )}
+
           <Button
-            variant="outline"
+            variant="ghost"
             size="icon"
-            className="size-8"
+            className={cn('size-8', !table.getCanNextPage() && 'pointer-events-none opacity-50')}
             onClick={() => table.nextPage()}
-            disabled={!table.getCanNextPage()}
             aria-label="Página siguiente"
           >
             <ChevronRight className="size-4" />
           </Button>
-          <Button
-            variant="outline"
-            size="icon"
-            className="hidden size-8 lg:flex"
-            onClick={() => table.setPageIndex(table.getPageCount() - 1)}
-            disabled={!table.getCanNextPage()}
-            aria-label="Última página"
-          >
-            <ChevronsRight className="size-4" />
-          </Button>
-        </div>
+        </nav>
       </div>
     </div>
   )
