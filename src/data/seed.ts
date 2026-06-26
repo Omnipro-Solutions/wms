@@ -1958,13 +1958,15 @@ export const replenishmentTasks: ReplenishmentTask[] = [
   },
 ]
 
+const WMS2024_HASH = 'ef797c8118f02dfb649607dd5d3f8c7623048c9c063d532cc95c5ed7a898a64f'
+
 export const operators: Operator[] = [
-  { id: 'op-0', code: 'OP-000', name: 'Carlos Granados', role: 'supervisor', active: true },
-  { id: 'op-1', code: 'OP-001', name: 'Andrés Gómez', role: 'picker', active: true },
-  { id: 'op-2', code: 'OP-002', name: 'Paula Vega', role: 'picker', active: true },
-  { id: 'op-3', code: 'OP-003', name: 'Carlos Ramírez', role: 'receiver', active: true },
-  { id: 'op-4', code: 'OP-004', name: 'Diana López', role: 'supervisor', active: true },
-  { id: 'op-5', code: 'OP-005', name: 'Pedro Martínez', role: 'driver', active: true },
+  { id: 'op-0', code: 'OP-000', name: 'Carlos Granados', email: 'carlos.granados@wms.co', passwordHash: WMS2024_HASH, role: 'supervisor', active: true },
+  { id: 'op-1', code: 'OP-001', name: 'Andrés Gómez', email: 'andres.gomez@wms.co', passwordHash: WMS2024_HASH, role: 'picker', active: true },
+  { id: 'op-2', code: 'OP-002', name: 'Paula Vega', email: 'paula.vega@wms.co', passwordHash: WMS2024_HASH, role: 'picker', active: true },
+  { id: 'op-3', code: 'OP-003', name: 'Carlos Ramírez', email: 'carlos.ramirez@wms.co', passwordHash: WMS2024_HASH, role: 'receiver', active: true },
+  { id: 'op-4', code: 'OP-004', name: 'Diana López', email: 'diana.lopez@wms.co', passwordHash: WMS2024_HASH, role: 'supervisor', active: true },
+  { id: 'op-5', code: 'OP-005', name: 'Pedro Martínez', email: 'pedro.martinez@wms.co', passwordHash: WMS2024_HASH, role: 'driver', active: true },
 ]
 
 export const reasons: Reason[] = [

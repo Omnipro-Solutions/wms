@@ -736,6 +736,8 @@ export interface Operator {
   id: string
   code: string
   name: string
+  email: string
+  passwordHash: string
   role: 'picker' | 'packer' | 'receiver' | 'driver' | 'supervisor'
   active: boolean
 }
