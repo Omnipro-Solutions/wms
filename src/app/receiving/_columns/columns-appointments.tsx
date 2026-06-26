@@ -1,6 +1,5 @@
 import { type ColumnDef } from '@tanstack/react-table'
-import { AlertTriangle, Clock, Truck } from 'lucide-react'
-import { cn } from '@/lib/utils'
+import { AlertTriangle, Check, Clock, Truck, X } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
@@ -8,8 +7,17 @@ import { DataTableColumnHeader } from '@/components/data-table'
 import { formatNumber } from '@/lib/formatters'
 import type { AsnRow } from '../columns'
 import { codeCol, supplierCol, productCol, abcCol, flagsCol, type ActionHandler } from './shared'
+import type { Asn } from '@/types/wms'
 
-export const buildAppointmentColumns = (onAction: ActionHandler): ColumnDef<AsnRow>[] => [
+interface AppointmentActionHandler {
+  onAction: ActionHandler
+  onAssignAppointment: (asn: Asn) => void
+}
+
+export const buildAppointmentColumns = (
+  { onAction, onAssignAppointment }: AppointmentActionHandler,
+  asnRecords: Asn[]
+): ColumnDef<AsnRow>[] => [
   codeCol,
   supplierCol,
   productCol,
@@ -30,12 +38,42 @@ export const buildAppointmentColumns = (onAction: ActionHandler): ColumnDef<AsnR
             {appointmentDate}
           </span>
           {isOverdue && (
-            <Badge variant="destructive" className="ml-1 text-xs">
-              Atrasada
-            </Badge>
+            <Badge variant="destructive" className="ml-1 text-xs">Atrasada</Badge>
           )}
         </div>
       )
+    },
+  },
+  {
+    id: 'dock',
+    header: 'Muelle',
+    enableSorting: false,
+    cell: ({ row }) => {
+      const dock = row.original.dockId
+      if (!dock) return <span className="text-muted-foreground text-sm">—</span>
+      return <Badge variant="outline" className="font-mono text-xs">{dock.replace('dock-', 'M-')}</Badge>
+    },
+  },
+  {
+    id: 'timeSlot',
+    header: 'Ventana',
+    enableSorting: false,
+    cell: ({ row }) => {
+      const slot = row.original.timeSlot
+      if (!slot) return <span className="text-muted-foreground text-sm">—</span>
+      return <Badge variant="secondary" className="text-xs">{slot}</Badge>
+    },
+  },
+  {
+    id: 'carrierConfirmed',
+    header: 'Confirmado',
+    enableSorting: false,
+    cell: ({ row }) => {
+      const confirmed = row.original.carrierConfirmed
+      if (confirmed === undefined) return <span className="text-muted-foreground text-sm">—</span>
+      return confirmed
+        ? <Check className="size-4 text-green-600" />
+        : <X className="text-muted-foreground size-4" />
     },
   },
   {
@@ -67,8 +105,7 @@ export const buildAppointmentColumns = (onAction: ActionHandler): ColumnDef<AsnR
             <span className="text-xs font-semibold tabular-nums">
               {formatNumber(receivedQuantity)}
               <span className="text-muted-foreground font-normal">
-                {' '}
-                / {formatNumber(expectedQuantity)} uds
+                {' '}/ {formatNumber(expectedQuantity)} uds
               </span>
             </span>
             <span className="text-xs font-bold text-blue-600">{pct}%</span>
@@ -92,18 +129,35 @@ export const buildAppointmentColumns = (onAction: ActionHandler): ColumnDef<AsnR
     enableSorting: false,
     enableHiding: false,
     cell: ({ row }) => {
-      if (!row.original.canReceive) return null
+      const asn = asnRecords.find((a) => a.id === row.original.id)
       return (
-        <Button
-          size="sm"
-          onClick={(e) => {
-            e.stopPropagation()
-            onAction('confirm', row.original)
-          }}
-        >
-          <Truck className="mr-1.5 size-3.5" />
-          Confirmar llegada
-        </Button>
+        <div className="flex items-center gap-2">
+          {asn && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 text-xs"
+              onClick={(e) => {
+                e.stopPropagation()
+                onAssignAppointment(asn)
+              }}
+            >
+              Asignar cita
+            </Button>
+          )}
+          {row.original.canReceive && (
+            <Button
+              size="sm"
+              onClick={(e) => {
+                e.stopPropagation()
+                onAction('confirm', row.original)
+              }}
+            >
+              <Truck className="mr-1.5 size-3.5" />
+              Confirmar llegada
+            </Button>
+          )}
+        </div>
       )
     },
   },

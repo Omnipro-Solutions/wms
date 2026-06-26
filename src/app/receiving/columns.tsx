@@ -28,6 +28,9 @@ export interface AsnRow {
   canQc: boolean
   isOverdue: boolean
   requiresSerial: boolean
+  dockId?: string
+  timeSlot?: string
+  carrierConfirmed?: boolean
 }
 
 // ── PO row ────────────────────────────────────────────────────────────────────

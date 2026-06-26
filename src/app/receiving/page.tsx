@@ -40,6 +40,8 @@ import { ReceptionSheet } from './_components/reception-sheet'
 import { EmptyState } from './_components/empty-state'
 import { TabPanel } from './_components/tab-panel'
 import { CrossDockDialog } from './_components/cross-dock-dialog'
+import { AppointmentDialog } from './_components/appointment-dialog'
+import { useDialogState } from '@/hooks/use-dialog-state'
 import type { Asn } from '@/types/wms'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -74,6 +76,7 @@ const ReceivingPage = () => {
   const qcDialogState = useQcDialog()
   const putawayDialogState = usePutawayDialog()
   const sheetState = useReceptionSheet()
+  const appointmentDialog = useDialogState<Asn>()
 
   // ── ASN rows ──────────────────────────────────────────────────────────────
   const rows = useMemo<AsnRow[]>(
@@ -114,6 +117,9 @@ const ReceivingPage = () => {
             asn.status !== 'cancelled' &&
             asn.status !== 'short_received',
           requiresSerial: product?.trackBy === 'serial',
+          dockId: asn.dockId,
+          timeSlot: asn.timeSlot,
+          carrierConfirmed: asn.carrierConfirmed,
         }
       })
     },
@@ -262,7 +268,13 @@ const ReceivingPage = () => {
 
   // ── Column definitions (memoized) ─────────────────────────────────────────
   const poCols = useMemo(() => buildPoColumns(sheetState.open), [sheetState.open])
-  const appointmentCols = useMemo(() => buildAppointmentColumns(handleAction), [handleAction])
+  const appointmentCols = useMemo(
+    () => buildAppointmentColumns(
+      { onAction: handleAction, onAssignAppointment: (asn) => appointmentDialog.open(asn) },
+      state.asnRecords
+    ),
+    [handleAction, appointmentDialog, state.asnRecords]
+  )
   const receivingCols = useMemo(() => buildReceivingColumns(handleAction), [handleAction])
   const qcCols = useMemo(() => buildQcColumns(handleAction), [handleAction])
   const putawayCols = useMemo(() => buildPutawayColumns(handleAction), [handleAction])
@@ -481,6 +493,11 @@ const ReceivingPage = () => {
         asn={crossDockAsn}
         open={crossDockOpen}
         onClose={() => setCrossDockOpen(false)}
+      />
+      <AppointmentDialog
+        asn={appointmentDialog.data}
+        open={!!appointmentDialog.data}
+        onClose={appointmentDialog.close}
       />
     </div>
   )
