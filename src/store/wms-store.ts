@@ -40,6 +40,9 @@ import type {
   InventoryAdjustmentRequest,
   InventoryItem,
   LoadManifest,
+  SapRoute,
+  SapRouteStatus,
+  DeliveryWindow,
   Operator,
   PackingBoxType,
   PackingOrder,
@@ -108,6 +111,7 @@ export interface WmsState {
   packingRules: PackingRule[]
   shipments: Shipment[]
   loadManifests: LoadManifest[]
+  sapRoutes: SapRoute[]
   labels: WmsLabel[]
   integrations: IntegrationConnection[]
   replenishmentTasks: ReplenishmentTask[]
@@ -308,6 +312,10 @@ export interface WmsState {
   // Cross-dock (Sprint 9)
   createCrossDockTask: (asnId: string, commerceOrderId: string, quantity: number, stagingLocationId: string, operatorName: string) => void
   completeCrossDockTask: (taskId: string, operatorName: string) => void
+  // Sprint 8: Despacho y transporte (F-85, F-82, F-91)
+  updateSapRouteStatus: (id: string, status: SapRouteStatus) => void
+  updateAsnAppointment: (id: string, data: { dockId?: string; timeSlot?: string; carrierConfirmed?: boolean }) => void
+  updateWarehouseDeliveryWindows: (id: string, windows: DeliveryWindow[]) => void
 }
 
 const recordMovement = (partial: Omit<StockMovement, 'id' | 'createdAt'>): StockMovement => ({
@@ -344,6 +352,7 @@ const buildSeedState = () => ({
   packingRules: seed.packingRules,
   shipments: seed.shipments,
   loadManifests: seed.loadManifests,
+  sapRoutes: seed.sapRoutes,
   labels: seed.labels,
   integrations: seed.integrations,
   replenishmentTasks: seed.replenishmentTasks,
@@ -2854,6 +2863,28 @@ export const useWmsStore = create<WmsState>()(
         : i
     )
     set({ crossDockTasks: updatedTasks, commerceOrders: updatedOrders, stockMovements: [...state.stockMovements, movement], inventoryItems: updatedInventory })
+  },
+
+  updateSapRouteStatus: (id, status) => {
+    const state = get()
+    const route = state.sapRoutes.find((r) => r.id === id)
+    if (!route) throw new Error('sapRoute not found')
+    set({ sapRoutes: state.sapRoutes.map((r) => (r.id === id ? { ...r, status } : r)) })
+  },
+
+  updateAsnAppointment: (id, data) => {
+    const state = get()
+    const asn = state.asnRecords.find((a) => a.id === id)
+    if (!asn) throw new Error('ASN not found')
+    const updated = { ...asn, ...data }
+    set({ asnRecords: state.asnRecords.map((a) => (a.id === id ? updated : a)) })
+  },
+
+  updateWarehouseDeliveryWindows: (id, windows) => {
+    const state = get()
+    const wh = state.warehouses.find((w) => w.id === id)
+    if (!wh) throw new Error('warehouse not found')
+    set({ warehouses: state.warehouses.map((w) => (w.id === id ? { ...w, deliveryWindows: windows } : w)) })
   },
 
   }),
