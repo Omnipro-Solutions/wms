@@ -18,8 +18,6 @@ import {
   Tags,
   Truck,
   Undo2,
-  Warehouse,
-  Waves,
 } from 'lucide-react'
 import type { NavGroup } from '@/types/navigation'
 
@@ -61,7 +59,7 @@ export const NAV_GROUPS: NavGroup[] = [
     title: 'Sistema',
     icon: BarChart3,
     items: [
-      { label: 'Reportes', href: '/reports', icon: BarChart3 },
+      // { label: 'Reportes', href: '/reports', icon: BarChart3 },
       { label: 'Integraciones', href: '/integrations', icon: Cable },
       { label: 'Administración', href: '/admin', icon: Settings2 },
     ],
@@ -70,4 +68,3 @@ export const NAV_GROUPS: NavGroup[] = [
 
 export const ALERTS_ICON = AlertTriangle
 export const TASKS_ICON = ListChecks
-

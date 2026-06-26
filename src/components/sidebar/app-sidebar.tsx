@@ -1,5 +1,6 @@
 'use client'
 
+import Image from 'next/image'
 import Link from 'next/link'
 
 import { useShallow } from 'zustand/react/shallow'
@@ -39,23 +40,7 @@ export const AppSidebar = ({ ...props }: React.ComponentProps<typeof Sidebar>) =
           <SidebarMenuItem>
             <SidebarMenuButton size="lg" asChild>
               <Link prefetch={false} href="/">
-                <div className="flex aspect-square size-8 items-center justify-center rounded-md bg-primary text-primary-foreground">
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.75"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    className="size-4"
-                  >
-                    <path d="M22 8.35V20a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8.35A2 2 0 0 1 3.26 6.5l8-3.2a2 2 0 0 1 1.48 0l8 3.2A2 2 0 0 1 22 8.35Z" />
-                    <path d="M6 18h12" />
-                    <path d="M6 14h12" />
-                    <rect width="8" height="8" x="8" y="14" />
-                  </svg>
-                </div>
+                <Image src="/logo.svg" alt="Logo" width={32} height={32} className="shrink-0" />
                 <div className="grid flex-1 text-left text-sm leading-tight">
                   <span className="truncate font-semibold">{APP_CONFIG.name}</span>
                   <span className="truncate text-xs text-muted-foreground">{APP_CONFIG.brand}</span>

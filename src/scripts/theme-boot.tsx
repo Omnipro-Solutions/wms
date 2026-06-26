@@ -8,7 +8,7 @@
  */
 import { PREFERENCE_DEFAULTS, PREFERENCE_PERSISTENCE } from "@/lib/preferences/preferences-config";
 
-export function ThemeBootScript() {
+export function getThemeBootScript(): string {
   const persistence = JSON.stringify({
     theme_mode: PREFERENCE_PERSISTENCE.theme_mode,
     theme_preset: PREFERENCE_PERSISTENCE.theme_preset,
@@ -29,8 +29,7 @@ export function ThemeBootScript() {
     sidebar_collapsible: PREFERENCE_DEFAULTS.sidebar_collapsible,
   });
 
-  const code = `
-    (function () {
+  return `(function () {
       try {
         var root = document.documentElement;
         var PERSISTENCE = ${persistence};
@@ -105,9 +104,5 @@ export function ThemeBootScript() {
       } catch (e) {
         console.warn("ThemeBootScript error:", e);
       }
-    })();
-  `;
-
-  /* biome-ignore lint/security/noDangerouslySetInnerHtml: required for pre-hydration boot script */
-  return <script dangerouslySetInnerHTML={{ __html: code }} />;
+    })();`;
 }

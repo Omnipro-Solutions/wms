@@ -3,6 +3,7 @@
 import { MoonIcon, SunIcon, RefreshCwIcon, ShieldCheckIcon, LogOutIcon } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { useTheme } from 'next-themes'
+import { useEffect, useState } from 'react'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import {
@@ -28,6 +29,8 @@ const ROLE_LABELS: Record<string, string> = {
 
 export const HeaderActions = () => {
   const { theme, setTheme } = useTheme()
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => setMounted(true), [])
   const { operator } = useCurrentOperator()
   const { openPicker } = useOperatorPicker()
   const logout = useAuthStore((s) => s.logout)
@@ -50,7 +53,7 @@ export const HeaderActions = () => {
         onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
         aria-label="Cambiar tema"
       >
-        {theme === 'dark' ? <SunIcon className="size-4" /> : <MoonIcon className="size-4" />}
+        {mounted && (theme === 'dark' ? <SunIcon className="size-4" /> : <MoonIcon className="size-4" />)}
       </Button>
 
       <DropdownMenu>

@@ -28,6 +28,7 @@ export const useAuthStore = create<AuthState>()(
 
         setAuthCookie(operator.id, remember)
         set({ operatorId: operator.id })
+        useWmsStore.getState().setCurrentOperator(operator.id)
         return { success: true }
       },
 
@@ -46,6 +47,11 @@ export const useAuthStore = create<AuthState>()(
       name: 'wms-auth',
       storage: createJSONStorage(() => localStorage),
       partialize: (state) => ({ operatorId: state.operatorId }),
+      onRehydrateStorage: () => (state) => {
+        if (state?.operatorId) {
+          useWmsStore.getState().setCurrentOperator(state.operatorId)
+        }
+      },
     }
   )
 )

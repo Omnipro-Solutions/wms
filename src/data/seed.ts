@@ -304,9 +304,7 @@ export const products: Product[] = [
     unitVolumeM3: 0.008,
     trackBy: 'serial',
     baseUomId: 'uom-par',
-    uomConversions: [
-      { fromUomId: 'uom-caj6', toUomId: 'uom-par', factor: 6 },
-    ],
+    uomConversions: [{ fromUomId: 'uom-caj6', toUomId: 'uom-par', factor: 6 }],
     imageUrl:
       'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=80&h=80&fit=crop&auto=format',
     rotationStrategy: 'fifo',
@@ -323,9 +321,7 @@ export const products: Product[] = [
     unitVolumeM3: 0.006,
     trackBy: 'lot',
     baseUomId: 'uom-und',
-    uomConversions: [
-      { fromUomId: 'uom-caj6', toUomId: 'uom-und', factor: 6 },
-    ],
+    uomConversions: [{ fromUomId: 'uom-caj6', toUomId: 'uom-und', factor: 6 }],
     imageUrl:
       'https://images.unsplash.com/photo-1551698618-1dfe5d97d256?w=80&h=80&fit=crop&auto=format',
     rotationStrategy: 'fifo',
@@ -342,9 +338,7 @@ export const products: Product[] = [
     unitVolumeM3: 0.01,
     trackBy: 'none',
     baseUomId: 'uom-und',
-    uomConversions: [
-      { fromUomId: 'uom-caj6', toUomId: 'uom-und', factor: 6 },
-    ],
+    uomConversions: [{ fromUomId: 'uom-caj6', toUomId: 'uom-und', factor: 6 }],
     imageUrl:
       'https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=80&h=80&fit=crop&auto=format',
     rotationStrategy: 'fifo',
@@ -401,9 +395,7 @@ export const products: Product[] = [
     unitVolumeM3: 0.003,
     trackBy: 'none',
     baseUomId: 'uom-und',
-    uomConversions: [
-      { fromUomId: 'uom-caj6', toUomId: 'uom-und', factor: 6 },
-    ],
+    uomConversions: [{ fromUomId: 'uom-caj6', toUomId: 'uom-und', factor: 6 }],
     imageUrl:
       'https://images.unsplash.com/photo-1496747611176-843222e1e57c?w=80&h=80&fit=crop&auto=format',
     rotationStrategy: 'fifo',
@@ -420,9 +412,7 @@ export const products: Product[] = [
     unitVolumeM3: 0.005,
     trackBy: 'none',
     baseUomId: 'uom-und',
-    uomConversions: [
-      { fromUomId: 'uom-caj6', toUomId: 'uom-und', factor: 6 },
-    ],
+    uomConversions: [{ fromUomId: 'uom-caj6', toUomId: 'uom-und', factor: 6 }],
     imageUrl:
       'https://images.unsplash.com/photo-1624378439575-d8705ad7ae80?w=80&h=80&fit=crop&auto=format',
     rotationStrategy: 'fifo',
@@ -444,7 +434,7 @@ export const products: Product[] = [
       { fromUomId: 'uom-pal', toUomId: 'uom-und', factor: 60 },
     ],
     imageUrl:
-      'https://images.unsplash.com/photo-1556821840-3a63f15732ce?w=80&h=80&fit=crop&auto=format',
+      'https://images.unsplash.com/photo-1624378439575-d8705ad7ae80?w=80&h=80&fit=crop&auto=format',
     rotationStrategy: 'fifo',
     minStockUnits: 10,
     maxStockUnits: 100,
@@ -1961,12 +1951,87 @@ export const replenishmentTasks: ReplenishmentTask[] = [
 const WMS2024_HASH = 'aa7ad6993070380cb2035d9a835b2addea685886e4c639b8196bca55ad0129f5'
 
 export const operators: Operator[] = [
-  { id: 'op-0', code: 'OP-000', name: 'Carlos Granados', email: 'carlos.granados@wms.co', passwordHash: WMS2024_HASH, role: 'supervisor', active: true },
-  { id: 'op-1', code: 'OP-001', name: 'Andrés Gómez', email: 'andres.gomez@wms.co', passwordHash: WMS2024_HASH, role: 'picker', active: true },
-  { id: 'op-2', code: 'OP-002', name: 'Paula Vega', email: 'paula.vega@wms.co', passwordHash: WMS2024_HASH, role: 'picker', active: true },
-  { id: 'op-3', code: 'OP-003', name: 'Carlos Ramírez', email: 'carlos.ramirez@wms.co', passwordHash: WMS2024_HASH, role: 'receiver', active: true },
-  { id: 'op-4', code: 'OP-004', name: 'Diana López', email: 'diana.lopez@wms.co', passwordHash: WMS2024_HASH, role: 'supervisor', active: true },
-  { id: 'op-5', code: 'OP-005', name: 'Pedro Martínez', email: 'pedro.martinez@wms.co', passwordHash: WMS2024_HASH, role: 'driver', active: true },
+  {
+    id: 'op-0',
+    code: 'OP-000',
+    name: 'Carlos Granados',
+    email: 'carlos.granados@wms.co',
+    passwordHash: WMS2024_HASH,
+    role: 'supervisor',
+    active: true,
+  },
+  {
+    id: 'op-1',
+    code: 'OP-001',
+    name: 'Andrés Gómez',
+    email: 'andres.gomez@wms.co',
+    passwordHash: WMS2024_HASH,
+    role: 'picker',
+    active: true,
+  },
+  {
+    id: 'op-2',
+    code: 'OP-002',
+    name: 'Paula Vega',
+    email: 'paula.vega@wms.co',
+    passwordHash: WMS2024_HASH,
+    role: 'picker',
+    active: true,
+  },
+  {
+    id: 'op-3',
+    code: 'OP-003',
+    name: 'Carlos Ramírez',
+    email: 'carlos.ramirez@wms.co',
+    passwordHash: WMS2024_HASH,
+    role: 'receiver',
+    active: true,
+  },
+  {
+    id: 'op-4',
+    code: 'OP-004',
+    name: 'Diana López',
+    email: 'diana.lopez@wms.co',
+    passwordHash: WMS2024_HASH,
+    role: 'supervisor',
+    active: true,
+  },
+  {
+    id: 'op-5',
+    code: 'OP-005',
+    name: 'Pedro Martínez',
+    email: 'pedro.martinez@wms.co',
+    passwordHash: WMS2024_HASH,
+    role: 'driver',
+    active: true,
+  },
+  {
+    id: 'op-6',
+    code: 'OP-006',
+    name: 'Angely Triviño',
+    email: 'angely.trivino@wms.co',
+    passwordHash: WMS2024_HASH,
+    role: 'supervisor',
+    active: true,
+  },
+  {
+    id: 'op-7',
+    code: 'OP-007',
+    name: 'Massiel Delgado',
+    email: 'massiel.delgado@wms.co',
+    passwordHash: WMS2024_HASH,
+    role: 'supervisor',
+    active: true,
+  },
+  {
+    id: 'op-8',
+    code: 'OP-008',
+    name: 'Yomaira Coromoto',
+    email: 'yomaira@wms.co',
+    passwordHash: WMS2024_HASH,
+    role: 'supervisor',
+    active: true,
+  },
 ]
 
 export const reasons: Reason[] = [
@@ -2324,10 +2389,38 @@ export const settings: WmsSettings = {
   stockAlertThreshold: 10,
   expirationAlertDays: 30,
   slaConfigs: [
-    { id: 'sla-1', channel: 'ecommerce', fulfillmentType: 'ship_from_dc', maxHours: 24, alertAtPercent: 75, label: 'Ecommerce — Despacho DC (24h)' },
-    { id: 'sla-2', channel: 'ecommerce', fulfillmentType: 'ship_from_store', maxHours: 12, alertAtPercent: 75, label: 'Ecommerce — Despacho tienda (12h)' },
-    { id: 'sla-3', channel: 'all', fulfillmentType: 'pickup_in_store', maxHours: 2, alertAtPercent: 80, label: 'BOPIS — Recogida en tienda (2h)' },
-    { id: 'sla-4', channel: 'b2b', fulfillmentType: 'all', maxHours: 48, alertAtPercent: 60, label: 'B2B (48h)' },
+    {
+      id: 'sla-1',
+      channel: 'ecommerce',
+      fulfillmentType: 'ship_from_dc',
+      maxHours: 24,
+      alertAtPercent: 75,
+      label: 'Ecommerce — Despacho DC (24h)',
+    },
+    {
+      id: 'sla-2',
+      channel: 'ecommerce',
+      fulfillmentType: 'ship_from_store',
+      maxHours: 12,
+      alertAtPercent: 75,
+      label: 'Ecommerce — Despacho tienda (12h)',
+    },
+    {
+      id: 'sla-3',
+      channel: 'all',
+      fulfillmentType: 'pickup_in_store',
+      maxHours: 2,
+      alertAtPercent: 80,
+      label: 'BOPIS — Recogida en tienda (2h)',
+    },
+    {
+      id: 'sla-4',
+      channel: 'b2b',
+      fulfillmentType: 'all',
+      maxHours: 48,
+      alertAtPercent: 60,
+      label: 'B2B (48h)',
+    },
   ],
 }
 
@@ -2621,10 +2714,10 @@ export const dashboardHistory = {
   weeklyOtif: [91, 89, 92, 88, 85, 90, 87, 91],
   weeklyDemand: {
     'p-tshirt': [285, 298, 310, 302, 318, 312, 305, 322],
-    'p-socks':  [270, 280, 288, 292, 282, 298, 285, 293],
-    'p-cap':    [175, 220, 195, 245, 205, 255, 215, 230],
-    'p-jeans':  [105, 122, 112, 128, 118, 125, 115, 122],
-    'p-hoodie': [45,  140, 55,  145, 68,  150, 72,  140],
+    'p-socks': [270, 280, 288, 292, 282, 298, 285, 293],
+    'p-cap': [175, 220, 195, 245, 205, 255, 215, 230],
+    'p-jeans': [105, 122, 112, 128, 118, 125, 115, 122],
+    'p-hoodie': [45, 140, 55, 145, 68, 150, 72, 140],
   },
 }
 

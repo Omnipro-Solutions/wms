@@ -99,7 +99,7 @@ export const sidebarItems: NavGroup[] = [
     id: 4,
     label: 'Sistema',
     items: [
-      { id: 'reports', title: 'Reportes', url: '/reports', icon: BarChart3 },
+      // { id: 'reports', title: 'Reportes', url: '/reports', icon: BarChart3 },
       { id: 'integrations', title: 'Integraciones', url: '/integrations', icon: Cable },
       { id: 'admin', title: 'Administración', url: '/admin', icon: Settings2 },
     ],

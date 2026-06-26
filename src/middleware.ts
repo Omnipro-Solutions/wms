@@ -11,9 +11,7 @@ export const middleware = (request: NextRequest) => {
     return NextResponse.redirect(loginUrl)
   }
 
-  const response = NextResponse.next()
-  response.headers.set('x-pathname', pathname)
-  return response
+  return NextResponse.next()
 }
 
 export const config = {

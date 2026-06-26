@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import { useWmsStore } from '@/store/wms-store'
+import { useAuthStore } from '@/store/auth-store'
 import { useShallow } from 'zustand/react/shallow'
 import type { Operator } from '@/types/wms'
 
@@ -27,10 +28,14 @@ export const useCurrentOperator = () => {
     }))
   )
 
+  // auth-store is the source of truth for who is logged in
+  const authOperatorId = useAuthStore((s) => s.operatorId)
+  const resolvedId = authOperatorId ?? currentOperatorId
+
   // useMemo so operator reference is stable — prevents useEffect dependency loops in consumers
   const operator = useMemo(
-    () => operators.find((o) => o.id === currentOperatorId) ?? null,
-    [operators, currentOperatorId]
+    () => operators.find((o) => o.id === resolvedId) ?? null,
+    [operators, resolvedId]
   )
 
   const isRole = (role: OperatorRole) => operator?.role === role
