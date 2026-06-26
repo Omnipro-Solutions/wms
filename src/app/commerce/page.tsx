@@ -171,7 +171,6 @@ export default function CommercePage() {
           value={pendingCount}
           label="Pendientes de reserva"
           tone="amber"
-          alert={pendingCount > 0}
         />
         <KpiCard
           icon={ShoppingCart}

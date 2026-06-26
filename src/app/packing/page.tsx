@@ -655,14 +655,14 @@ const PackingPage = () => {
     : null
 
   return (
-    <>
+    <div className="flex flex-col gap-6">
       <PageHeader
         title="Packing"
         description="Verificación de contenido, reglas de empaque y generación de etiquetas de despacho."
       />
 
       {/* KPIs */}
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <KpiCard
           icon={Package}
           value={kpis.pending}
@@ -683,7 +683,6 @@ const PackingPage = () => {
           label="Discrepancias"
           sublabel="Requieren re-verificación"
           tone="red"
-          alert={kpis.mismatch > 0}
         />
         <KpiCard
           icon={PackageCheck}
@@ -695,7 +694,7 @@ const PackingPage = () => {
       </div>
 
       {/* SubNav */}
-      <SubNav items={PACKING_TABS} defaultValue="verificacion" className="mb-4" />
+      <SubNav items={PACKING_TABS} defaultValue="verificacion" />
 
       {/* ── Tab: Verificación ─────────────────────────────────────────── */}
       {activeTab === 'verificacion' && (
@@ -1093,7 +1092,7 @@ const PackingPage = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </>
+    </div>
   )
 }
 

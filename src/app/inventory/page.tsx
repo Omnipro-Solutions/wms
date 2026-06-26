@@ -375,7 +375,7 @@ export default function InventoryPage() {
   )
 
   return (
-    <>
+    <div className="flex flex-col gap-6">
       <PageHeader
         title="Inventario"
         description="Stock en tiempo real. Fuente única de verdad calculada desde el store central."
@@ -393,7 +393,7 @@ export default function InventoryPage() {
       )}
 
       {/* ── KPI row ─────────────────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-5">
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4 lg:grid-cols-5">
         <KpiCard
           icon={Warehouse}
           value={totalOnHand}
@@ -414,8 +414,6 @@ export default function InventoryPage() {
           label="En espera (hold)"
           sublabel={totalHold > 0 ? 'Bloqueado para operaciones' : 'Sin unidades bloqueadas'}
           tone={totalHold > 0 ? 'amber' : 'neutral'}
-          alert={totalHold > 0}
-          onClick={totalHold > 0 ? () => setStatusFilter('on_hold') : undefined}
         />
         <KpiCard
           icon={CalendarClock}
@@ -423,12 +421,6 @@ export default function InventoryPage() {
           label="Alertas de vencimiento"
           sublabel={expirySublabel}
           tone={expiryTone}
-          alert={expiredCount > 0}
-          onClick={
-            expiryValue > 0
-              ? () => setExpiryFilter(expiredCount > 0 ? 'expired' : 'soon')
-              : undefined
-          }
         />
         <KpiCard
           icon={ClipboardCheck}
@@ -436,7 +428,6 @@ export default function InventoryPage() {
           label="IRA"
           sublabel={`${accuracy.adjustmentsPending} ajuste${accuracy.adjustmentsPending !== 1 ? 's' : ''} pendiente${accuracy.adjustmentsPending !== 1 ? 's' : ''}`}
           tone={accuracy.ira >= 95 ? 'green' : accuracy.ira >= 80 ? 'amber' : 'red'}
-          alert={accuracy.adjustmentsPending > 0}
         />
       </div>
 
@@ -748,6 +739,6 @@ export default function InventoryPage() {
         movements={state.stockMovements}
         onClose={() => setSelectedItem(null)}
       />
-    </>
+    </div>
   )
 }

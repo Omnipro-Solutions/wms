@@ -268,20 +268,19 @@ const ReceivingPage = () => {
   const putawayCols = useMemo(() => buildPutawayColumns(handleAction), [handleAction])
 
   return (
-    <>
+    <div className="flex flex-col gap-6">
       <PageHeader
         title="Recepción — Inbound"
         description="Flujo completo de entrada de mercancía: programación de citas, conteo físico, inspección de calidad y ubicación en almacén."
       />
 
-      <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-5">
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-5">
         <KpiCard
           icon={FileText}
           value={pendingPoCount}
           label="Órdenes de compra"
           sublabel="Confirmadas con recepción pendiente"
           tone="neutral"
-          onClick={() => router.push(pathname)}
         />
         <KpiCard
           icon={Truck}
@@ -289,7 +288,6 @@ const ReceivingPage = () => {
           label="Llegadas programadas"
           sublabel="Pendientes y parciales"
           tone="blue"
-          onClick={() => router.push(pathname + '?tab=citas')}
         />
         <KpiCard
           icon={AlertTriangle}
@@ -297,8 +295,6 @@ const ReceivingPage = () => {
           label="Entregas con atraso"
           sublabel={overdueCount > 0 ? 'Requieren atención' : 'Sin atrasos'}
           tone={overdueCount > 0 ? 'red' : 'neutral'}
-          alert
-          onClick={overdueCount > 0 ? () => router.push(pathname + '?tab=citas') : undefined}
         />
         <KpiCard
           icon={ShieldCheck}
@@ -306,7 +302,6 @@ const ReceivingPage = () => {
           label="En inspección de calidad"
           sublabel="Lotes bloqueados hasta aprobación"
           tone={qcRows.length > 0 ? 'amber' : 'neutral'}
-          onClick={qcRows.length > 0 ? () => router.push(pathname + '?tab=qc') : undefined}
         />
         <KpiCard
           icon={PackageCheck}
@@ -314,7 +309,6 @@ const ReceivingPage = () => {
           label="Recepciones cerradas"
           sublabel="Completadas o cerradas con diferencia"
           tone="green"
-          onClick={() => router.push(pathname + '?tab=putaway')}
         />
       </div>
 
@@ -488,7 +482,7 @@ const ReceivingPage = () => {
         open={crossDockOpen}
         onClose={() => setCrossDockOpen(false)}
       />
-    </>
+    </div>
   )
 }
 

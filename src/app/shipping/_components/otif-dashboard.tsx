@@ -71,7 +71,6 @@ export const OtifDashboard = ({ shipments, alerts, today }: Props) => {
           label="En riesgo"
           sublabel={`${formatPercent(atRiskPct)} del total`}
           tone="amber"
-          alert={breakdown.at_risk > 0}
         />
         <KpiCard
           icon={AlertTriangle}
@@ -79,7 +78,6 @@ export const OtifDashboard = ({ shipments, alerts, today }: Props) => {
           label="Con retraso"
           sublabel={`${formatPercent(latePct)} del total`}
           tone="red"
-          alert={breakdown.late > 0}
         />
       </div>
 

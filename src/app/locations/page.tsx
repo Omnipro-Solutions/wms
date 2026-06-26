@@ -381,14 +381,14 @@ export default function LocationsPage() {
   )
 
   return (
-    <>
+    <div className="flex flex-col gap-6">
       <PageHeader
         title="Ubicaciones"
         description="Vista de todas las posiciones del almacén — ocupación, accesibilidad y estado operativo."
       />
 
       {/* ── KPI row ──────────────────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
         <KpiCard
           icon={Warehouse}
           value={totalLocations}
@@ -402,7 +402,6 @@ export default function LocationsPage() {
           label="Ocupadas"
           sublabel={`${availableCount} disponibles`}
           tone="blue"
-          onClick={occupiedCount > 0 ? () => setStatusFilter('occupied') : undefined}
         />
         <KpiCard
           icon={CheckCircle2}
@@ -410,7 +409,6 @@ export default function LocationsPage() {
           label="Disponibles"
           sublabel="Sin stock actual"
           tone="green"
-          onClick={availableCount > 0 ? () => setStatusFilter('available') : undefined}
         />
         <KpiCard
           icon={Lock}
@@ -418,8 +416,6 @@ export default function LocationsPage() {
           label="Bloqueadas"
           sublabel={blockedCount > 0 ? 'Requieren atención' : 'Sin bloqueos activos'}
           tone={blockedCount > 0 ? 'red' : 'neutral'}
-          alert={blockedCount > 0}
-          onClick={blockedCount > 0 ? () => setStatusFilter('blocked') : undefined}
         />
       </div>
 
@@ -527,7 +523,7 @@ export default function LocationsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </>
+    </div>
   )
 }
 

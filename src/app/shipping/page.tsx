@@ -277,14 +277,14 @@ export default function ShippingPage() {
   )
 
   return (
-    <>
+    <div className="flex flex-col gap-6">
       <PageHeader
         title="Shipping — Despacho"
         description="Gestiona el despacho de envíos. Cotiza tarifas, supervisa OTIF y registra entregas por transportadora."
       />
 
       {/* Global KPIs */}
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <KpiCard
           icon={TrendingUp}
           value={otif}
@@ -298,7 +298,6 @@ export default function ShippingPage() {
           value={pendingCount}
           label="Pendientes de despacho"
           tone="amber"
-          alert={pendingCount > 0}
         />
         <KpiCard
           icon={DollarSign}
@@ -310,7 +309,7 @@ export default function ShippingPage() {
       </div>
 
       {/* SubNav */}
-      <SubNav items={SHIPPING_TABS} defaultValue="shipments" className="mb-4" />
+      <SubNav items={SHIPPING_TABS} defaultValue="shipments" />
 
       {/* Shipments table */}
       {activeTab === 'shipments' && (
@@ -437,6 +436,6 @@ export default function ShippingPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </>
+    </div>
   )
 }

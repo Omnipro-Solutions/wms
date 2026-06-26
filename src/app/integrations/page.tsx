@@ -30,7 +30,6 @@ export default function IntegrationsPage() {
           label="Con errores"
           sublabel={errorCount > 0 ? 'Requieren atención inmediata' : 'Sin problemas activos'}
           tone={errorCount > 0 ? 'red' : 'neutral'}
-          alert={errorCount > 0}
         />
         <KpiCard icon={Activity} value={activeCount} label="Activas" sublabel="Conexiones operativas" tone="green" />
         <KpiCard icon={Zap} value={totalMessages} label="Mensajes procesados" sublabel="Total acumulado" tone="blue" />

@@ -461,22 +461,20 @@ const SlottingPage = () => {
   // ─────────────────────────────────────────────────────────────────────────────
 
   return (
-    <>
+    <div className="flex flex-col gap-6">
       <PageHeader
         title="Slotting — Optimización de ubicaciones"
         description="Clasificación ABC/XYZ en vivo · Recomendaciones con score dinámico · Gestión de reabastecimiento"
       />
 
       {/* ── KPIs ── */}
-      <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
         <KpiCard
           icon={TriangleAlert}
           value={misplaced.length}
           label="SKUs clase A mal ubicados"
           sublabel="Fuera de golden zone"
           tone="amber"
-          alert={misplaced.length > 0}
-          onClick={misplaced.length > 0 ? () => router.push(pathname) : undefined}
         />
         <KpiCard
           icon={MoveRight}
@@ -484,7 +482,6 @@ const SlottingPage = () => {
           label="Reubicaciones sugeridas"
           sublabel="Con impacto positivo en picking"
           tone={impact.relocationsCount > 0 ? 'blue' : 'green'}
-          onClick={() => router.push(pathname)}
         />
         <KpiCard
           icon={Clock}
@@ -499,13 +496,11 @@ const SlottingPage = () => {
           label="Reabastecimientos pendientes"
           sublabel="Pick faces bajo mínimo"
           tone={pendingReplenishment > 0 ? 'red' : 'neutral'}
-          alert={pendingReplenishment > 0}
-          onClick={pendingReplenishment > 0 ? () => router.push(pathname + '?tab=replenishment') : undefined}
         />
       </div>
 
       {/* ── SubNav ── */}
-      <SubNav items={SLOTTING_TABS} defaultValue="optimization" className="mb-4" />
+      <SubNav items={SLOTTING_TABS} defaultValue="optimization" />
 
       {/* ════════ Tab: Optimización ════════ */}
       {activeTab === 'optimization' && (
@@ -1070,7 +1065,7 @@ const SlottingPage = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </>
+    </div>
   )
 }
 

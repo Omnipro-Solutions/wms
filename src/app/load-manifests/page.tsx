@@ -172,7 +172,6 @@ export default function LoadManifestsPage() {
           value={pendingCount}
           label="Pendientes de despacho"
           tone="amber"
-          alert={pendingCount > 0}
         />
         <KpiCard
           icon={Package}
