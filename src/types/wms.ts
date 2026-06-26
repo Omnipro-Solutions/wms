@@ -37,12 +37,19 @@ export interface UomConversion {
   factor: number // fromUomId × factor = toUomId quantity
 }
 
+export interface DeliveryWindow {
+  dayOfWeek: 0 | 1 | 2 | 3 | 4 | 5 | 6 // 0=domingo, 1=lunes, …, 6=sábado
+  openTime: string  // 'HH:mm' — hora apertura recepción
+  closeTime: string // 'HH:mm' — hora cierre recepción
+}
+
 export interface Warehouse {
   id: string
   code: string
   name: string
   city: string
   type: 'distribution_center' | 'store'
+  deliveryWindows?: DeliveryWindow[]
 }
 
 export interface Store {
@@ -204,6 +211,9 @@ export interface Asn {
   sourceType: 'purchase' | 'internal_transfer' | 'adjustment'
   // Notes added during reception (carrier reference, delivery note number, etc.)
   receptionNotes?: string
+  dockId?: string           // muelle asignado, e.g. 'dock-1'
+  timeSlot?: string         // ventana horaria, e.g. '08:00-10:00'
+  carrierConfirmed?: boolean // transportista confirmó la cita
 }
 
 export interface TransferOrder {
@@ -751,6 +761,7 @@ export interface Carrier {
   logoUrl?: string
   active: boolean
   apiIntegration: boolean // true when carrier has live API rate lookup
+  modalityType: 'own' | 'third_party' | 'courier' | 'last_mile'
   services: CarrierService[]
   zones: CarrierZone[]
   contactEmail?: string
@@ -871,4 +882,28 @@ export interface SlottingSnapshot {
   czInGoldenCount: number // CZ items still occupying golden zone
   pendingReplenishment: number
   affinityPairsNeedingAction: number
+}
+
+// Sprint 8: SAP Routes (F-85)
+export type SapRouteStatus =
+  | 'pending'
+  | 'in_progress'
+  | 'in_transit'
+  | 'completed'
+  | 'synced'
+  | 'error'
+
+export interface SapRoute {
+  id: string
+  code: string             // e.g. 'SAP-RT-001'
+  name: string             // e.g. 'Ruta Bogotá Norte'
+  originId: string         // warehouseId del CD origen
+  destinationIds: string[] // warehouseIds de tiendas destino
+  carrierName: string
+  driverName: string
+  truckPlate: string       // formato colombiano 'ABC-123'
+  routeDate: string        // ISO date 'YYYY-MM-DD'
+  currentLoadKg: number
+  capacityKg: number
+  status: SapRouteStatus
 }
