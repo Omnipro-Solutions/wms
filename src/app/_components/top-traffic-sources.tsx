@@ -20,6 +20,7 @@ type StatusDatum = { label: string; status: string; count: number }
 
 const renderValueLabel = (props: LabelProps) => {
   const { height, value, y } = props
+  if (value == null || y == null || height == null) return null
   return (
     <text
       className="fill-foreground"

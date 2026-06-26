@@ -23,6 +23,9 @@ export const TopPages = () => {
     }))
   )
 
+  // Note: slaBreaches array used below is the source of truth for SLA count
+  // to avoid dual Date.now() timestamp drift between kpis and slaBreaches selector
+
   if (!kpis) return null
 
   const alerts: AlertRow[] = []
