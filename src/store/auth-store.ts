@@ -18,13 +18,13 @@ export const useAuthStore = create<AuthState>()(
 
       login: async (email, password, remember) => {
         const operators = useWmsStore.getState().operators
-        const operator = operators.find((o) => o.email.toLowerCase() === email.toLowerCase())
+        const operator = operators.find((o) => o.email?.toLowerCase() === email.toLowerCase())
 
         if (!operator) return { success: false, error: 'Credenciales incorrectas' }
         if (!operator.active) return { success: false, error: 'Usuario inactivo' }
 
         const hash = await hashPassword(password)
-        if (hash !== operator.passwordHash) return { success: false, error: 'Credenciales incorrectas' }
+        if (!operator.passwordHash || hash !== operator.passwordHash) return { success: false, error: 'Credenciales incorrectas' }
 
         setAuthCookie(operator.id, remember)
         set({ operatorId: operator.id })

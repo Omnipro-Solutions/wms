@@ -76,9 +76,6 @@ export const LoginForm = () => {
                 aria-invalid={fieldState.invalid}
               />
               {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
-              {authError && (
-                <p className="text-sm text-destructive">{authError}</p>
-              )}
             </Field>
           )}
         />
@@ -102,6 +99,9 @@ export const LoginForm = () => {
           )}
         />
       </FieldGroup>
+      {authError && (
+        <p role="alert" className="text-sm text-destructive">{authError}</p>
+      )}
       <Button className="w-full" type="submit" disabled={form.formState.isSubmitting}>
         {form.formState.isSubmitting ? "Ingresando..." : "Ingresar"}
       </Button>
