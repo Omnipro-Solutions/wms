@@ -2868,14 +2868,14 @@ export const useWmsStore = create<WmsState>()(
   updateSapRouteStatus: (id, status) => {
     const state = get()
     const route = state.sapRoutes.find((r) => r.id === id)
-    if (!route) throw new Error('sapRoute not found')
+    if (!route) return
     set({ sapRoutes: state.sapRoutes.map((r) => (r.id === id ? { ...r, status } : r)) })
   },
 
   updateAsnAppointment: (id, data) => {
     const state = get()
     const asn = state.asnRecords.find((a) => a.id === id)
-    if (!asn) throw new Error('ASN not found')
+    if (!asn) return
     const updated = { ...asn, ...data }
     set({ asnRecords: state.asnRecords.map((a) => (a.id === id ? updated : a)) })
   },
@@ -2883,7 +2883,7 @@ export const useWmsStore = create<WmsState>()(
   updateWarehouseDeliveryWindows: (id, windows) => {
     const state = get()
     const wh = state.warehouses.find((w) => w.id === id)
-    if (!wh) throw new Error('warehouse not found')
+    if (!wh) return
     set({ warehouses: state.warehouses.map((w) => (w.id === id ? { ...w, deliveryWindows: windows } : w)) })
   },
 

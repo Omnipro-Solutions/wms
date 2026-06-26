@@ -2276,6 +2276,40 @@ export const carriers: Carrier[] = [
       },
     ],
   },
+  {
+    id: 'ca-5',
+    code: 'FLOTA',
+    name: 'Flota propia',
+    active: true,
+    apiIntegration: false,
+    modalityType: 'own',
+    contactEmail: 'logistica@empresa.com',
+    contactPhone: '(601) 555-0100',
+    zones: [
+      { code: 'Z1', label: 'Bogotá ciudad', cities: ['Bogotá'] },
+      { code: 'Z2', label: 'Cundinamarca', cities: ['Chía', 'Soacha', 'Facatativá'] },
+    ],
+    services: [
+      {
+        serviceLevel: 'same_day',
+        label: 'Mismo día',
+        baseCostUsd: 5.0,
+        costPerKgUsd: 0.5,
+        maxWeightKg: 500,
+        transitDays: 0,
+        availableZones: ['Z1'],
+      },
+      {
+        serviceLevel: 'next_day',
+        label: 'Día siguiente',
+        baseCostUsd: 3.0,
+        costPerKgUsd: 0.3,
+        maxWeightKg: 1000,
+        transitDays: 1,
+        availableZones: ['Z1', 'Z2'],
+      },
+    ],
+  },
 ]
 
 export const settings: WmsSettings = {

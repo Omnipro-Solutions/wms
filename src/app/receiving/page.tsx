@@ -273,7 +273,8 @@ const ReceivingPage = () => {
       { onAction: handleAction, onAssignAppointment: (asn) => appointmentDialog.open(asn) },
       state.asnRecords
     ),
-    [handleAction, appointmentDialog, state.asnRecords]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [handleAction, state.asnRecords]
   )
   const receivingCols = useMemo(() => buildReceivingColumns(handleAction), [handleAction])
   const qcCols = useMemo(() => buildQcColumns(handleAction), [handleAction])

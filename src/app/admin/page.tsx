@@ -110,6 +110,8 @@ const ADMIN_TABS: SubNavItem[] = [
 
 const PRODUCT_BLANK = { rotationStrategy: undefined as Product['rotationStrategy'], minStockUnits: '' as number | '', maxStockUnits: '' as number | '' }
 
+const DAY_LABELS = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb']
+
 const AdminPage = () => {
   const searchParams = useSearchParams()
   const activeTab = searchParams.get('tab') ?? 'operators'
@@ -171,8 +173,6 @@ const AdminPage = () => {
   // Almacenes — delivery windows editor
   const [editingWarehouseId, setEditingWarehouseId] = useState<string | null>(null)
   const [windowsForm, setWindowsForm] = useState<DeliveryWindow[]>([])
-
-  const DAY_LABELS = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb']
 
   const handleOpenWarehouse = (wh: Warehouse) => {
     setEditingWarehouseId(wh.id)
@@ -1116,7 +1116,7 @@ const AdminPage = () => {
           </DialogHeader>
           <div className="space-y-3 py-2">
             {windowsForm.map((win, idx) => (
-              <div key={idx} className="flex items-center gap-2">
+              <div key={`${win.dayOfWeek}-${win.openTime}-${idx}`} className="flex items-center gap-2">
                 <Select
                   value={String(win.dayOfWeek)}
                   onValueChange={(v) =>

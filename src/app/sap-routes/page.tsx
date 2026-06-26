@@ -51,7 +51,7 @@ export default function SapRoutesPage() {
         warehouseName,
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [warehouseName]
+    []
   )
 
   const filtersNode = (

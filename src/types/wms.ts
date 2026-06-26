@@ -763,7 +763,7 @@ export interface Carrier {
   logoUrl?: string
   active: boolean
   apiIntegration: boolean // true when carrier has live API rate lookup
-  modalityType: 'own' | 'third_party' | 'courier' | 'last_mile'
+  modalityType?: 'own' | 'third_party' | 'courier' | 'last_mile'
   services: CarrierService[]
   zones: CarrierZone[]
   contactEmail?: string
