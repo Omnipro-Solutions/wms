@@ -20,6 +20,14 @@ export const THEME_PRESET_OPTIONS = [
     },
   },
   {
+    label: "Industrial",
+    value: "industrial",
+    primary: {
+      light: "oklch(0.55 0.18 38)",
+      dark: "oklch(0.62 0.18 38)",
+    },
+  },
+  {
     label: "Brutalist",
     value: "brutalist",
     primary: {
