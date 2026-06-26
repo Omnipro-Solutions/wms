@@ -73,7 +73,7 @@ console.log(createHash('sha256').update('wms2024').digest('hex'));
 "
 ```
 
-Resultado esperado: `ef797c8118f02dfb649607dd5d3f8c7623048c9c063d532cc95c5ed7a898a64f`
+Resultado esperado: `aa7ad6993070380cb2035d9a835b2addea685886e4c639b8196bca55ad0129f5`
 
 Este valor se hardcodea en el seed para todos los operadores.
 
@@ -82,7 +82,7 @@ Este valor se hardcodea en el seed para todos los operadores.
 Localizar `export const operators: Operator[] = [` (~línea 1904) y reemplazar con:
 
 ```ts
-const WMS2024_HASH = 'ef797c8118f02dfb649607dd5d3f8c7623048c9c063d532cc95c5ed7a898a64f'
+const WMS2024_HASH = 'aa7ad6993070380cb2035d9a835b2addea685886e4c639b8196bca55ad0129f5'
 
 export const operators: Operator[] = [
   { id: 'op-0', code: 'OP-000', name: 'Carlos Granados',  email: 'carlos.granados@wms.co',  passwordHash: WMS2024_HASH, role: 'supervisor', active: true },

@@ -55,7 +55,7 @@ export interface Operator {
 | op-4 | diana.lopez@wms.co | wms2024 |
 | op-5 | pedro.martinez@wms.co | wms2024 |
 
-El hash se calcula una vez con Web Crypto API y se hardcodea en seed como string hex.
+El hash de `"wms2024"` es `aa7ad6993070380cb2035d9a835b2addea685886e4c639b8196bca55ad0129f5` — se calcula una vez con Web Crypto API y se hardcodea en seed como string hex.
 
 ---
 
