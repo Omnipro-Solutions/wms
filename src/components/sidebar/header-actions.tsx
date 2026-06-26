@@ -1,6 +1,7 @@
 'use client'
 
-import { MoonIcon, SunIcon, RefreshCwIcon, ShieldCheckIcon } from 'lucide-react'
+import { MoonIcon, SunIcon, RefreshCwIcon, ShieldCheckIcon, LogOutIcon } from 'lucide-react'
+import { useRouter } from 'next/navigation'
 import { useTheme } from 'next-themes'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
@@ -15,6 +16,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { useCurrentOperator } from '@/hooks/use-current-operator'
 import { useOperatorPicker } from '@/components/layout/operator-picker-provider'
+import { useAuthStore } from '@/store/auth-store'
 
 const ROLE_LABELS: Record<string, string> = {
   picker: 'Picker',
@@ -28,10 +30,17 @@ export const HeaderActions = () => {
   const { theme, setTheme } = useTheme()
   const { operator } = useCurrentOperator()
   const { openPicker } = useOperatorPicker()
+  const logout = useAuthStore((s) => s.logout)
+  const router = useRouter()
 
   const displayName = operator?.name ?? 'Sin operador'
   const displayRole = operator ? (ROLE_LABELS[operator.role] ?? operator.role) : '—'
   const initials = operator ? operator.name.slice(0, 2).toUpperCase() : '?'
+
+  const handleLogout = () => {
+    logout()
+    router.push('/auth/login')
+  }
 
   return (
     <div className="flex items-center gap-2">
@@ -77,6 +86,11 @@ export const HeaderActions = () => {
           <DropdownMenuItem onClick={openPicker}>
             <RefreshCwIcon className="mr-2 size-4" />
             Cambiar operador
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem onClick={handleLogout} className="text-destructive focus:text-destructive">
+            <LogOutIcon className="mr-2 size-4" />
+            Cerrar sesión
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
