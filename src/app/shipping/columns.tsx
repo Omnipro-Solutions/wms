@@ -8,6 +8,7 @@ import { StatusBadge } from '@/components/shared/status-badge'
 import { DataTableColumnHeader } from '@/components/data-table'
 import { formatDate, formatNumber } from '@/lib/formatters'
 import { SERVICE_LEVEL_LABELS } from '@/lib/rules/shipping'
+import { cn } from '@/lib/utils'
 import type { CarrierServiceLevel, Shipment } from '@/types/wms'
 
 export interface ShippingRow {
@@ -16,6 +17,7 @@ export interface ShippingRow {
   customerName: string
   carrierId: string | undefined
   carrierName: string
+  modalityType: 'own' | 'third_party' | 'courier' | 'last_mile' | undefined
   serviceLevel: CarrierServiceLevel | undefined
   quotedCostUsd: number | undefined
   destinationCity: string | undefined
@@ -75,6 +77,28 @@ export const buildShippingColumns = ({
   {
     accessorKey: 'carrierName',
     header: ({ column }) => <DataTableColumnHeader column={column} title="Transportadora" />,
+  },
+  {
+    id: 'modalityType',
+    accessorKey: 'modalityType',
+    header: ({ column }) => <DataTableColumnHeader column={column} title="Modalidad" />,
+    cell: ({ row }) => {
+      const modality = row.original.modalityType
+      if (!modality) return <span className="text-muted-foreground text-sm">—</span>
+      const config: Record<string, { label: string; className: string }> = {
+        own: { label: 'Flota propia', className: 'bg-green-100 text-green-700 border-green-200' },
+        third_party: { label: 'Tercero', className: 'bg-blue-100 text-blue-700 border-blue-200' },
+        courier: { label: 'Courier', className: 'bg-violet-100 text-violet-700 border-violet-200' },
+        last_mile: { label: 'Última milla', className: 'bg-orange-100 text-orange-700 border-orange-200' },
+      }
+      const { label, className } = config[modality] ?? { label: modality, className: '' }
+      return (
+        <span className={cn('rounded border px-2 py-0.5 text-xs font-medium', className)}>
+          {label}
+        </span>
+      )
+    },
+    enableSorting: false,
   },
   {
     accessorKey: 'serviceLevel',

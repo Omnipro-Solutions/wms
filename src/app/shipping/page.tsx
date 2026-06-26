@@ -60,12 +60,14 @@ export default function ShippingPage() {
 
   const state = useWmsStore()
   const { shipOrder, deliverShipment } = state
+  const { carriers } = state
 
   const searchParams = useSearchParams()
   const activeTab = searchParams.get('tab') ?? 'shipments'
   const [otifFilter, setOtifFilter] = useState('all')
   const [statusFilter, setStatusFilter] = useState('all')
   const [carrierFilter, setCarrierFilter] = useState('all')
+  const [modalityFilter, setModalityFilter] = useState('all')
 
   const shipDialog = useDialogState<ShipDialogData>()
   const deliverDialog = useDialogState<{ shipmentId: string; customerName: string }>()
@@ -79,12 +81,14 @@ export default function ShippingPage() {
     () =>
       state.shipments.map((sh) => {
         const order = state.commerceOrders.find((o) => o.id === sh.orderId)
+        const carrier = carriers.find((c) => c.id === sh.carrierId)
         return {
           id: sh.id,
           orderNumber: order?.orderNumber ?? sh.orderId,
           customerName: sh.customerName,
           carrierId: sh.carrierId,
           carrierName: sh.carrierName,
+          modalityType: carrier?.modalityType,
           serviceLevel: sh.serviceLevel,
           quotedCostUsd: sh.quotedCostUsd,
           destinationCity: sh.destinationCity,
@@ -100,7 +104,7 @@ export default function ShippingPage() {
         }
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [state.shipments]
+    [state.shipments, carriers]
   )
 
   const uniqueCarriers = useMemo(() => [...new Set(rows.map((r) => r.carrierName))], [rows])
@@ -111,9 +115,10 @@ export default function ShippingPage() {
         if (otifFilter !== 'all' && r.otifStatus !== otifFilter) return false
         if (statusFilter !== 'all' && r.status !== statusFilter) return false
         if (carrierFilter !== 'all' && r.carrierName !== carrierFilter) return false
+        if (modalityFilter !== 'all' && r.modalityType !== modalityFilter) return false
         return true
       }),
-    [rows, otifFilter, statusFilter, carrierFilter]
+    [rows, otifFilter, statusFilter, carrierFilter, modalityFilter]
   )
 
   // ── KPIs ──────────────────────────────────────────────────────────────────
@@ -248,6 +253,18 @@ export default function ShippingPage() {
               {c}
             </SelectItem>
           ))}
+        </SelectContent>
+      </Select>
+      <Select value={modalityFilter} onValueChange={setModalityFilter}>
+        <SelectTrigger className="h-8 w-40">
+          <SelectValue placeholder="Modalidad" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="all">Todas</SelectItem>
+          <SelectItem value="own">Flota propia</SelectItem>
+          <SelectItem value="third_party">Tercero</SelectItem>
+          <SelectItem value="courier">Courier</SelectItem>
+          <SelectItem value="last_mile">Última milla</SelectItem>
         </SelectContent>
       </Select>
       <Select value={otifFilter} onValueChange={setOtifFilter}>
