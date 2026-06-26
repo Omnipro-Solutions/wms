@@ -2,7 +2,6 @@
 
 import { useMemo, useState } from 'react'
 import { Route } from 'lucide-react'
-
 import { useWmsStore } from '@/store/wms-store'
 import { useStoreHelpers } from '@/hooks/use-store-helpers'
 import { PageHeader } from '@/components/shared/page-header'
@@ -16,7 +15,8 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { formatNumber } from '@/lib/formatters'
-import { buildSapRouteColumns, type SapRouteRow } from './columns'
+import { buildSapRouteColumns } from './columns'
+import type { SapRouteStatus } from '@/types/wms'
 
 export default function SapRoutesPage() {
   const state = useWmsStore()
@@ -30,45 +30,29 @@ export default function SapRoutesPage() {
     [state.sapRoutes]
   )
 
-  const rows = useMemo<SapRouteRow[]>(
+  const filteredRoutes = useMemo(
     () =>
-      state.sapRoutes.map((r) => {
-        const loadPct = r.capacityKg > 0 ? Math.round((r.currentLoadKg / r.capacityKg) * 100) : 0
-        return {
-          id: r.id,
-          code: r.code,
-          name: r.name,
-          originName: warehouseName(r.originId),
-          destinationNames: r.destinationIds.map((did) => warehouseName(did)),
-          carrierName: r.carrierName,
-          driverName: r.driverName,
-          truckPlate: r.truckPlate,
-          routeDate: r.routeDate,
-          currentLoadKg: r.currentLoadKg,
-          capacityKg: r.capacityKg,
-          loadPct,
-          status: r.status,
-        }
-      }),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [state.sapRoutes]
-  )
-
-  const filteredRows = useMemo(
-    () =>
-      rows.filter((r) => {
+      state.sapRoutes.filter((r) => {
         if (statusFilter !== 'all' && r.status !== statusFilter) return false
         if (carrierFilter !== 'all' && r.carrierName !== carrierFilter) return false
         return true
       }),
-    [rows, statusFilter, carrierFilter]
+    [state.sapRoutes, statusFilter, carrierFilter]
   )
 
   const inTransitCount = state.sapRoutes.filter((r) => r.status === 'in_transit').length
   const syncedCount = state.sapRoutes.filter((r) => r.status === 'synced').length
   const totalLoad = state.sapRoutes.reduce((s, r) => s + r.currentLoadKg, 0)
 
-  const columns = useMemo(() => buildSapRouteColumns(), [])
+  const columns = useMemo(
+    () =>
+      buildSapRouteColumns({
+        onStatusChange: (id, status) => state.updateSapRouteStatus(id, status as SapRouteStatus),
+        warehouseName,
+      }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [warehouseName]
+  )
 
   const filtersNode = (
     <>
@@ -79,9 +63,7 @@ export default function SapRoutesPage() {
         <SelectContent>
           <SelectItem value="all">Todas</SelectItem>
           {carriers.map((c) => (
-            <SelectItem key={c} value={c}>
-              {c}
-            </SelectItem>
+            <SelectItem key={c} value={c}>{c}</SelectItem>
           ))}
         </SelectContent>
       </Select>
@@ -141,7 +123,7 @@ export default function SapRoutesPage() {
           </div>
           <DataTable
             columns={columns}
-            data={filteredRows}
+            data={filteredRoutes}
             searchColumn="name"
             searchPlaceholder="Buscar ruta..."
             filters={filtersNode}
