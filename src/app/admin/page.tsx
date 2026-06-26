@@ -21,6 +21,7 @@ import {
   Snowflake,
   Truck,
   Users,
+  X,
   XCircle,
 } from 'lucide-react'
 import { useWmsStore, resetStore } from '@/store/wms-store'
@@ -58,7 +59,7 @@ import {
 } from '@/components/ui/table'
 import { SubNav, type SubNavItem } from '@/components/shared/sub-nav'
 import { cn } from '@/lib/utils'
-import type { CyclicCountMethod, Product, UnitOfMeasure } from '@/types/wms'
+import type { CyclicCountMethod, DeliveryWindow, Product, UnitOfMeasure, Warehouse } from '@/types/wms'
 
 const ROLE_LABELS: Record<string, string> = {
   picker: 'Picker',
@@ -104,6 +105,7 @@ const ADMIN_TABS: SubNavItem[] = [
   { value: 'uom', label: 'Unidades de medida' },
   { value: 'products', label: 'Productos' },
   { value: 'settings', label: 'Configuración' },
+  { value: 'almacenes', label: 'Almacenes' },
 ]
 
 const PRODUCT_BLANK = { rotationStrategy: undefined as Product['rotationStrategy'], minStockUnits: '' as number | '', maxStockUnits: '' as number | '' }
@@ -165,6 +167,31 @@ const AdminPage = () => {
     assignedOperatorName: '',
   })
   const [countFormError, setCountFormError] = useState('')
+
+  // Almacenes — delivery windows editor
+  const [editingWarehouseId, setEditingWarehouseId] = useState<string | null>(null)
+  const [windowsForm, setWindowsForm] = useState<DeliveryWindow[]>([])
+
+  const DAY_LABELS = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb']
+
+  const handleOpenWarehouse = (wh: Warehouse) => {
+    setEditingWarehouseId(wh.id)
+    setWindowsForm(wh.deliveryWindows ?? [])
+  }
+
+  const handleAddWindow = () => {
+    setWindowsForm((prev) => [...prev, { dayOfWeek: 1, openTime: '08:00', closeTime: '18:00' }])
+  }
+
+  const handleRemoveWindow = (idx: number) => {
+    setWindowsForm((prev) => prev.filter((_, i) => i !== idx))
+  }
+
+  const handleSaveWindows = () => {
+    if (!editingWarehouseId) return
+    state.updateWarehouseDeliveryWindows(editingWarehouseId, windowsForm)
+    setEditingWarehouseId(null)
+  }
 
   const handleSettingChange = (key: keyof typeof settings, value: number | boolean) => {
     setLocalSettings((prev) => ({ ...prev, [key]: value }))
@@ -1022,6 +1049,133 @@ const AdminPage = () => {
             </CardContent>
           </Card>
       )}
+
+      {activeTab === 'almacenes' && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Almacenes y ventanas de entrega</CardTitle>
+            <CardDescription>
+              Configura las ventanas horarias de recepción por tienda.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Código</TableHead>
+                  <TableHead>Nombre</TableHead>
+                  <TableHead>Ciudad</TableHead>
+                  <TableHead>Tipo</TableHead>
+                  <TableHead>Ventanas</TableHead>
+                  <TableHead />
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {warehouses.map((wh) => (
+                  <TableRow key={wh.id}>
+                    <TableCell className="font-mono text-sm">{wh.code}</TableCell>
+                    <TableCell className="font-medium">{wh.name}</TableCell>
+                    <TableCell>{wh.city}</TableCell>
+                    <TableCell>
+                      <Badge variant={wh.type === 'distribution_center' ? 'default' : 'secondary'}>
+                        {wh.type === 'distribution_center' ? 'CD' : 'Tienda'}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      {wh.deliveryWindows?.length ? (
+                        <span className="text-sm">{wh.deliveryWindows.length} ventanas</span>
+                      ) : (
+                        <span className="text-muted-foreground text-sm">Sin ventanas</span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-xs"
+                        onClick={() => handleOpenWarehouse(wh)}
+                      >
+                        <Pencil className="mr-1 size-3" /> Editar
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Delivery windows editor dialog */}
+      <Dialog open={!!editingWarehouseId} onOpenChange={(o) => !o && setEditingWarehouseId(null)}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>
+              Ventanas de entrega — {warehouses.find((w) => w.id === editingWarehouseId)?.name}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            {windowsForm.map((win, idx) => (
+              <div key={idx} className="flex items-center gap-2">
+                <Select
+                  value={String(win.dayOfWeek)}
+                  onValueChange={(v) =>
+                    setWindowsForm((prev) =>
+                      prev.map((w, i) => (i === idx ? { ...w, dayOfWeek: Number(v) as DeliveryWindow['dayOfWeek'] } : w))
+                    )
+                  }
+                >
+                  <SelectTrigger className="h-8 w-24">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {DAY_LABELS.map((d, i) => (
+                      <SelectItem key={i} value={String(i)}>{d}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Input
+                  className="h-8 w-24"
+                  type="time"
+                  value={win.openTime}
+                  onChange={(e) =>
+                    setWindowsForm((prev) =>
+                      prev.map((w, i) => (i === idx ? { ...w, openTime: e.target.value } : w))
+                    )
+                  }
+                />
+                <span className="text-muted-foreground text-sm">–</span>
+                <Input
+                  className="h-8 w-24"
+                  type="time"
+                  value={win.closeTime}
+                  onChange={(e) =>
+                    setWindowsForm((prev) =>
+                      prev.map((w, i) => (i === idx ? { ...w, closeTime: e.target.value } : w))
+                    )
+                  }
+                />
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="ghost"
+                  className="size-8 shrink-0 text-red-500 hover:text-red-700"
+                  onClick={() => handleRemoveWindow(idx)}
+                >
+                  <X className="size-4" />
+                </Button>
+              </div>
+            ))}
+            <Button type="button" variant="outline" size="sm" onClick={handleAddWindow}>
+              + Agregar ventana
+            </Button>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditingWarehouseId(null)}>Cancelar</Button>
+            <Button onClick={handleSaveWindows}>Guardar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Reset confirmation dialog */}
       <Dialog open={resetDialogOpen} onOpenChange={setResetDialogOpen}>
