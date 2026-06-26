@@ -73,7 +73,7 @@ const RECEPTION_POINTS = [
   8, 15, 42, 78, 95, 112, 88, 134, 156, 142, 98, 76,
   110, 145, 167, 188, 154, 122, 98, 74, 52, 38, 22, 14,
   8, 4, 2, 1, 0, 0, 0, 3,
-] as const
+] satisfies readonly number[]
 
 const receptionConfig = {
   unidades: { label: "Unidades", color: "var(--chart-2)" },
