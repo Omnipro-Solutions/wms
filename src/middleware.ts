@@ -2,7 +2,8 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
 export const middleware = (request: NextRequest) => {
-  const isAuthRoute = request.nextUrl.pathname.startsWith('/auth')
+  const pathname = request.nextUrl.pathname
+  const isAuthRoute = pathname.startsWith('/auth')
   const sessionCookie = request.cookies.get('wms-auth-session')
 
   if (!isAuthRoute && !sessionCookie) {
@@ -10,7 +11,9 @@ export const middleware = (request: NextRequest) => {
     return NextResponse.redirect(loginUrl)
   }
 
-  return NextResponse.next()
+  const response = NextResponse.next()
+  response.headers.set('x-pathname', pathname)
+  return response
 }
 
 export const config = {
