@@ -312,7 +312,7 @@ const ReceivingPage = () => {
         />
       </div>
 
-      <SubNav items={RECEIVING_TABS} defaultValue="ordenes" className="mb-4" />
+      <SubNav items={RECEIVING_TABS} defaultValue="ordenes" />
 
       {activeTab === 'ordenes' && (
           <TabPanel

@@ -15,7 +15,7 @@ const TONE_BADGE: Record<KpiCardProps['tone'], string> = {
   blue: 'bg-blue-500/10 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300',
   green: 'bg-green-500/10 text-green-700 dark:bg-green-500/15 dark:text-green-300',
   amber: 'bg-amber-500/10 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300',
-  red: 'bg-destructive/10 text-destructive',
+  red: 'bg-red-500/10 text-red-700 dark:bg-red-500/15 dark:text-red-400',
   neutral: 'bg-muted text-muted-foreground',
 }
 
