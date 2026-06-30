@@ -1,7 +1,8 @@
 'use client'
 
 import { type ColumnDef } from '@tanstack/react-table'
-import { CheckCircle2, PlayCircle, ThumbsDown, ThumbsUp } from 'lucide-react'
+import { CheckCircle2, PlayCircle, Scan, ThumbsDown, ThumbsUp } from 'lucide-react'
+import Link from 'next/link'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { DataTableColumnHeader } from '@/components/data-table'
@@ -99,6 +100,14 @@ export const buildTaskColumns = (
           {task.status === 'in_progress' && (
             <Button size="sm" onClick={() => onAction({ type: 'register', task })}>
               <CheckCircle2 className="mr-1 size-3" /> Registrar
+            </Button>
+          )}
+          {['assigned', 'in_progress'].includes(task.status) && (
+            <Button asChild size="sm" variant="outline" className="h-7 gap-1 text-xs">
+              <Link href={`/picking/scan/${task.id}`}>
+                <Scan className="size-3" />
+                Escanear
+              </Link>
             </Button>
           )}
           {isPartialPending && (
