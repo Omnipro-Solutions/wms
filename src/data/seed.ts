@@ -244,6 +244,7 @@ export const locations: StorageLocation[] = [
     warehouseId: 'wh-bog',
     zone: 'S',
     type: 'staging',
+    routeCode: 'sap-rt-001',
     isPickFace: false,
     golden: false,
     isBlocked: false,
