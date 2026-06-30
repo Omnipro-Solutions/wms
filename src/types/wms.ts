@@ -9,6 +9,7 @@ export type OperationalStatus =
   | 'assigned'
   | 'in_progress'
   | 'partial'
+  | 'partial_received'
   | 'completed'
   | 'putaway_done'
   | 'cancelled'

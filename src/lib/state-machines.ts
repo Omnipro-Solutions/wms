@@ -17,9 +17,17 @@ export const transferTransitions: Record<string, OperationalStatus[]> = {
   draft: ['pending', 'cancelled'],
   pending: ['in_progress', 'cancelled'],
   in_progress: ['in_transit'],
-  in_transit: ['partial', 'completed'],
+  in_transit: ['partial_received', 'completed', 'cancelled'],
+  partial_received: ['in_transit', 'completed', 'cancelled'],
   partial: ['completed'],
   completed: [],
+  cancelled: [],
+}
+
+export const legTransitions: Record<string, string[]> = {
+  pending: ['in_transit', 'cancelled'],
+  in_transit: ['received', 'cancelled'],
+  received: [],
   cancelled: [],
 }
 

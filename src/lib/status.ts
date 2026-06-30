@@ -24,6 +24,7 @@ const STATUS_MAP: Record<string, StatusMeta> = {
   synced: { label: 'Sincronizado', variant: 'success' },
   ready_for_pickup: { label: 'Listo para recoger', variant: 'success' },
   short_received: { label: 'Recibido con faltante', variant: 'warning' },
+  partial_received: { label: 'Recibido parcial', variant: 'warning' },
   putaway_done: { label: 'Guardado', variant: 'success' },
 
   // ReturnStatus
