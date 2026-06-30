@@ -718,12 +718,16 @@ export const useWmsStore = create<WmsState>()(
 
     const newTotal = asn.receivedQuantity + totalCounted
     const newDamaged = asn.damagedQuantity + damagedQty
-    const finalStatus = newTotal >= asn.expectedQuantity ? 'completed' : 'partial'
+
+    // Validate transition to labels_pending from current status
+    if (!canTransition(asnTransitions, asn.status, 'labels_pending')) {
+      throw new Error(`No se puede avanzar a etiquetado desde el estado ${asn.status}`)
+    }
+
     const updatedAsn: Asn = {
       ...asn,
       receivedQuantity: newTotal,
       damagedQuantity: newDamaged,
-      status: finalStatus,
       deliveryCount: asn.deliveryCount + 1,
     }
 
@@ -831,7 +835,7 @@ export const useWmsStore = create<WmsState>()(
     } else {
       const seq = labelSeq + 1
       receiptLabels.push({
-        id: `lb-rcpt-${asnId}-${Date.now()}`,
+        id: `lb-rcpt-${asnId}-line-${state.labels.length + 1}`,
         code: `LBL-RCP-${String(seq).padStart(4, '0')}`,
         type: 'receipt',
         reference: asnId,
@@ -872,7 +876,7 @@ export const useWmsStore = create<WmsState>()(
       const allDone = asnLabels.every((l) => l.status === 'completed')
       if (allDone) {
         const asn = state.asnRecords.find((a) => a.id === asnId)
-        if (asn && asn.status === 'labels_pending') {
+        if (asn && canTransition(asnTransitions, asn.status, 'putaway_ready')) {
           const updatedAsn: Asn = { ...asn, status: 'putaway_ready' }
           set({
             labels: updatedLabels,
