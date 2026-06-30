@@ -1,6 +1,6 @@
 'use client'
 
-import type { AbcClass, OperationalStatus, PurchaseOrderStatus } from '@/types/wms'
+import type { AbcClass, OperationalStatus, PurchaseOrderStatus, WmsLabel } from '@/types/wms'
 
 // ── ASN row ───────────────────────────────────────────────────────────────────
 
@@ -31,6 +31,7 @@ export interface AsnRow {
   dockId?: string
   timeSlot?: string
   carrierConfirmed?: boolean
+  receiptLabels?: WmsLabel[]
 }
 
 // ── PO row ────────────────────────────────────────────────────────────────────

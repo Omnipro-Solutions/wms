@@ -4,8 +4,10 @@ import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
 import { formatNumber } from '@/lib/formatters'
+import type { WmsLabel } from '@/types/wms'
 import type { AsnRow } from '../columns'
 import { codeCol, supplierCol, productCol, abcCol, flagsCol, type ActionHandler } from './shared'
+import { ReceiptLabelButton } from '../_components/receipt-label-dialog'
 
 export const buildReceivingColumns = (onAction: ActionHandler): ColumnDef<AsnRow>[] => [
   codeCol,
@@ -60,6 +62,34 @@ export const buildReceivingColumns = (onAction: ActionHandler): ColumnDef<AsnRow
     },
   },
   flagsCol,
+  {
+    id: 'etiquetas',
+    header: 'Etiquetas',
+    enableSorting: false,
+    cell: ({ row }) => {
+      const labels: WmsLabel[] = row.original.receiptLabels ?? []
+      const printed = labels.filter((l) => l.status === 'completed').length
+      const total = labels.length
+      if (total === 0) return <span className="text-muted-foreground text-xs">—</span>
+      return (
+        <div className="flex flex-col gap-1.5">
+          <span
+            className={cn(
+              'text-xs font-medium',
+              printed < total ? 'text-red-600' : 'text-emerald-600'
+            )}
+          >
+            {printed}/{total} impresas
+          </span>
+          <div className="flex flex-wrap gap-1">
+            {labels.map((l) => (
+              <ReceiptLabelButton key={l.id} label={l} />
+            ))}
+          </div>
+        </div>
+      )
+    },
+  },
   {
     id: 'actions',
     enableSorting: false,

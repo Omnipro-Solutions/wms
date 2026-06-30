@@ -139,7 +139,16 @@ const ReceivingPage = () => {
 
       for (const r of rows) {
         if (r.status === 'pending' || r.status === 'partial') appointmentRows.push(r)
-        if (r.status === 'in_progress') receivingRows.push(r)
+        if (
+          r.status === 'in_progress' ||
+          r.status === 'labels_pending' ||
+          r.status === 'putaway_ready'
+        ) {
+          receivingRows.push({
+            ...r,
+            receiptLabels: state.labels.filter((l) => l.type === 'receipt' && l.asnId === r.id),
+          })
+        }
         if (r.requiresQualityControl && (r.status === 'partial' || r.status === 'in_progress'))
           qcRows.push(r)
         if (r.status === 'completed' || (!r.requiresQualityControl && r.status === 'partial'))
@@ -154,7 +163,7 @@ const ReceivingPage = () => {
       }
 
       return { appointmentRows, receivingRows, qcRows, putawayRows, overdueCount, completedToday }
-    }, [rows])
+    }, [rows, state.labels])
 
   // ── Typed action dispatch map ─────────────────────────────────────────────
   const ACTION_HANDLERS: Record<ActionType, (row: AsnRow) => void> = useMemo(
@@ -464,6 +473,22 @@ const ReceivingPage = () => {
             title="Ubicación en almacén (Putaway)"
             description="Mercancía lista para ser ubicada. El sistema recomienda la posición óptima según rotación del producto."
           >
+            {state.asnRecords.some((a) => a.status === 'labels_pending') && (
+              <div className="mb-4 flex items-center gap-3 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+                <AlertTriangle className="size-4 shrink-0" />
+                <span>
+                  {state.asnRecords.filter((a) => a.status === 'labels_pending').length} ASN(s) con etiquetas pendientes de imprimir. El putaway está bloqueado hasta imprimir todas las etiquetas.
+                </span>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="ml-auto shrink-0"
+                  onClick={() => router.push('?tab=recibiendo')}
+                >
+                  Ir a imprimir
+                </Button>
+              </div>
+            )}
             {putawayRows.length === 0 ? (
               <EmptyState
                 icon={MapPin}
