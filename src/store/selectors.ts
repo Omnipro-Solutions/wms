@@ -14,7 +14,7 @@ import { productivityByOperator } from '@/lib/rules/picking'
 import { dashboardHistory } from '@/data/seed'
 import { statusLabel } from '@/lib/status'
 import type { WmsState } from './wms-store'
-import type { AbcClass, ProductivityRow, SlottingRecommendation, XyzClass } from '@/types/wms'
+import type { AbcClass, ProductivityRow, RouteSlottingRecommendation, SlottingRecommendation, XyzClass } from '@/types/wms'
 
 export interface DashboardKpis {
   pendingOrders: number
@@ -615,6 +615,115 @@ export const selectSlaBreaches = (state: WmsState, nowMs = 0): SlaBreachRecord[]
     }
   }
   return results.sort((a, b) => b.breachPercent - a.breachPercent)
+}
+
+// ─── Route-affinity slotting ─────────────────────────────────────────────────
+//
+// Identifies products whose picks are concentrated on a single SAP route and
+// suggests moving them closer to that route's staging locations.
+//
+// Linkage: LoadManifest.orderIds → PickingTask.orderId (one orderId per task).
+// Route code comes from LoadManifest.sapRouteId (matches StorageLocation.routeCode).
+
+export function selectRouteSlottingRecommendations(
+  state: WmsState
+): RouteSlottingRecommendation[] {
+  // Step 1: build taskId → sapRouteId index from completed manifests
+  const taskRouteMap = new Map<string, string>()
+  for (const manifest of state.loadManifests) {
+    if (manifest.status !== 'completed') continue
+    if (!manifest.sapRouteId) continue
+    for (const orderId of manifest.orderIds) {
+      for (const task of state.pickingTasks) {
+        if (task.orderId === orderId) taskRouteMap.set(task.id, manifest.sapRouteId)
+      }
+    }
+  }
+
+  // Step 2: count completed picks per product per route
+  const productRouteCounts = new Map<string, Map<string, number>>()
+  for (const task of state.pickingTasks) {
+    if (task.status !== 'completed') continue
+    const routeCode = taskRouteMap.get(task.id)
+    if (!routeCode) continue
+    if (!productRouteCounts.has(task.productId)) {
+      productRouteCounts.set(task.productId, new Map())
+    }
+    const routeMap = productRouteCounts.get(task.productId)!
+    routeMap.set(routeCode, (routeMap.get(routeCode) ?? 0) + 1)
+  }
+
+  const recs: RouteSlottingRecommendation[] = []
+
+  for (const [productId, routeMap] of productRouteCounts.entries()) {
+    const totalPicks = Array.from(routeMap.values()).reduce((a, b) => a + b, 0)
+    if (totalPicks === 0) continue
+
+    // Find dominant route
+    let dominantRoute = ''
+    let dominantCount = 0
+    for (const [routeCode, count] of routeMap.entries()) {
+      if (count > dominantCount) {
+        dominantRoute = routeCode
+        dominantCount = count
+      }
+    }
+    const routePickFrequency = dominantCount / totalPicks
+    if (routePickFrequency < 0.4) continue // no dominant route
+
+    const demand = state.demandStats.find((d) => d.productId === productId)
+    const product = state.products.find((p) => p.id === productId)
+    if (!product || !demand) continue
+
+    // Current inventory location for this product
+    const item = state.inventoryItems.find(
+      (i) => i.productId === productId && i.status !== 'on_hold' && i.onHandQuantity > 0
+    )
+    if (!item) continue
+    const currentLoc = state.locations.find((l) => l.id === item.locationId)
+    if (!currentLoc) continue
+
+    // Staging locations tagged with the dominant route — use their avg distance as proxy
+    const stagingLocs = state.locations.filter((l) => l.routeCode === dominantRoute)
+    if (stagingLocs.length === 0) continue
+    const avgStagingDist =
+      stagingLocs.reduce((sum, l) => sum + l.distanceToDispatchM, 0) / stagingLocs.length
+
+    const currentDistToStaging = Math.abs(currentLoc.distanceToDispatchM - avgStagingDist)
+
+    // Best candidate: pick face without a routeCode, not blocked, weight-compatible
+    let best: { loc: typeof currentLoc; distM: number } | null = null
+    for (const candidate of state.locations) {
+      if (!candidate.isPickFace || candidate.isBlocked) continue
+      if (candidate.id === currentLoc.id || candidate.routeCode) continue
+      if (product.unitWeightKg > candidate.maxWeightKg) continue
+      const distToStaging = Math.abs(candidate.distanceToDispatchM - avgStagingDist)
+      if (!best || distToStaging < best.distM) best = { loc: candidate, distM: distToStaging }
+    }
+    if (!best) continue
+
+    const distanceGainM = currentDistToStaging - best.distM
+    if (distanceGainM <= 10) continue // below noise threshold
+
+    // ponytail: simple linear score — replace with slottingScore() if complexity warrants it
+    const score = Math.min(100, Math.round(routePickFrequency * 50 + (distanceGainM / 100) * 50))
+
+    recs.push({
+      productId,
+      routeCode: dominantRoute,
+      routeLabel: `Ruta ${dominantRoute}`,
+      currentLocationId: currentLoc.id,
+      candidateLocationId: best.loc.id,
+      routePickFrequency,
+      currentDistanceToStagingM: currentDistToStaging,
+      candidateDistanceToStagingM: best.distM,
+      distanceGainM,
+      totalDistanceSavedM: distanceGainM * demand.pickingFrequency,
+      score,
+    })
+  }
+
+  return recs.sort((a, b) => b.totalDistanceSavedM - a.totalDistanceSavedM)
 }
 
 // ─── Dashboard chart data ────────────────────────────────────────────────────
