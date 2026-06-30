@@ -15,6 +15,9 @@ export interface TransferRow {
   type: TransferOrder['type']
   originName: string
   destinationName: string
+  currentNodeName: string
+  legsProgress: string
+  isMultiLeg: boolean
   linesCount: number
   estimatedArrivalDate: string
   status: string
@@ -54,6 +57,21 @@ export const buildTransferColumns = (): ColumnDef<TransferRow>[] => [
         <span className="truncate">{row.original.originName}</span>
         <ArrowRight className="text-muted-foreground size-3.5 shrink-0" />
         <span className="truncate">{row.original.destinationName}</span>
+      </div>
+    ),
+    enableSorting: false,
+  },
+  {
+    id: 'currentNode',
+    header: 'Nodo actual',
+    cell: ({ row }) => (
+      <div className="flex items-center gap-1.5 text-sm">
+        {row.original.isMultiLeg && (
+          <Badge variant="outline" className="text-[10px]">
+            {row.original.legsProgress}
+          </Badge>
+        )}
+        <span className="truncate max-w-[140px]">{row.original.currentNodeName}</span>
       </div>
     ),
     enableSorting: false,
