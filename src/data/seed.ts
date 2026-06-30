@@ -484,64 +484,85 @@ export const products: Product[] = [
   },
 ]
 
-// Demand stats drive ABC/XYZ. tshirt/socks/cap are high rotation (A);
-// note: tshirt (A-class) is intentionally seeded in a poor location below.
+// demandStats drive ABC/XYZ classification via selectors.ts:
+// A-class (≥80% cumulative pickingFrequency): nevera, estufa, lavadora
+// B-class (80-95%): microondas, lavaplatos, licuadora, cafetera
+// C-class (<5%): secadora, extractor, batidora, sanduchera, plancha
+// X (CV<0.5 stable): nevera, estufa, lavadora
+// Z (CV>1.0 erratic): extractor, plancha
 export const demandStats: ProductDemandStat[] = [
   {
-    productId: 'p-tshirt',
-    unitsSold: 4200,
+    productId: 'p-nevera',
+    unitsSold: 3840,
     pickingFrequency: 320,
-    demandSamples: [300, 310, 305, 320, 315],
+    demandSamples: [310, 315, 318, 322, 325],
   },
   {
-    productId: 'p-socks',
-    unitsSold: 3800,
-    pickingFrequency: 290,
-    demandSamples: [280, 295, 285, 300, 290],
+    productId: 'p-estufa',
+    unitsSold: 3360,
+    pickingFrequency: 280,
+    demandSamples: [272, 278, 282, 285, 283],
   },
   {
-    productId: 'p-cap',
-    unitsSold: 2600,
+    productId: 'p-lavadora',
+    unitsSold: 2520,
     pickingFrequency: 210,
-    demandSamples: [180, 250, 150, 260, 210],
+    demandSamples: [205, 208, 212, 215, 210],
   },
   {
-    productId: 'p-jeans',
-    unitsSold: 1500,
-    pickingFrequency: 120,
-    demandSamples: [110, 130, 115, 125, 120],
+    productId: 'p-microondas',
+    unitsSold: 1800,
+    pickingFrequency: 150,
+    demandSamples: [140, 155, 148, 152, 155],
   },
   {
-    productId: 'p-hoodie',
-    unitsSold: 1300,
+    productId: 'p-lavaplatos',
+    unitsSold: 1320,
+    pickingFrequency: 110,
+    demandSamples: [105, 112, 108, 115, 110],
+  },
+  {
+    productId: 'p-licuadora',
+    unitsSold: 1140,
     pickingFrequency: 95,
-    demandSamples: [40, 160, 60, 140, 75],
+    demandSamples: [90, 98, 92, 100, 95],
   },
   {
-    productId: 'p-sneakers',
-    unitsSold: 900,
-    pickingFrequency: 70,
-    demandSamples: [65, 75, 60, 80, 70],
+    productId: 'p-cafetera',
+    unitsSold: 960,
+    pickingFrequency: 80,
+    demandSamples: [75, 82, 78, 85, 80],
   },
   {
-    productId: 'p-dress',
-    unitsSold: 600,
+    productId: 'p-secadora',
+    unitsSold: 540,
     pickingFrequency: 45,
-    demandSamples: [10, 90, 20, 80, 25],
+    demandSamples: [42, 46, 44, 48, 45],
   },
   {
-    productId: 'p-cargo',
-    unitsSold: 400,
+    productId: 'p-extractor',
+    unitsSold: 360,
     pickingFrequency: 30,
-    demandSamples: [28, 32, 29, 31, 30],
+    demandSamples: [5, 58, 8, 50, 9],
   },
   {
-    productId: 'p-jacket',
-    unitsSold: 220,
-    pickingFrequency: 18,
-    demandSamples: [5, 40, 8, 35, 10],
+    productId: 'p-batidora',
+    unitsSold: 300,
+    pickingFrequency: 25,
+    demandSamples: [22, 28, 24, 26, 25],
   },
-  { productId: 'p-bag', unitsSold: 150, pickingFrequency: 12, demandSamples: [11, 13, 12, 12, 12] },
+  {
+    productId: 'p-sanduchera',
+    unitsSold: 216,
+    pickingFrequency: 18,
+    demandSamples: [15, 20, 17, 20, 18],
+  },
+  {
+    productId: 'p-plancha',
+    unitsSold: 180,
+    pickingFrequency: 15,
+    demandSamples: [2, 32, 4, 28, 9],
+  },
 ]
 
 export const inventoryItems: InventoryItem[] = [
@@ -2833,11 +2854,11 @@ export const seedTimestamp = NOW
 export const dashboardHistory = {
   weeklyOtif: [91, 89, 92, 88, 85, 90, 87, 91],
   weeklyDemand: {
-    'p-tshirt': [285, 298, 310, 302, 318, 312, 305, 322],
-    'p-socks': [270, 280, 288, 292, 282, 298, 285, 293],
-    'p-cap': [175, 220, 195, 245, 205, 255, 215, 230],
-    'p-jeans': [105, 122, 112, 128, 118, 125, 115, 122],
-    'p-hoodie': [45, 140, 55, 145, 68, 150, 72, 140],
+    'p-nevera': [298, 305, 312, 308, 318, 315, 320, 325],
+    'p-estufa': [265, 272, 278, 275, 282, 280, 285, 283],
+    'p-lavadora': [198, 205, 208, 210, 212, 208, 215, 210],
+    'p-microondas': [138, 145, 148, 150, 152, 148, 155, 150],
+    'p-cafetera': [72, 78, 75, 80, 82, 78, 85, 80],
   },
 }
 
