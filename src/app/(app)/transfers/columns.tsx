@@ -25,6 +25,7 @@ export const TYPE_LABELS: Record<TransferOrder['type'], string> = {
   store_to_store: 'Tienda → Tienda',
   store_to_dc: 'Tienda → DC',
   dc_to_dc: 'DC → DC',
+  multi_leg: 'Multi-tramo',
 }
 
 const TERMINAL_STATUSES = new Set(['completed', 'cancelled'])
