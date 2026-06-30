@@ -10,7 +10,7 @@ import { QuantityStep } from './_components/quantity-step'
 
 type ScanPhase = 'location' | 'product' | 'quantity' | 'done'
 
-export default function ScanPickingPage() {
+const ScanPickingPage = () => {
   const { taskId } = useParams<{ taskId: string }>()
   const router = useRouter()
   const { pickingTasks, locations, products, startPicking, completePick, approvePart } =
@@ -99,7 +99,7 @@ export default function ScanPickingPage() {
               className="mx-auto mb-2 h-24 w-24 rounded object-cover"
             />
           )}
-          <p className="font-mono text-sm text-gray-500">{product.sku}</p>
+          <p className="font-mono text-sm text-muted-foreground">{product.sku}</p>
           <p className="text-xl font-semibold">{product.name}</p>
           {scanError && <p className="mt-2 text-sm text-red-500">{scanError}</p>}
         </div>
@@ -114,3 +114,5 @@ export default function ScanPickingPage() {
     />
   )
 }
+
+export default ScanPickingPage
