@@ -1,6 +1,6 @@
 'use client'
 
-import { useForm } from 'react-hook-form'
+import { Controller, useForm } from 'react-hook-form'
 import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { PackageCheck } from 'lucide-react'
@@ -15,15 +15,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog'
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from '@/components/ui/form'
-import { Input } from '@/components/ui/input'
+import { Field, FieldError, FieldLabel } from '@/components/ui/field'
 import { Textarea } from '@/components/ui/textarea'
 import {
   Select,
@@ -58,9 +50,8 @@ interface Props {
 }
 
 export const ReceiveLegDialog = ({ transfer, leg, open, onClose }: Props) => {
-  const { receiveLeg } = useWmsStore()
+  const { receiveLeg, operators } = useWmsStore()
   const { getProduct, warehouseName } = useStoreHelpers()
-  const { operators } = useWmsStore()
 
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -94,7 +85,6 @@ export const ReceiveLegDialog = ({ transfer, leg, open, onClose }: Props) => {
             Confirmando llegada a <strong>{warehouseName(leg.destinationId)}</strong>
           </p>
 
-          {/* Items summary */}
           <div className="rounded-md border">
             <Table>
               <TableHeader>
@@ -119,67 +109,60 @@ export const ReceiveLegDialog = ({ transfer, leg, open, onClose }: Props) => {
             </Table>
           </div>
 
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
-              <FormField
-                control={form.control}
-                name="operatorName"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Operario que recibe</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Seleccionar operario" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {operators.map((op) => (
-                          <SelectItem key={op.id} value={op.name}>
-                            {op.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="notes"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Notas / discrepancias (opcional)</FormLabel>
-                    <FormControl>
-                      <Textarea
-                        placeholder="Ej: 3 unidades con embalaje dañado..."
-                        className="resize-none"
-                        rows={3}
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              {form.formState.errors.root && (
-                <p className="text-destructive text-xs">{form.formState.errors.root.message}</p>
+          <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
+            <Controller
+              control={form.control}
+              name="operatorName"
+              render={({ field, fieldState }) => (
+                <Field data-invalid={fieldState.invalid}>
+                  <FieldLabel>Operario que recibe</FieldLabel>
+                  <Select onValueChange={field.onChange} value={field.value}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Seleccionar operario" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {operators.map((op) => (
+                        <SelectItem key={op.id} value={op.name}>
+                          {op.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
+                </Field>
               )}
+            />
 
-              <DialogFooter>
-                <Button variant="outline" type="button" onClick={onClose}>
-                  Cancelar
-                </Button>
-                <Button type="submit">
-                  <PackageCheck className="mr-1.5 size-4" />
-                  Confirmar recepción
-                </Button>
-              </DialogFooter>
-            </form>
-          </Form>
+            <Controller
+              control={form.control}
+              name="notes"
+              render={({ field }) => (
+                <Field>
+                  <FieldLabel>Notas / discrepancias (opcional)</FieldLabel>
+                  <Textarea
+                    {...field}
+                    placeholder="Ej: 3 unidades con embalaje dañado..."
+                    className="resize-none"
+                    rows={3}
+                  />
+                </Field>
+              )}
+            />
+
+            {form.formState.errors.root && (
+              <p className="text-destructive text-xs">{form.formState.errors.root.message}</p>
+            )}
+
+            <DialogFooter>
+              <Button variant="outline" type="button" onClick={onClose}>
+                Cancelar
+              </Button>
+              <Button type="submit">
+                <PackageCheck className="mr-1.5 size-4" />
+                Confirmar recepción
+              </Button>
+            </DialogFooter>
+          </form>
         </div>
       </DialogContent>
     </Dialog>
