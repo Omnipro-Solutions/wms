@@ -1077,8 +1077,21 @@ const AdminPage = () => {
                     <TableCell className="font-medium">{wh.name}</TableCell>
                     <TableCell>{wh.city}</TableCell>
                     <TableCell>
-                      <Badge variant={wh.type === 'distribution_center' ? 'default' : 'secondary'}>
-                        {wh.type === 'distribution_center' ? 'CD' : 'Tienda'}
+                      <Badge
+                        variant={
+                          wh.type === 'distribution_center'
+                            ? 'default'
+                            : wh.type === 'transit'
+                            ? 'outline'
+                            : 'secondary'
+                        }
+                        className={cn(wh.type === 'transit' && 'border-amber-400 text-amber-700')}
+                      >
+                        {wh.type === 'distribution_center'
+                          ? 'CD'
+                          : wh.type === 'transit'
+                          ? 'Transitoria'
+                          : 'Tienda'}
                       </Badge>
                     </TableCell>
                     <TableCell>
