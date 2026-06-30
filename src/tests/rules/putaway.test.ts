@@ -3,7 +3,7 @@ import { suggestPutawayLocation } from '@/lib/rules/putaway'
 import type { StorageLocation } from '@/types/wms'
 
 const makeLocation = (overrides: Partial<StorageLocation>): StorageLocation => ({
-  id: 'loc-1', code: 'A-01-01', warehouseId: 'wh-1', zone: 'A',
+  id: 'loc-1', code: 'A-01-01', barcode: 'LOC-A-A0101', warehouseId: 'wh-1', zone: 'A',
   type: 'pick', isPickFace: false, golden: false, isBlocked: false,
   accessibilityScore: 50, maxWeightKg: 500, volumeCapacityM3: 2.0, maxVolumeM3: 2.0,
   distanceToDispatchM: 10,

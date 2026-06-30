@@ -128,6 +128,7 @@ export const locations: StorageLocation[] = [
   {
     id: 'loc-a0101',
     code: 'A-01-01',
+    barcode: 'LOC-A-A0101',
     warehouseId: 'wh-bog',
     zone: 'A',
     type: 'pick',
@@ -143,6 +144,7 @@ export const locations: StorageLocation[] = [
   {
     id: 'loc-a0102',
     code: 'A-01-02',
+    barcode: 'LOC-A-A0102',
     warehouseId: 'wh-bog',
     zone: 'A',
     type: 'pick',
@@ -158,6 +160,7 @@ export const locations: StorageLocation[] = [
   {
     id: 'loc-pickfast1',
     code: 'PICK-FAST-01',
+    barcode: 'LOC-A-PICKFAST1',
     warehouseId: 'wh-bog',
     zone: 'A',
     type: 'pick',
@@ -173,6 +176,7 @@ export const locations: StorageLocation[] = [
   {
     id: 'loc-pickfast2',
     code: 'PICK-FAST-02',
+    barcode: 'LOC-A-PICKFAST2',
     warehouseId: 'wh-bog',
     zone: 'A',
     type: 'pick',
@@ -188,6 +192,7 @@ export const locations: StorageLocation[] = [
   {
     id: 'loc-b0204',
     code: 'B-02-04',
+    barcode: 'LOC-B-B0204',
     warehouseId: 'wh-bog',
     zone: 'B',
     type: 'pick',
@@ -203,6 +208,7 @@ export const locations: StorageLocation[] = [
   {
     id: 'loc-reserve',
     code: 'RESERVE-05-12',
+    barcode: 'LOC-R-RESERVE',
     warehouseId: 'wh-bog',
     zone: 'R',
     type: 'reserve',
@@ -218,6 +224,7 @@ export const locations: StorageLocation[] = [
   {
     id: 'loc-qc',
     code: 'QC-01',
+    barcode: 'LOC-QC-QC01',
     warehouseId: 'wh-bog',
     zone: 'QC',
     type: 'quality_control',
@@ -233,6 +240,7 @@ export const locations: StorageLocation[] = [
   {
     id: 'loc-stageout',
     code: 'STAGE-OUT-01',
+    barcode: 'LOC-S-STAGEOUT',
     warehouseId: 'wh-bog',
     zone: 'S',
     type: 'staging',
@@ -248,6 +256,7 @@ export const locations: StorageLocation[] = [
   {
     id: 'loc-returns',
     code: 'RETURNS-01',
+    barcode: 'LOC-RT-RETURNS',
     warehouseId: 'wh-bog',
     zone: 'RT',
     type: 'returns',

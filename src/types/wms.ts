@@ -73,6 +73,7 @@ export interface Store {
 export interface StorageLocation {
   id: string
   code: string
+  barcode: string  // ej. "LOC-A-A0101" — escaneado por lector bluetooth en picking
   warehouseId: string
   zone: string
   type: 'pick' | 'reserve' | 'quality_control' | 'staging' | 'returns'
