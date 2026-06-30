@@ -956,6 +956,7 @@ export const transfers: TransferOrder[] = [
     ],
     isMultiLeg: false,
     currentLegIndex: 0,
+    assignedDriverId: 'op-driver-1',
   },
   {
     id: 'tr-2',
@@ -979,6 +980,7 @@ export const transfers: TransferOrder[] = [
     ],
     isMultiLeg: false,
     currentLegIndex: 0,
+    assignedDriverId: 'op-driver-1',
   },
   {
     id: 'tr-3',
@@ -1226,7 +1228,8 @@ export const pickingTasks: PickingTask[] = [
     pickedQuantity: 2,
     pendingQuantity: 0,
     status: 'completed',
-    operatorName: 'Andrés Gómez',
+    operatorName: 'Ana Picker',
+    assignedOperatorId: 'op-picker-1',
     priority: 'high',
   },
   {
@@ -1239,7 +1242,8 @@ export const pickingTasks: PickingTask[] = [
     pickedQuantity: 2,
     pendingQuantity: 0,
     status: 'completed',
-    operatorName: 'Andrés Gómez',
+    operatorName: 'Ana Picker',
+    assignedOperatorId: 'op-picker-1',
     priority: 'high',
   },
   {
@@ -1252,7 +1256,8 @@ export const pickingTasks: PickingTask[] = [
     pickedQuantity: 1,
     pendingQuantity: 0,
     status: 'completed',
-    operatorName: 'Andrés Gómez',
+    operatorName: 'Ana Picker',
+    assignedOperatorId: 'op-picker-1',
     priority: 'high',
   },
   {
@@ -1265,7 +1270,8 @@ export const pickingTasks: PickingTask[] = [
     pickedQuantity: 0,
     pendingQuantity: 1,
     status: 'partial_with_shortage',
-    operatorName: 'Andrés Gómez',
+    operatorName: 'Ana Picker',
+    assignedOperatorId: 'op-picker-1',
     priority: 'high',
     partialReasonId: 'rs-4',
   },
@@ -1279,6 +1285,8 @@ export const pickingTasks: PickingTask[] = [
     pickedQuantity: 0,
     pendingQuantity: 2,
     status: 'pending',
+    operatorName: 'Ana Picker',
+    assignedOperatorId: 'op-picker-1',
     priority: 'medium',
   },
   // ─── Flujo B: Ecommerce ────────────────────────────────────────────────────────
@@ -1733,6 +1741,7 @@ export const loadManifests: LoadManifest[] = [
     totalPackages: 1,
     totalWeightKg: 206,
     totalVolumeM3: 1.66,
+    assignedDriverId: 'op-driver-1',
     stops: [
       {
         id: 'st-ruta1-1',
@@ -1768,6 +1777,7 @@ export const loadManifests: LoadManifest[] = [
     totalPackages: 4,
     totalWeightKg: 318,
     totalVolumeM3: 2.1,
+    assignedDriverId: 'op-driver-1',
     stops: [
       {
         id: 'st-ruta2-1',
@@ -1963,6 +1973,42 @@ export const operators: Operator[] = [
     email: 'yomaira@wms.co',
     passwordHash: WMS2024_HASH,
     role: 'supervisor',
+    active: true,
+  },
+  {
+    id: 'op-picker-1',
+    code: 'PKR-01',
+    name: 'Ana Picker',
+    email: 'picker@demo.com',
+    passwordHash: '03ac674216f3e15c761ee1a5e255f067953623c8b388b4459e13f978d7c846f4',
+    role: 'picker' as const,
+    active: true,
+  },
+  {
+    id: 'op-packer-1',
+    code: 'PKG-01',
+    name: 'Pedro Packer',
+    email: 'packer@demo.com',
+    passwordHash: '03ac674216f3e15c761ee1a5e255f067953623c8b388b4459e13f978d7c846f4',
+    role: 'packer' as const,
+    active: true,
+  },
+  {
+    id: 'op-receiver-1',
+    code: 'RCV-01',
+    name: 'María Recepcionista',
+    email: 'receiver@demo.com',
+    passwordHash: '03ac674216f3e15c761ee1a5e255f067953623c8b388b4459e13f978d7c846f4',
+    role: 'receiver' as const,
+    active: true,
+  },
+  {
+    id: 'op-driver-1',
+    code: 'DRV-01',
+    name: 'Carlos Driver',
+    email: 'driver@demo.com',
+    passwordHash: '03ac674216f3e15c761ee1a5e255f067953623c8b388b4459e13f978d7c846f4',
+    role: 'driver' as const,
     active: true,
   },
 ]

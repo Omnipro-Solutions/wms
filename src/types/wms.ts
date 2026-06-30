@@ -241,6 +241,7 @@ export interface TransferOrder {
   legs: TransferLeg[]
   isMultiLeg: boolean
   currentLegIndex: number
+  assignedDriverId?: string
 }
 
 export interface TransferLeg {
@@ -439,6 +440,7 @@ export interface PickingTask {
   pendingQuantity: number
   status: PickingTaskStatus
   operatorName?: string
+  assignedOperatorId?: string
   priority: 'low' | 'medium' | 'high'
   partialReasonId?: string // references a Reason (context: "partial_picking")
   issueReason?: string
@@ -619,6 +621,7 @@ export interface LoadManifest {
   totalWeightKg: number
   totalVolumeM3: number
   stops: ManifestStop[]
+  assignedDriverId?: string
 }
 
 export interface IntegrationConnection {
