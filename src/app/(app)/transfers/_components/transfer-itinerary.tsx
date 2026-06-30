@@ -20,7 +20,6 @@ export const TransferItinerary = ({ legs, getWarehouseName, currentLegIndex }: P
         {legs.map((leg, idx) => {
           const isDone = idx < currentLegIndex
           const isCurrent = idx === currentLegIndex
-          const isPending = idx > currentLegIndex
 
           return (
             <div key={leg.id} className="flex items-start gap-3">

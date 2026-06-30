@@ -33,7 +33,7 @@ export default function TransfersPage() {
   const [statusFilter, setStatusFilter] = useState('all')
 
   const detailSheet = useDialogState<{ id: string }>()
-  const createDialog = useDialogState()
+  const createDialog = useDialogState<true>()
 
   const rows = useMemo<TransferRow[]>(
     () =>
@@ -130,7 +130,7 @@ export default function TransfersPage() {
         title="Traslados"
         description="Movimientos entre bodegas y tiendas. Soporta itinerarios multi-tramo con bodegas transitorias."
         actions={
-          <Button size="sm" onClick={() => createDialog.open(undefined)}>
+          <Button size="sm" onClick={() => createDialog.open(true)}>
             <Plus className="mr-1.5 size-4" />
             Nuevo traslado
           </Button>

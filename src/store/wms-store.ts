@@ -1853,7 +1853,9 @@ export const useWmsStore = create<WmsState>()(
 
     const updatedLegs = transfer.legs.map((l) => (l.id === legId ? updatedLeg : l))
     const orderStatus: OperationalStatus =
-      transfer.status === 'partial_received' ? 'in_transit' : transfer.status === 'in_progress' ? 'in_transit' : transfer.status
+      ['draft', 'pending', 'in_progress', 'partial_received'].includes(transfer.status)
+        ? 'in_transit'
+        : transfer.status
 
     const updatedTransfer: TransferOrder = {
       ...transfer,
@@ -1895,15 +1897,17 @@ export const useWmsStore = create<WmsState>()(
     const newCurrentLegIndex = isLastLeg ? transfer.currentLegIndex : legIdx + 1
     const newOrderStatus: OperationalStatus = isLastLeg ? 'completed' : 'partial_received'
 
-    const movement = recordMovement({
-      productId: transfer.items[0]?.productId ?? '',
-      warehouseId: leg.destinationId,
-      type: 'transfer',
-      quantity: transfer.items.reduce((s, i) => s + i.requestedQuantity, 0),
-      referenceType: 'transfer',
-      referenceId: transferId,
-      operatorName,
-    })
+    const movements = transfer.items.map((item) =>
+      recordMovement({
+        productId: item.productId,
+        warehouseId: leg.destinationId,
+        type: 'transfer',
+        quantity: item.requestedQuantity,
+        referenceType: 'transfer',
+        referenceId: transferId,
+        operatorName,
+      })
+    )
 
     const updatedTransfer: TransferOrder = {
       ...transfer,
@@ -1914,7 +1918,7 @@ export const useWmsStore = create<WmsState>()(
 
     set({
       transfers: state.transfers.map((t) => (t.id === transferId ? updatedTransfer : t)),
-      stockMovements: [...state.stockMovements, movement],
+      stockMovements: [...state.stockMovements, ...movements],
     })
 
     return updatedTransfer
@@ -1940,7 +1944,7 @@ export const useWmsStore = create<WmsState>()(
 
     const transfer: TransferOrder = {
       id,
-      code: `TR-${now.slice(0, 7).replace('-', '')}-${String(state.transfers.length + 1).padStart(3, '0')}`,
+      code: `TR-${now.slice(2, 7).replace('-', '')}-${String(state.transfers.length + 1).padStart(3, '0')}`,
       type: isMultiLeg ? 'multi_leg' : 'dc_to_store',
       originId: firstLeg.originId,
       destinationId: lastLeg.destinationId,
