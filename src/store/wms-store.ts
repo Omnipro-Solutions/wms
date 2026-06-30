@@ -156,6 +156,7 @@ export interface WmsState {
   // Receiving
   confirmArrival: (asnId: string) => Asn
   receiveAsn: (asnId: string, receivedQty: number, operatorName: string, damagedQty?: number, serials?: string[], uomId?: string) => Asn
+  printReceiptLabel: (labelId: string) => WmsLabel
   closeAsnWithDiscrepancy: (asnId: string, closeReason: string, operatorName: string) => Asn
   putawayItem: (asnId: string, locationId: string, operatorName: string) => void
   approveQc: (asnId: string, operatorName: string) => void
@@ -808,12 +809,82 @@ export const useWmsStore = create<WmsState>()(
       }
     }
 
+    // Generate receipt labels — one per serial for serialized products, one otherwise
+    const receiptLabels: WmsLabel[] = []
+    const labelSeq = state.labels.length
+    if (requiresSerial && serials && serials.length > 0) {
+      serials.map((s) => s.trim()).forEach((serial, i) => {
+        const seq = labelSeq + i + 1
+        receiptLabels.push({
+          id: `lb-rcpt-${asnId}-${serial.replace(/\s/g, '_')}`,
+          code: `LBL-RCP-${String(seq).padStart(4, '0')}`,
+          type: 'receipt',
+          reference: asnId,
+          status: 'pending',
+          createdAt: new Date().toISOString(),
+          createdBy: operatorName,
+          asnId,
+          receivedQty: 1,
+          poNumber: asn.purchaseOrderId,
+        })
+      })
+    } else {
+      const seq = labelSeq + 1
+      receiptLabels.push({
+        id: `lb-rcpt-${asnId}-${Date.now()}`,
+        code: `LBL-RCP-${String(seq).padStart(4, '0')}`,
+        type: 'receipt',
+        reference: asnId,
+        status: 'pending',
+        createdAt: new Date().toISOString(),
+        createdBy: operatorName,
+        asnId,
+        receivedQty: goodQty,
+        poNumber: asn.purchaseOrderId,
+      })
+    }
+
+    // ASN advances to labels_pending instead of partial/completed
+    const updatedAsnWithLabels: Asn = { ...updatedAsn, status: 'labels_pending' }
+
     set({
-      asnRecords: state.asnRecords.map((a) => (a.id === asnId ? updatedAsn : a)),
+      asnRecords: state.asnRecords.map((a) => (a.id === asnId ? updatedAsnWithLabels : a)),
       inventoryItems: updatedItems,
       stockMovements: [...state.stockMovements, ...movements],
+      labels: [...state.labels, ...receiptLabels],
     })
-    return updatedAsn
+    return updatedAsnWithLabels
+  },
+
+  printReceiptLabel: (labelId) => {
+    const state = get()
+    const label = state.labels.find((l) => l.id === labelId)
+    if (!label) throw new Error('Label no encontrada')
+    if (label.type !== 'receipt') throw new Error('Solo se pueden imprimir receipt labels aquí')
+
+    const updated: WmsLabel = { ...label, status: 'completed' }
+    const updatedLabels = state.labels.map((l) => (l.id === labelId ? updated : l))
+
+    // If all receipt labels for this ASN are completed, advance ASN to putaway_ready
+    const asnId = label.asnId
+    if (asnId) {
+      const asnLabels = updatedLabels.filter((l) => l.type === 'receipt' && l.asnId === asnId)
+      const allDone = asnLabels.every((l) => l.status === 'completed')
+      if (allDone) {
+        const asn = state.asnRecords.find((a) => a.id === asnId)
+        if (asn && asn.status === 'labels_pending') {
+          const updatedAsn: Asn = { ...asn, status: 'putaway_ready' }
+          set({
+            labels: updatedLabels,
+            asnRecords: state.asnRecords.map((a) => (a.id === asnId ? updatedAsn : a)),
+          })
+          return updated
+        }
+      }
+    }
+
+    set({ labels: updatedLabels })
+    return updated
   },
 
   closeAsnWithDiscrepancy: (asnId, closeReason, operatorName) => {
