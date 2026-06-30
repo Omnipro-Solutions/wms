@@ -85,6 +85,7 @@ export interface StorageLocation {
   volumeCapacityM3: number
   maxVolumeM3: number // max volume this slot holds (0 = unlimited)
   distanceToDispatchM: number // meters from location to dispatch/packing
+  routeCode?: string // staging zone de una ruta SAP, ej. "sap-rt-001"
 }
 
 export interface Product {
@@ -760,6 +761,21 @@ export interface SlottingRecommendation {
   estimatedDistanceSavedM: number
   estimatedTimeSavedSeconds: number
   recommendation: string // human-readable Spanish explanation
+}
+
+// Route-based slotting recommendation optimized for SAP staging zones.
+export interface RouteSlottingRecommendation {
+  productId: string
+  routeCode: string
+  routeLabel: string
+  currentLocationId: string
+  candidateLocationId: string
+  routePickFrequency: number   // 0-1: ratio picks en esta ruta / total picks
+  currentDistanceToStagingM: number
+  candidateDistanceToStagingM: number
+  distanceGainM: number
+  totalDistanceSavedM: number  // distanceGainM × pickingFrequency del producto
+  score: number                // 0-100
 }
 
 // --- Administration domain ---
