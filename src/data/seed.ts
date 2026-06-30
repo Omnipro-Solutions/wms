@@ -930,8 +930,8 @@ export const transfers: TransferOrder[] = [
     estimatedArrivalDate: '2026-06-11',
     routeId: 'route-1',
     items: [
-      { id: 'trl-1', productId: 'p-socks', requestedQuantity: 100 },
-      { id: 'trl-2', productId: 'p-cap', requestedQuantity: 50 },
+      { id: 'trl-1', productId: 'p-nevera', requestedQuantity: 100 },
+      { id: 'trl-2', productId: 'p-lavadora', requestedQuantity: 50 },
     ],
     legs: [
       {
@@ -956,7 +956,7 @@ export const transfers: TransferOrder[] = [
     status: 'draft',
     createdAt: '2026-06-09T08:00:00.000Z',
     estimatedArrivalDate: '2026-06-13',
-    items: [{ id: 'trl-3', productId: 'p-tshirt', requestedQuantity: 30 }],
+    items: [{ id: 'trl-3', productId: 'p-estufa', requestedQuantity: 30 }],
     legs: [
       {
         id: 'leg-tr2-1',
@@ -979,7 +979,7 @@ export const transfers: TransferOrder[] = [
     status: 'completed',
     createdAt: '2026-06-04T08:00:00.000Z',
     estimatedArrivalDate: '2026-06-08',
-    items: [{ id: 'trl-4', productId: 'p-jeans', requestedQuantity: 20 }],
+    items: [{ id: 'trl-4', productId: 'p-microondas', requestedQuantity: 20 }],
     legs: [
       {
         id: 'leg-tr3-1',
