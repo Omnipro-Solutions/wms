@@ -24,6 +24,7 @@ const TYPE_ES: Record<WmsLabel['type'], string> = {
   pallet: 'Pallet',
   shipping: 'Despacho',
   return: 'Devolución',
+  receipt: 'Recepción',
 }
 
 interface ZplPreviewDialogProps {
@@ -159,6 +160,7 @@ const TYPE_COLORS: Record<WmsLabel['type'], string> = {
   pallet: 'bg-orange-700',
   shipping: 'bg-slate-800',
   return: 'bg-red-700',
+  receipt: 'bg-green-700',
 }
 
 const LabelPreview = ({ label }: { label: WmsLabel }) => {

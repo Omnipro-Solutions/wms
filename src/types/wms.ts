@@ -19,6 +19,8 @@ export type OperationalStatus =
   | 'synced'
   | 'short_received'
   | 'ready_for_pickup'  // BOPIS/Ship-from-Store: prepared, awaiting customer
+  | 'labels_pending'
+  | 'putaway_ready'
 
 // Sprint 4: Unit of Measure entity. Every Product has a baseUomId (the
 // smallest countable unit) plus optional conversion rules to larger units.
@@ -532,11 +534,17 @@ export interface PackingOrder {
 export interface WmsLabel {
   id: string
   code: string
-  type: 'product' | 'location' | 'box' | 'pallet' | 'shipping' | 'return'
+  type: 'product' | 'location' | 'box' | 'pallet' | 'shipping' | 'return' | 'receipt'
   reference: string
   status: OperationalStatus
   createdAt: string
   createdBy: string
+  // Only for type === 'receipt'
+  asnId?: string
+  lot?: string
+  expirationDate?: string
+  receivedQty?: number
+  poNumber?: string
 }
 
 export type CarrierServiceLevel = 'same_day' | 'next_day' | 'two_day' | 'ground' | 'economy'

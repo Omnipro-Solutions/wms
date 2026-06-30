@@ -25,6 +25,7 @@ export const TYPE_LABELS: Record<WmsLabel['type'], string> = {
   pallet: 'Pallet',
   shipping: 'Envío',
   return: 'Devolución',
+  receipt: 'Recepción',
 }
 
 export const TYPE_COLORS: Record<WmsLabel['type'], string> = {
@@ -34,6 +35,7 @@ export const TYPE_COLORS: Record<WmsLabel['type'], string> = {
   pallet: 'bg-orange-100 dark:bg-orange-950/40 text-orange-700 dark:text-orange-300 border-orange-200 dark:border-orange-800/50',
   shipping: 'bg-green-100 dark:bg-emerald-950/40 text-green-700 dark:text-emerald-300 border-green-200 dark:border-emerald-800/50',
   return: 'bg-red-100 dark:bg-red-950/40 text-red-700 dark:text-red-300 border-red-200 dark:border-red-800/50',
+  receipt: 'bg-teal-100 dark:bg-teal-950/40 text-teal-700 dark:text-teal-300 border-teal-200 dark:border-teal-800/50',
 }
 
 export const buildLabelColumns = (onPreview?: (row: LabelRow) => void): ColumnDef<LabelRow>[] => [
