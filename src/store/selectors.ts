@@ -631,7 +631,7 @@ export function selectRouteSlottingRecommendations(
   // Step 1: build taskId → sapRouteId index from completed manifests
   const taskRouteMap = new Map<string, string>()
   for (const manifest of state.loadManifests) {
-    if (manifest.status !== 'completed') continue
+    if (!['dispatched', 'completed'].includes(manifest.status)) continue
     if (!manifest.sapRouteId) continue
     for (const orderId of manifest.orderIds) {
       for (const task of state.pickingTasks) {
@@ -677,7 +677,7 @@ export function selectRouteSlottingRecommendations(
 
     // Current inventory location for this product
     const item = state.inventoryItems.find(
-      (i) => i.productId === productId && i.status !== 'on_hold' && i.onHandQuantity > 0
+      (i) => i.productId === productId && i.status === 'available' && i.onHandQuantity > 0
     )
     if (!item) continue
     const currentLoc = state.locations.find((l) => l.id === item.locationId)
