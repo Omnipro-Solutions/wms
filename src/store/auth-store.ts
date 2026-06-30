@@ -27,6 +27,8 @@ export const useAuthStore = create<AuthState>()(
         if (!operator.passwordHash || hash !== operator.passwordHash) return { success: false, error: 'Credenciales incorrectas' }
 
         setAuthCookie(operator.id, remember)
+        // Write role cookie so middleware can redirect without DB access
+        document.cookie = `wms-operator-role=${operator.role}; path=/; SameSite=Lax`
         set({ operatorId: operator.id })
         useWmsStore.getState().setCurrentOperator(operator.id)
         return { success: true }
@@ -34,6 +36,7 @@ export const useAuthStore = create<AuthState>()(
 
       logout: () => {
         clearAuthCookie()
+        document.cookie = 'wms-operator-role=; path=/; max-age=0'
         set({ operatorId: null })
       },
 
