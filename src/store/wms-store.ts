@@ -18,6 +18,7 @@ import {
   waveTransitions,
   transferTransitions,
   returnTransitions,
+  legTransitions,
 } from '@/lib/state-machines'
 import {
   selectReplenishmentNeeds,
@@ -30,6 +31,7 @@ import type { SlottingRecommendation, SlottingSnapshot } from '@/types/wms'
 import type {
   Asn,
   BatchTask,
+  OperationalStatus,
   Carrier,
   CarrierRateQuote,
   ClusterTask,
@@ -40,6 +42,7 @@ import type {
   InventoryAdjustmentRequest,
   InventoryItem,
   LoadManifest,
+  OrderLine,
   SapRoute,
   SapRouteStatus,
   DeliveryWindow,
@@ -67,6 +70,8 @@ import type {
   Shipment,
   StockMovement,
   StorageLocation,
+  TransferLeg,
+  TransferLegStatus,
   TransferOrder,
   UnitOfMeasure,
   Warehouse,
@@ -224,6 +229,13 @@ export interface WmsState {
   dispatchManifest: (manifestId: string) => LoadManifest
   // Transfers
   advanceTransfer: (transferId: string, operatorName: string) => TransferOrder
+  dispatchLeg: (transferId: string, legId: string, operatorName: string) => TransferOrder
+  receiveLeg: (transferId: string, legId: string, operatorName: string, notes?: string) => TransferOrder
+  createTransferOrder: (payload: {
+    legs: Array<{ originId: string; destinationId: string; estimatedArrivalDate: string }>
+    items: OrderLine[]
+    operatorName: string
+  }) => TransferOrder
   // Returns
   advanceReturn: (returnId: string, operatorName: string) => ReturnOrder
   inspectReturn: (
@@ -1805,43 +1817,144 @@ export const useWmsStore = create<WmsState>()(
     const transfer = state.transfers.find((t) => t.id === transferId)
     if (!transfer) throw new Error('transfer not found')
 
-    // Determine next logical status along the happy path
-    const NEXT: Partial<Record<string, string>> = {
-      draft: 'pending',
-      pending: 'in_progress',
-      in_progress: 'in_transit',
-      in_transit: 'completed',
-      partial: 'completed',
+    const currentLeg = transfer.legs[transfer.currentLegIndex]
+    if (!currentLeg) throw new Error('No hay tramo activo')
+
+    if (currentLeg.status === 'pending') {
+      return get().dispatchLeg(transferId, currentLeg.id, operatorName)
     }
-    const next = NEXT[transfer.status] as typeof transfer.status | undefined
-    if (!next || !canTransition(transferTransitions, transfer.status, next)) {
-      throw new Error(`No se puede avanzar traslado desde el estado ${transfer.status}`)
+    if (currentLeg.status === 'in_transit') {
+      return get().receiveLeg(transferId, currentLeg.id, operatorName)
     }
 
-    const updated: TransferOrder = { ...transfer, status: next }
-    const movements: StockMovement[] = []
+    throw new Error(`No se puede avanzar traslado desde el estado del tramo ${currentLeg.status}`)
+  },
 
-    if (next === 'completed') {
-      for (const line of transfer.items) {
-        movements.push(
-          recordMovement({
-            productId: line.productId,
-            warehouseId: transfer.originId,
-            type: 'transfer',
-            quantity: line.requestedQuantity,
-            referenceType: 'transfer',
-            referenceId: transferId,
-            operatorName,
-          })
-        )
-      }
+  dispatchLeg: (transferId, legId, operatorName) => {
+    const state = get()
+    const transfer = state.transfers.find((t) => t.id === transferId)
+    if (!transfer) throw new Error('Traslado no encontrado')
+
+    const legIdx = transfer.legs.findIndex((l) => l.id === legId)
+    if (legIdx === -1) throw new Error('Tramo no encontrado')
+
+    const leg = transfer.legs[legIdx]
+    if (!legTransitions[leg.status]?.includes('in_transit')) {
+      throw new Error(`No se puede despachar desde el estado ${leg.status}`)
+    }
+
+    const now = new Date().toISOString()
+    const updatedLeg: TransferLeg = {
+      ...leg,
+      status: 'in_transit',
+      dispatchedAt: now,
+      operatorName,
+    }
+
+    const updatedLegs = transfer.legs.map((l) => (l.id === legId ? updatedLeg : l))
+    const orderStatus: OperationalStatus =
+      transfer.status === 'partial_received' ? 'in_transit' : transfer.status === 'in_progress' ? 'in_transit' : transfer.status
+
+    const updatedTransfer: TransferOrder = {
+      ...transfer,
+      legs: updatedLegs,
+      status: orderStatus,
     }
 
     set({
-      transfers: state.transfers.map((t) => (t.id === transferId ? updated : t)),
-      stockMovements: [...state.stockMovements, ...movements],
+      transfers: state.transfers.map((t) => (t.id === transferId ? updatedTransfer : t)),
     })
-    return updated
+
+    return updatedTransfer
+  },
+
+  receiveLeg: (transferId, legId, operatorName, notes) => {
+    const state = get()
+    const transfer = state.transfers.find((t) => t.id === transferId)
+    if (!transfer) throw new Error('Traslado no encontrado')
+
+    const legIdx = transfer.legs.findIndex((l) => l.id === legId)
+    if (legIdx === -1) throw new Error('Tramo no encontrado')
+
+    const leg = transfer.legs[legIdx]
+    if (!legTransitions[leg.status]?.includes('received')) {
+      throw new Error(`No se puede recepcionar desde el estado ${leg.status}`)
+    }
+
+    const now = new Date().toISOString()
+    const updatedLeg: TransferLeg = {
+      ...leg,
+      status: 'received',
+      receivedAt: now,
+      operatorName,
+      notes,
+    }
+
+    const updatedLegs = transfer.legs.map((l) => (l.id === legId ? updatedLeg : l))
+    const isLastLeg = legIdx === transfer.legs.length - 1
+    const newCurrentLegIndex = isLastLeg ? transfer.currentLegIndex : legIdx + 1
+    const newOrderStatus: OperationalStatus = isLastLeg ? 'completed' : 'partial_received'
+
+    const movement = recordMovement({
+      productId: transfer.items[0]?.productId ?? '',
+      warehouseId: leg.destinationId,
+      type: 'transfer',
+      quantity: transfer.items.reduce((s, i) => s + i.requestedQuantity, 0),
+      referenceType: 'transfer',
+      referenceId: transferId,
+      operatorName,
+    })
+
+    const updatedTransfer: TransferOrder = {
+      ...transfer,
+      legs: updatedLegs,
+      currentLegIndex: newCurrentLegIndex,
+      status: newOrderStatus,
+    }
+
+    set({
+      transfers: state.transfers.map((t) => (t.id === transferId ? updatedTransfer : t)),
+      stockMovements: [...state.stockMovements, movement],
+    })
+
+    return updatedTransfer
+  },
+
+  createTransferOrder: (payload) => {
+    const state = get()
+    const id = `tr-${Date.now()}`
+    const now = new Date().toISOString()
+
+    const legs: TransferLeg[] = payload.legs.map((l, i) => ({
+      id: `leg-${id}-${i + 1}`,
+      sequence: i + 1,
+      originId: l.originId,
+      destinationId: l.destinationId,
+      status: 'pending' as TransferLegStatus,
+      estimatedArrivalDate: l.estimatedArrivalDate,
+    }))
+
+    const firstLeg = legs[0]
+    const lastLeg = legs[legs.length - 1]
+    const isMultiLeg = legs.length > 1
+
+    const transfer: TransferOrder = {
+      id,
+      code: `TR-${now.slice(0, 7).replace('-', '')}-${String(state.transfers.length + 1).padStart(3, '0')}`,
+      type: isMultiLeg ? 'multi_leg' : 'dc_to_store',
+      originId: firstLeg.originId,
+      destinationId: lastLeg.destinationId,
+      status: 'draft',
+      createdAt: now,
+      estimatedArrivalDate: lastLeg.estimatedArrivalDate,
+      items: payload.items,
+      legs,
+      isMultiLeg,
+      currentLegIndex: 0,
+    }
+
+    set({ transfers: [...state.transfers, transfer] })
+    return transfer
   },
 
   // ─── Returns ──────────────────────────────────────────────────────────────
