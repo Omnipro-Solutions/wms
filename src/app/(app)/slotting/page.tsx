@@ -11,6 +11,7 @@ import {
   GitMerge,
   Grid3x3,
   History,
+  MapPin,
   MoveRight,
   PackageCheck,
   Plus,
@@ -27,6 +28,7 @@ import {
   selectReplenishmentNeeds,
   selectAffinityRecommendations,
   selectSlottingTrends,
+  selectRouteSlottingRecommendations,
   simulateRelocateAll,
   abcByProduct,
   xyzByProduct,
@@ -76,10 +78,14 @@ import {
   type AffinityRow,
   type HistoryRow,
 } from './columns'
+import {
+  buildRouteSlottingColumns,
+  type RouteSlottingRow,
+} from './_columns/columns-route-slotting'
 
 // ─── local types ──────────────────────────────────────────────────────────────
 
-type TabValue = 'optimization' | 'classification' | 'replenishment' | 'affinity' | 'history'
+type TabValue = 'optimization' | 'classification' | 'replenishment' | 'affinity' | 'history' | 'ruta'
 
 interface RelocateDialogData {
   itemId: string
@@ -116,6 +122,7 @@ const SlottingPage = () => {
     { value: 'replenishment', label: 'Reposición' },
     { value: 'affinity', label: 'Afinidad' },
     { value: 'history', label: 'Historial' },
+    { value: 'ruta', label: 'Por ruta' },
   ]
 
   const abc = useMemo(() => abcByProduct(state), [state])
@@ -125,6 +132,7 @@ const SlottingPage = () => {
   const replenishmentNeeds = useMemo(() => selectReplenishmentNeeds(state), [state])
   const affinityRecs = useMemo(() => selectAffinityRecommendations(state), [state])
   const trends = useMemo(() => selectSlottingTrends(state), [state])
+  const routeRecs = useMemo(() => selectRouteSlottingRecommendations(state), [state])
 
   const relocateDialog = useDialogState<RelocateDialogData>()
   const [relocated, setRelocated] = useState<Set<string>>(new Set())
@@ -311,6 +319,29 @@ const SlottingPage = () => {
     })
   }, [state.slottingSnapshots])
 
+  const routeSlottingRows = useMemo<RouteSlottingRow[]>(
+    () =>
+      routeRecs.map((rec) => {
+        const product = state.products.find((p) => p.id === rec.productId)
+        const currentLoc = state.locations.find((l) => l.id === rec.currentLocationId)
+        const candidateLoc = state.locations.find((l) => l.id === rec.candidateLocationId)
+        const item = state.inventoryItems.find(
+          (i) => i.productId === rec.productId && i.locationId === rec.currentLocationId
+        )
+        return {
+          ...rec,
+          productName: product?.name ?? rec.productId,
+          productSku: product?.sku ?? '',
+          currentLocationCode: currentLoc?.code ?? rec.currentLocationId,
+          candidateLocationCode: candidateLoc?.code ?? rec.candidateLocationId,
+          onRelocate: () => {
+            if (item) relocateInventory(item.id, rec.candidateLocationId, 'Operador Slotting')
+          },
+        }
+      }),
+    [routeRecs, state.products, state.locations, state.inventoryItems, relocateInventory]
+  )
+
   const openRelocateDialog = useCallback(
     (rec: SlottingRecommendation) => {
       const item = state.inventoryItems.find(
@@ -409,6 +440,7 @@ const SlottingPage = () => {
   const affinityCols = useMemo(() => buildAffinityColumns(), [])
   const historyCols = useMemo(() => buildHistoryColumns(), [])
   const simulationCols = useMemo(() => buildSimulationColumns(), [])
+  const routeSlottingCols = useMemo(() => buildRouteSlottingColumns(), [])
 
   const handleGenerateTasks = () => {
     setGenerating(true)
@@ -901,6 +933,34 @@ const SlottingPage = () => {
                 searchPlaceholder="Buscar captura…"
                 emptyMessage="Sin capturas registradas."
                 rowClassName={(row: HistoryRow) => (row.isLatest ? 'bg-blue-50/30 dark:bg-blue-950/20' : '')}
+              />
+            )}
+          </TabPanel>
+        </div>
+      )}
+
+      {/* ════════ Tab: Por ruta ════════ */}
+      {activeTab === 'ruta' && (
+        <div className="space-y-4">
+          <TabPanel
+            icon={MapPin}
+            iconClass="text-teal-500"
+            title="Slotting por ruta"
+            description="Productos con alta afinidad a una ruta de manifiesto — reubicarlos cerca del staging de esa ruta reduce metros de traslado al despacho."
+          >
+            {routeRecs.length === 0 ? (
+              <EmptyState
+                icon={MapPin}
+                title="Sin patrones de ruta detectados"
+                description="No hay suficiente historial de manifiestos para detectar patrones de ruta."
+              />
+            ) : (
+              <DataTable
+                columns={routeSlottingCols}
+                data={routeSlottingRows}
+                searchColumn="productName"
+                searchPlaceholder="Buscar por producto…"
+                emptyMessage="Sin recomendaciones por ruta."
               />
             )}
           </TabPanel>
