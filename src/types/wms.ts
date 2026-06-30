@@ -43,13 +43,19 @@ export interface DeliveryWindow {
   closeTime: string // 'HH:mm' — hora cierre recepción
 }
 
+export type TransitWarehouseRole = 'hub' | 'cross_dock' | 'consolidation'
+
+export type TransferLegStatus = 'pending' | 'in_transit' | 'received' | 'cancelled'
+
 export interface Warehouse {
   id: string
   code: string
   name: string
   city: string
-  type: 'distribution_center' | 'store'
+  type: 'distribution_center' | 'store' | 'transit'
   deliveryWindows?: DeliveryWindow[]
+  transitRole?: TransitWarehouseRole
+  maxTransitDays?: number
 }
 
 export interface Store {
@@ -219,7 +225,7 @@ export interface Asn {
 export interface TransferOrder {
   id: string
   code: string
-  type: 'dc_to_store' | 'store_to_store' | 'store_to_dc' | 'dc_to_dc'
+  type: 'dc_to_store' | 'store_to_store' | 'store_to_dc' | 'dc_to_dc' | 'multi_leg'
   originId: string
   destinationId: string
   status: OperationalStatus
@@ -227,6 +233,22 @@ export interface TransferOrder {
   estimatedArrivalDate: string
   routeId?: string
   items: OrderLine[]
+  legs: TransferLeg[]
+  isMultiLeg: boolean
+  currentLegIndex: number
+}
+
+export interface TransferLeg {
+  id: string
+  sequence: number
+  originId: string
+  destinationId: string
+  status: TransferLegStatus
+  estimatedArrivalDate: string
+  dispatchedAt?: string
+  receivedAt?: string
+  operatorName?: string
+  notes?: string
 }
 
 // --- Cross-docking (Sprint 9 — #7) ---
