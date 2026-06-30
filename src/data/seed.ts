@@ -109,6 +109,15 @@ export const warehouses: Warehouse[] = [
       { dayOfWeek: 6, openTime: '08:00', closeTime: '14:00' },
     ],
   },
+  {
+    id: 'wh-hub-bog',
+    code: 'HUB-BOG',
+    name: 'Hub Bogotá Norte',
+    city: 'Bogotá',
+    type: 'transit' as const,
+    transitRole: 'hub' as const,
+    maxTransitDays: 2,
+  },
 ]
 
 export const stores: Store[] = warehouses
@@ -928,6 +937,19 @@ export const transfers: TransferOrder[] = [
       { id: 'trl-1', productId: 'p-socks', requestedQuantity: 100 },
       { id: 'trl-2', productId: 'p-cap', requestedQuantity: 50 },
     ],
+    legs: [
+      {
+        id: 'leg-tr1-1',
+        sequence: 1,
+        originId: 'wh-bog',
+        destinationId: 'wh-andino',
+        status: 'in_transit',
+        estimatedArrivalDate: '2026-06-11',
+        dispatchedAt: '2026-06-07T08:00:00.000Z',
+      },
+    ],
+    isMultiLeg: false,
+    currentLegIndex: 0,
   },
   {
     id: 'tr-2',
@@ -939,6 +961,18 @@ export const transfers: TransferOrder[] = [
     createdAt: '2026-06-09T08:00:00.000Z',
     estimatedArrivalDate: '2026-06-13',
     items: [{ id: 'trl-3', productId: 'p-tshirt', requestedQuantity: 30 }],
+    legs: [
+      {
+        id: 'leg-tr2-1',
+        sequence: 1,
+        originId: 'wh-andino',
+        destinationId: 'wh-unicentro',
+        status: 'pending',
+        estimatedArrivalDate: '2026-06-13',
+      },
+    ],
+    isMultiLeg: false,
+    currentLegIndex: 0,
   },
   {
     id: 'tr-3',
@@ -950,6 +984,58 @@ export const transfers: TransferOrder[] = [
     createdAt: '2026-06-04T08:00:00.000Z',
     estimatedArrivalDate: '2026-06-08',
     items: [{ id: 'trl-4', productId: 'p-jeans', requestedQuantity: 20 }],
+    legs: [
+      {
+        id: 'leg-tr3-1',
+        sequence: 1,
+        originId: 'wh-viva',
+        destinationId: 'wh-med',
+        status: 'received',
+        estimatedArrivalDate: '2026-06-08',
+        dispatchedAt: '2026-06-04T08:00:00.000Z',
+        receivedAt: '2026-06-08T14:00:00.000Z',
+        operatorName: 'Operador Demo',
+      },
+    ],
+    isMultiLeg: false,
+    currentLegIndex: 0,
+  },
+  {
+    id: 'tr-4',
+    code: 'TR-2406-004',
+    type: 'multi_leg',
+    originId: 'wh-bog',
+    destinationId: 'wh-santafe',
+    status: 'partial_received',
+    createdAt: '2026-06-15T08:00:00.000Z',
+    estimatedArrivalDate: '2026-06-20',
+    items: [
+      { id: 'trl-5', productId: 'p-sneakers', requestedQuantity: 40 },
+    ],
+    legs: [
+      {
+        id: 'leg-tr4-1',
+        sequence: 1,
+        originId: 'wh-bog',
+        destinationId: 'wh-hub-bog',
+        status: 'received',
+        estimatedArrivalDate: '2026-06-17',
+        dispatchedAt: '2026-06-15T08:00:00.000Z',
+        receivedAt: '2026-06-17T10:00:00.000Z',
+        operatorName: 'Operador Hub',
+      },
+      {
+        id: 'leg-tr4-2',
+        sequence: 2,
+        originId: 'wh-hub-bog',
+        destinationId: 'wh-santafe',
+        status: 'in_transit',
+        estimatedArrivalDate: '2026-06-20',
+        dispatchedAt: '2026-06-17T14:00:00.000Z',
+      },
+    ],
+    isMultiLeg: true,
+    currentLegIndex: 1,
   },
 ]
 
