@@ -131,7 +131,11 @@ export default function WorkerPackingOrderPage() {
 
       {step === 'items' && pendingLine && (
         <div className="flex flex-col gap-4">
-          <WorkerStepper current={completedLines + 1} total={lineCount} />
+          {lineCount > 1 && (
+            <span className="text-sm font-medium text-muted-foreground">
+              Producto {completedLines + 1} de {lineCount}
+            </span>
+          )}
           <div className="bg-muted rounded-xl p-4">
             {pendingProduct?.imageUrl && (
               <img
