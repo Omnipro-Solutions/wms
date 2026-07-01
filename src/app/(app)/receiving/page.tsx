@@ -2,14 +2,7 @@
 
 import { useMemo, useCallback, useState } from 'react'
 import { useRouter, usePathname, useSearchParams } from 'next/navigation'
-import {
-  AlertTriangle,
-  FileText,
-  MapPin,
-  PackageCheck,
-  ShieldCheck,
-  Truck,
-} from 'lucide-react'
+import { AlertTriangle, FileText, MapPin, PackageCheck, ShieldCheck, Truck } from 'lucide-react'
 
 import { cn } from '@/lib/utils'
 import { useWmsStore } from '@/store/wms-store'
@@ -49,10 +42,26 @@ import type { Asn } from '@/types/wms'
 type TabValue = 'ordenes' | 'citas' | 'recibiendo' | 'qc' | 'putaway'
 
 const PO_STATUS_OPTIONS: { value: string; label: string; active: string }[] = [
-  { value: 'confirmed', label: 'Confirmada', active: 'border-blue-300 bg-blue-100 text-blue-700 hover:bg-blue-100' },
-  { value: 'partial',   label: 'Parcial',    active: 'border-amber-300 bg-amber-100 text-amber-700 hover:bg-amber-100' },
-  { value: 'received',  label: 'Recibida',   active: 'border-emerald-300 bg-emerald-100 text-emerald-700 hover:bg-emerald-100' },
-  { value: 'cancelled', label: 'Cancelada',  active: 'border-red-300 bg-red-100 text-red-700 hover:bg-red-100' },
+  {
+    value: 'confirmed',
+    label: 'Confirmada',
+    active: 'border-blue-300 bg-blue-100 text-blue-700 hover:bg-blue-100',
+  },
+  {
+    value: 'partial',
+    label: 'Parcial',
+    active: 'border-amber-300 bg-amber-100 text-amber-700 hover:bg-amber-100',
+  },
+  {
+    value: 'received',
+    label: 'Recibida',
+    active: 'border-emerald-300 bg-emerald-100 text-emerald-700 hover:bg-emerald-100',
+  },
+  {
+    value: 'cancelled',
+    label: 'Cancelada',
+    active: 'border-red-300 bg-red-100 text-red-700 hover:bg-red-100',
+  },
 ]
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
@@ -61,7 +70,6 @@ const ReceivingPage = () => {
   const state = useWmsStore()
   const { productName: getProductName } = useStoreHelpers()
   const router = useRouter()
-  const pathname = usePathname()
   const searchParams = useSearchParams()
   const [poStatusFilter, setPoStatusFilter] = useState<Set<string>>(new Set())
   const [crossDockAsn, setCrossDockAsn] = useState<Asn | null>(null)
@@ -219,33 +227,29 @@ const ReceivingPage = () => {
   )
 
   // ── PO rows ───────────────────────────────────────────────────────────────
-  const poRows = useMemo<PoRow[]>(
-    () => {
-      const today = new Date().toISOString().slice(0, 10)
-      return state.purchaseOrders.map((po) => {
-        const totalOrdered = po.lines.reduce((s, l) => s + l.orderedQty, 0)
-        const totalReceived = po.lines.reduce((s, l) => s + l.receivedQty, 0)
-        const pendingQty = totalOrdered - totalReceived
-        const progressPct = totalOrdered > 0 ? Math.round((totalReceived / totalOrdered) * 100) : 0
-        return {
-          id: po.id,
-          code: po.code,
-          supplierName: po.supplierName,
-          status: po.status,
-          expectedDate: po.expectedDate,
-          lineCount: po.lines.length,
-          totalOrdered,
-          totalReceived,
-          pendingQty,
-          progressPct,
-          isOverdue:
-            po.expectedDate < today && po.status !== 'received' && po.status !== 'cancelled',
-          canCreateReception: po.status === 'confirmed' || po.status === 'partial',
-        }
-      })
-    },
-    [state.purchaseOrders]
-  )
+  const poRows = useMemo<PoRow[]>(() => {
+    const today = new Date().toISOString().slice(0, 10)
+    return state.purchaseOrders.map((po) => {
+      const totalOrdered = po.lines.reduce((s, l) => s + l.orderedQty, 0)
+      const totalReceived = po.lines.reduce((s, l) => s + l.receivedQty, 0)
+      const pendingQty = totalOrdered - totalReceived
+      const progressPct = totalOrdered > 0 ? Math.round((totalReceived / totalOrdered) * 100) : 0
+      return {
+        id: po.id,
+        code: po.code,
+        supplierName: po.supplierName,
+        status: po.status,
+        expectedDate: po.expectedDate,
+        lineCount: po.lines.length,
+        totalOrdered,
+        totalReceived,
+        pendingQty,
+        progressPct,
+        isOverdue: po.expectedDate < today && po.status !== 'received' && po.status !== 'cancelled',
+        canCreateReception: po.status === 'confirmed' || po.status === 'partial',
+      }
+    })
+  }, [state.purchaseOrders])
 
   const pendingPoCount = useMemo(
     () => poRows.filter((r) => r.status === 'confirmed' || r.status === 'partial').length,
@@ -267,21 +271,31 @@ const ReceivingPage = () => {
   }, [])
 
   // ── SubNav items ──────────────────────────────────────────────────────────
-  const RECEIVING_TABS = useMemo<SubNavItem[]>(() => [
-    { value: 'ordenes', label: 'Órdenes de compra', count: pendingPoCount },
-    { value: 'citas', label: 'Citas ASN', count: appointmentRows.length },
-    { value: 'recibiendo', label: 'Recibiendo activo', count: receivingRows.length },
-    { value: 'qc', label: 'Control de calidad', count: qcRows.length },
-    { value: 'putaway', label: 'Putaway staging', count: putawayRows.length },
-  ], [pendingPoCount, appointmentRows.length, receivingRows.length, qcRows.length, putawayRows.length])
+  const RECEIVING_TABS = useMemo<SubNavItem[]>(
+    () => [
+      { value: 'ordenes', label: 'Órdenes de compra', count: pendingPoCount },
+      { value: 'citas', label: 'Citas ASN', count: appointmentRows.length },
+      { value: 'recibiendo', label: 'Recibiendo activo', count: receivingRows.length },
+      { value: 'qc', label: 'Control de calidad', count: qcRows.length },
+      { value: 'putaway', label: 'Putaway staging', count: putawayRows.length },
+    ],
+    [
+      pendingPoCount,
+      appointmentRows.length,
+      receivingRows.length,
+      qcRows.length,
+      putawayRows.length,
+    ]
+  )
 
   // ── Column definitions (memoized) ─────────────────────────────────────────
   const poCols = useMemo(() => buildPoColumns(sheetState.open), [sheetState.open])
   const appointmentCols = useMemo(
-    () => buildAppointmentColumns(
-      { onAction: handleAction, onAssignAppointment: (asn) => appointmentDialog.open(asn) },
-      state.asnRecords
-    ),
+    () =>
+      buildAppointmentColumns(
+        { onAction: handleAction, onAssignAppointment: (asn) => appointmentDialog.open(asn) },
+        state.asnRecords
+      ),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [handleAction, state.asnRecords]
   )
@@ -337,177 +351,178 @@ const ReceivingPage = () => {
       <SubNav items={RECEIVING_TABS} defaultValue="ordenes" />
 
       {activeTab === 'ordenes' && (
-          <TabPanel
-            icon={FileText}
-            iconClass="text-zinc-500"
-            title="Órdenes de compra"
-            description="Órdenes confirmadas con el proveedor. Crea una recepción desde una PO para generar el ASN y programar la cita de entrega."
-          >
-            {poRows.length === 0 ? (
-              <EmptyState
-                icon={FileText}
-                title="Sin órdenes de compra"
-                description="Las órdenes confirmadas con el proveedor aparecerán aquí."
-              />
-            ) : (
-              <DataTable
-                columns={poCols}
-                data={filteredPoRows}
-                searchColumn="code"
-                searchPlaceholder="Buscar por N° orden o proveedor…"
-                emptyMessage="Sin órdenes de compra registradas."
-                rowClassName={(row: PoRow) =>
-                  row.status === 'received' || row.status === 'cancelled'
-                    ? 'opacity-50'
-                    : ''
-                }
-                filters={
-                  <div className="flex flex-wrap gap-1.5">
-                    {PO_STATUS_OPTIONS.map(({ value, label, active }) => (
-                      <Button
-                        key={value}
-                        variant="outline"
-                        size="sm"
-                        className={cn('h-8 text-xs transition-colors', poStatusFilter.has(value) && active)}
-                        onClick={() => handlePoStatusToggle(value)}
-                      >
-                        {label}
-                      </Button>
-                    ))}
-                    {poStatusFilter.size > 0 && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="text-muted-foreground h-8 text-xs"
-                        onClick={() => setPoStatusFilter(new Set())}
-                      >
-                        Limpiar
-                      </Button>
-                    )}
-                  </div>
-                }
-              />
-            )}
-          </TabPanel>
+        <TabPanel
+          icon={FileText}
+          iconClass="text-zinc-500"
+          title="Órdenes de compra"
+          description="Órdenes confirmadas con el proveedor. Crea una recepción desde una PO para generar el ASN y programar la cita de entrega."
+        >
+          {poRows.length === 0 ? (
+            <EmptyState
+              icon={FileText}
+              title="Sin órdenes de compra"
+              description="Las órdenes confirmadas con el proveedor aparecerán aquí."
+            />
+          ) : (
+            <DataTable
+              columns={poCols}
+              data={filteredPoRows}
+              searchColumn="code"
+              searchPlaceholder="Buscar por N° orden o proveedor…"
+              emptyMessage="Sin órdenes de compra registradas."
+              rowClassName={(row: PoRow) =>
+                row.status === 'received' || row.status === 'cancelled' ? 'opacity-50' : ''
+              }
+              filters={
+                <div className="flex flex-wrap gap-1.5">
+                  {PO_STATUS_OPTIONS.map(({ value, label, active }) => (
+                    <Button
+                      key={value}
+                      variant="outline"
+                      size="sm"
+                      className={cn(
+                        'h-8 text-xs transition-colors',
+                        poStatusFilter.has(value) && active
+                      )}
+                      onClick={() => handlePoStatusToggle(value)}
+                    >
+                      {label}
+                    </Button>
+                  ))}
+                  {poStatusFilter.size > 0 && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-muted-foreground h-8 text-xs"
+                      onClick={() => setPoStatusFilter(new Set())}
+                    >
+                      Limpiar
+                    </Button>
+                  )}
+                </div>
+              }
+            />
+          )}
+        </TabPanel>
       )}
 
       {activeTab === 'citas' && (
-          <TabPanel
-            icon={Truck}
-            iconClass="text-blue-500"
-            title="Llegadas programadas"
-            description="ASNs confirmados con el proveedor. Los marcados como «Entrega parcial» ya tienen una recepción previa — el proveedor enviará más mercancía. Inicia una nueva entrega cuando llegue el camión."
-          >
-            {appointmentRows.length === 0 ? (
-              <EmptyState
-                icon={Truck}
-                title="Sin llegadas programadas"
-                description="Todos los avisos están en proceso o completados."
-              />
-            ) : (
-              <DataTable
-                columns={appointmentCols}
-                data={appointmentRows}
-                searchColumn="productName"
-                searchPlaceholder="Buscar por producto o proveedor…"
-                emptyMessage="Sin llegadas programadas."
-              />
-            )}
-          </TabPanel>
+        <TabPanel
+          icon={Truck}
+          iconClass="text-blue-500"
+          title="Llegadas programadas"
+          description="ASNs confirmados con el proveedor. Los marcados como «Entrega parcial» ya tienen una recepción previa — el proveedor enviará más mercancía. Inicia una nueva entrega cuando llegue el camión."
+        >
+          {appointmentRows.length === 0 ? (
+            <EmptyState
+              icon={Truck}
+              title="Sin llegadas programadas"
+              description="Todos los avisos están en proceso o completados."
+            />
+          ) : (
+            <DataTable
+              columns={appointmentCols}
+              data={appointmentRows}
+              searchColumn="productName"
+              searchPlaceholder="Buscar por producto o proveedor…"
+              emptyMessage="Sin llegadas programadas."
+            />
+          )}
+        </TabPanel>
       )}
 
       {activeTab === 'recibiendo' && (
-          <TabPanel
-            icon={PackageCheck}
-            iconClass="text-blue-500"
-            title="Conteo físico activo"
-            description="Camiones actualmente en el muelle. Registra las unidades contadas en esta entrega. Si el proveedor no enviará más, usa «Cerrar ASN con diferencia» para documentar la falta y generar el reporte OTIF."
-          >
-            {receivingRows.length === 0 ? (
-              <EmptyState
-                icon={PackageCheck}
-                title="Sin recepciones activas en el muelle"
-                description="Inicia una recepción desde «Llegadas programadas» cuando llegue el camión."
-              />
-            ) : (
-              <DataTable
-                columns={receivingCols}
-                data={receivingRows}
-                searchColumn="productName"
-                searchPlaceholder="Buscar por producto o proveedor…"
-                emptyMessage="Sin recepciones activas."
-              />
-            )}
-          </TabPanel>
+        <TabPanel
+          icon={PackageCheck}
+          iconClass="text-blue-500"
+          title="Conteo físico activo"
+          description="Camiones actualmente en el muelle. Registra las unidades contadas en esta entrega. Si el proveedor no enviará más, usa «Cerrar ASN con diferencia» para documentar la falta y generar el reporte OTIF."
+        >
+          {receivingRows.length === 0 ? (
+            <EmptyState
+              icon={PackageCheck}
+              title="Sin recepciones activas en el muelle"
+              description="Inicia una recepción desde «Llegadas programadas» cuando llegue el camión."
+            />
+          ) : (
+            <DataTable
+              columns={receivingCols}
+              data={receivingRows}
+              searchColumn="productName"
+              searchPlaceholder="Buscar por producto o proveedor…"
+              emptyMessage="Sin recepciones activas."
+            />
+          )}
+        </TabPanel>
       )}
 
       {activeTab === 'qc' && (
-          <TabPanel
-            icon={ShieldCheck}
-            iconClass="text-amber-500"
-            title="Inspección de calidad (QC)"
-            description="Mercancía bloqueada en zona de calidad. Debe ser aprobada antes de ingresar al inventario disponible."
-          >
-            {qcRows.length === 0 ? (
-              <EmptyState
-                icon={ShieldCheck}
-                title="Sin lotes pendientes de inspección"
-                description="Los lotes con bandera QC aparecerán aquí al ser recibidos."
-              />
-            ) : (
-              <DataTable
-                columns={qcCols}
-                data={qcRows}
-                searchColumn="productName"
-                searchPlaceholder="Buscar…"
-                emptyMessage="Sin lotes pendientes de QC."
-              />
-            )}
-          </TabPanel>
+        <TabPanel
+          icon={ShieldCheck}
+          iconClass="text-amber-500"
+          title="Inspección de calidad (QC)"
+          description="Mercancía bloqueada en zona de calidad. Debe ser aprobada antes de ingresar al inventario disponible."
+        >
+          {qcRows.length === 0 ? (
+            <EmptyState
+              icon={ShieldCheck}
+              title="Sin lotes pendientes de inspección"
+              description="Los lotes con bandera QC aparecerán aquí al ser recibidos."
+            />
+          ) : (
+            <DataTable
+              columns={qcCols}
+              data={qcRows}
+              searchColumn="productName"
+              searchPlaceholder="Buscar…"
+              emptyMessage="Sin lotes pendientes de QC."
+            />
+          )}
+        </TabPanel>
       )}
 
       {activeTab === 'putaway' && (
-          <TabPanel
-            icon={MapPin}
-            iconClass="text-emerald-600"
-            title="Ubicación en almacén (Putaway)"
-            description="Mercancía lista para ser ubicada. El sistema recomienda la posición óptima según rotación del producto."
-          >
-            {state.asnRecords.some((a) => a.status === 'labels_pending') && (
-              <div className="mb-4 flex items-center gap-3 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
-                <AlertTriangle className="size-4 shrink-0" />
-                <span>
-                  {state.asnRecords.filter((a) => a.status === 'labels_pending').length} ASN(s) con etiquetas pendientes de imprimir. El putaway está bloqueado hasta imprimir todas las etiquetas.
-                </span>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="ml-auto shrink-0"
-                  onClick={() => router.push('?tab=recibiendo')}
-                >
-                  Ir a imprimir
-                </Button>
-              </div>
-            )}
-            {putawayRows.length === 0 ? (
-              <EmptyState
-                icon={MapPin}
-                title="Sin mercancía esperando ubicación"
-                description="La mercancía recibida y aprobada aparecerá aquí lista para ser ubicada."
-              />
-            ) : (
-              <DataTable
-                columns={putawayCols}
-                data={putawayRows}
-                searchColumn="productName"
-                searchPlaceholder="Buscar…"
-                emptyMessage="Sin mercancía esperando ubicación."
-                rowClassName={(row: AsnRow) =>
-                  row.status === 'putaway_done' ? 'opacity-50' : ''
-                }
-              />
-            )}
-          </TabPanel>
+        <TabPanel
+          icon={MapPin}
+          iconClass="text-emerald-600"
+          title="Ubicación en almacén (Putaway)"
+          description="Mercancía lista para ser ubicada. El sistema recomienda la posición óptima según rotación del producto."
+        >
+          {state.asnRecords.some((a) => a.status === 'labels_pending') && (
+            <div className="mb-4 flex items-center gap-3 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+              <AlertTriangle className="size-4 shrink-0" />
+              <span>
+                {state.asnRecords.filter((a) => a.status === 'labels_pending').length} ASN(s) con
+                etiquetas pendientes de imprimir. El putaway está bloqueado hasta imprimir todas las
+                etiquetas.
+              </span>
+              <Button
+                size="sm"
+                variant="outline"
+                className="ml-auto shrink-0"
+                onClick={() => router.push('?tab=recibiendo')}
+              >
+                Ir a imprimir
+              </Button>
+            </div>
+          )}
+          {putawayRows.length === 0 ? (
+            <EmptyState
+              icon={MapPin}
+              title="Sin mercancía esperando ubicación"
+              description="La mercancía recibida y aprobada aparecerá aquí lista para ser ubicada."
+            />
+          ) : (
+            <DataTable
+              columns={putawayCols}
+              data={putawayRows}
+              searchColumn="productName"
+              searchPlaceholder="Buscar…"
+              emptyMessage="Sin mercancía esperando ubicación."
+              rowClassName={(row: AsnRow) => (row.status === 'putaway_done' ? 'opacity-50' : '')}
+            />
+          )}
+        </TabPanel>
       )}
 
       <ReceiveDialog state={receiveDialogState} />
