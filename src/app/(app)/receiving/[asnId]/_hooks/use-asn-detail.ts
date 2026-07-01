@@ -23,6 +23,8 @@ export interface AsnDetail {
   canReceive: boolean
   canPutaway: boolean
   canQc: boolean
+  canClose: boolean
+  allLabelsPrinted: boolean
 }
 
 export const useAsnDetail = (asnId: string): AsnDetail | null => {
@@ -71,11 +73,27 @@ export const useAsnDetail = (asnId: string): AsnDetail | null => {
     ? locationCode(finalPutawayMovement.toLocationId)
     : null
 
+  const asnLabels = state.labels.filter((l) => l.type === 'receipt' && l.asnId === asnId)
+  const allLabelsPrinted = asnLabels.length > 0 && asnLabels.every((l) => l.status === 'completed')
+
   const canReceive =
-    asn.status === 'pending' || asn.status === 'partial' || asn.status === 'in_progress'
+    asn.status === 'pending' ||
+    asn.status === 'in_progress' ||
+    asn.status === 'partial'
+
   const canPutaway =
-    asn.status === 'completed' || (!asn.requiresQualityControl && asn.status === 'partial')
-  const canQc = asn.requiresQualityControl && asn.status === 'partial'
+    (asn.status === 'completed' || asn.status === 'partial') &&
+    allLabelsPrinted &&
+    !asn.requiresQualityControl
+
+  const canQc =
+    asn.requiresQualityControl &&
+    (asn.status === 'partial' || asn.status === 'in_progress' || asn.status === 'completed')
+
+  const canClose =
+    asn.status === 'partial' ||
+    asn.status === 'in_progress' ||
+    asn.status === 'completed'
 
   return {
     asn,
@@ -92,5 +110,7 @@ export const useAsnDetail = (asnId: string): AsnDetail | null => {
     canReceive,
     canPutaway,
     canQc,
+    canClose,
+    allLabelsPrinted,
   }
 }
