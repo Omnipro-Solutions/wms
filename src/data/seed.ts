@@ -2864,3 +2864,18 @@ export const demoPackingOrder: PackingOrder = {
     { productId: 'p-cafetera', productName: 'Cafetera Espresso Automática', requestedQuantity: 2, scannedQuantity: 0 },
   ],
 }
+
+// Flujo 3: Devolución activa — recién llegada al DC, esperando inspección
+export const demoReturnOrder: ReturnOrder = {
+  id: 'demo-ret-1',
+  rmaCode: 'RMA-DEMO-001',
+  customerName: 'Tienda Santa Fe',
+  type: 'store_to_dc',
+  originId: 'wh-santafe',
+  destinationId: 'wh-bog',
+  status: 'received_at_dc',
+  reasonId: 'rs-2',
+  disposition: 'quality_control', // ponytail: pending supervisor decision, most common at received_at_dc
+  items: [{ id: 'demo-retl-1', productId: 'p-sanduchera', requestedQuantity: 3 }],
+  createdAt: '2026-06-30T07:30:00.000Z',
+}
