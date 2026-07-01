@@ -116,11 +116,18 @@ Mostrar el dashboard (`/`) al supervisor:
 2. Seleccionar **Empacador — Pedro Packer**
 3. Click en **Packing** → señalar `PED-DEMO-001` en estado pendiente
 4. Click en la orden → mostrar la pantalla de verificación de ítems
-5. Escanear/confirmar ítem 1 (Cafetera × 2) → verificación OK ✓
+5. Escanear/confirmar el producto: escribir el código de barra `7700000000103` (Cafetera Espresso Automática, SKU `PE-CAF-010`, cantidad 2) en el campo de escaneo → confirma la línea completa
 6. Mostrar el mensaje de sugerencia de caja: **Caja S** (calculada por peso y volumen)
 7. Confirmar selección de caja → click **Generar Etiqueta**
 8. Mostrar el código de despacho generado
 9. **Decir:** *"El sistema sugiere la caja correcta, detecta si el producto necesita manejo especial — frágil, cadena de frío, alto valor — y genera la etiqueta automáticamente. Cero errores humanos."*
+
+**Si quieren ver packing con más de un producto por orden:**
+- Usar `PED-DEMO-002` (2 líneas de producto distintas) en vez de `PED-DEMO-001`
+- Línea 1 — Microondas 28L Digital, SKU `LC-MIC-006`, código de barra `7700000000066`, cantidad 1
+- Línea 2 — Cafetera Espresso Automática, SKU `PE-CAF-010`, código de barra `7700000000103`, cantidad 1
+- Cada línea se escanea por separado; solo al confirmar ambas se habilita **Generar Etiqueta**
+- Si el código escaneado no coincide, el sistema muestra el error con el código esperado y no deja avanzar hasta corregir o usar "Omitir verificación"
 
 ### Paso 7 — Rate shopping y despacho (3 min)
 **Vista:** Desktop — supervisor + Móvil — driver@demo.com
@@ -210,6 +217,12 @@ Mostrar el dashboard (`/`) al supervisor:
 **Si preguntan por SAP:**
 - Mostrar `/integrations` → conexión SAP activa
 - Mostrar `/load-manifests` → integración de rutas SAP
+
+**Si quieren mostrar picking con captura de serial:**
+- Tarea `pt-b2b-5` (`PICK-B2B-005`) — Microondas 28L Digital, ubicación `loc-a0101`, requiere serial
+- ⚠️ NO usar el SKU `LC-MIC-006` como serial — eso es el código de producto, no un serial válido
+- Seriales válidos disponibles en `loc-a0101`: `MIC-2026-0002` o `MIC-2026-0003` (`MIC-2026-0001` ya está reservado)
+- Usar cantidad `1` al confirmar el pick — la tarea pide 2 unidades pero cada registro de serial solo cubre 1 unidad
 
 **Si preguntan por multialmacén:**
 - En `/inventory` señalar el filtro por warehouse: Bogotá, Medellín, tiendas
