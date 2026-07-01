@@ -310,12 +310,12 @@ const ReceivingPage = () => {
         description="Flujo completo de entrada de mercancía: programación de citas, conteo físico, inspección de calidad y ubicación en almacén."
       />
 
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-5">
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <KpiCard
           icon={FileText}
           value={pendingPoCount}
           label="Órdenes de compra"
-          sublabel="Confirmadas con recepción pendiente"
+          sublabel={`${completedToday} cerradas hoy`}
           tone="neutral"
         />
         <KpiCard
@@ -338,13 +338,6 @@ const ReceivingPage = () => {
           label="En inspección de calidad"
           sublabel="Lotes bloqueados hasta aprobación"
           tone={qcRows.length > 0 ? 'amber' : 'neutral'}
-        />
-        <KpiCard
-          icon={PackageCheck}
-          value={completedToday}
-          label="Recepciones cerradas"
-          sublabel="Completadas o cerradas con diferencia"
-          tone="green"
         />
       </div>
 
