@@ -6,11 +6,10 @@ export function canTransition<T extends string>(map: Record<string, T[]>, from: 
 
 export const asnTransitions: Record<string, OperationalStatus[]> = {
   pending: ['in_progress', 'partial', 'completed', 'cancelled'],
-  in_progress: ['partial', 'completed', 'cancelled', 'short_received', 'labels_pending'],
-  partial: ['in_progress', 'completed', 'cancelled', 'short_received', 'labels_pending'],
-  labels_pending: ['putaway_ready', 'cancelled'],
-  putaway_ready: ['completed', 'cancelled'],
-  completed: [],
+  in_progress: ['partial', 'completed', 'cancelled', 'short_received'],
+  partial: ['in_progress', 'completed', 'cancelled', 'short_received'],
+  completed: ['putaway_done'],
+  putaway_done: [],
   cancelled: [],
   short_received: [],
 }

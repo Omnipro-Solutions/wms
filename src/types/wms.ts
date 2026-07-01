@@ -19,8 +19,6 @@ export type OperationalStatus =
   | 'synced'
   | 'short_received'
   | 'ready_for_pickup'  // BOPIS/Ship-from-Store: prepared, awaiting customer
-  | 'labels_pending'
-  | 'putaway_ready'
 
 // Sprint 4: Unit of Measure entity. Every Product has a baseUomId (the
 // smallest countable unit) plus optional conversion rules to larger units.
