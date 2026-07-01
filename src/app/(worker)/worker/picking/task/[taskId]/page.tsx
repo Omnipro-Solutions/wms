@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { CheckCircle2 } from 'lucide-react'
+import { cn } from '@/lib/utils'
 import { useWmsStore } from '@/store/wms-store'
 import { useCurrentOperator } from '@/hooks/use-current-operator'
 import { WorkerStepper } from '@/components/worker/worker-stepper'
@@ -35,6 +36,7 @@ export default function WorkerPickingTaskPage() {
   const [qty, setQty] = useState(task?.requestedQuantity ?? 0)
   const [showPartialDialog, setShowPartialDialog] = useState(false)
   const [pickError, setPickError] = useState<string | null>(null)
+  const [confirmed, setConfirmed] = useState(false)
 
   const ErrorBanner = ({ message }: { message: string }) => (
     <div className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
@@ -70,7 +72,6 @@ export default function WorkerPickingTaskPage() {
   const handleConfirmQty = () => {
     setPickError(null)
     try {
-      // Ensure in_progress before completing
       if (task.status === 'assigned' || task.status === 'pending') {
         startPicking(task.id, operator?.name ?? 'Operador')
       }
@@ -78,7 +79,11 @@ export default function WorkerPickingTaskPage() {
         setShowPartialDialog(true)
       } else {
         completePick(task.id, qty)
-        setStep('done')
+        setConfirmed(true)
+        setTimeout(() => {
+          setConfirmed(false)
+          setStep('done')
+        }, 1500)
       }
     } catch (e: unknown) {
       setPickError(e instanceof Error ? e.message : 'Error al confirmar cantidad')
@@ -121,12 +126,25 @@ export default function WorkerPickingTaskPage() {
 
       {step === 'location' && (
         <div className="flex flex-col gap-4">
-          {pickError && <ErrorBanner message={pickError} />}
           <div className="rounded-xl bg-muted p-4 text-center">
             <p className="text-xs uppercase tracking-wide text-muted-foreground">Zona</p>
-            <p className="text-4xl font-black">{location.zone}</p>
-            <p className="text-2xl font-bold text-muted-foreground">{location.code}</p>
+            <p className="text-5xl font-black">{location.zone}</p>
+            <p className="text-3xl font-bold text-muted-foreground">{location.code}</p>
           </div>
+          {product.imageUrl && (
+            <div className="flex items-center gap-3 rounded-xl border bg-card px-4 py-3">
+              <img
+                src={product.imageUrl}
+                alt={product.name}
+                className="h-12 w-12 rounded-lg object-contain"
+              />
+              <div>
+                <p className="text-sm font-semibold">{product.name}</p>
+                <p className="text-xs text-muted-foreground">× {task.requestedQuantity} uds</p>
+              </div>
+            </div>
+          )}
+          {pickError && <ErrorBanner message={pickError} />}
           <ScanInput
             label="Escanea la ubicación"
             expectedValue={location.barcode ?? location.code}
@@ -138,9 +156,17 @@ export default function WorkerPickingTaskPage() {
       {step === 'product' && (
         <div className="flex flex-col gap-4">
           <div className="rounded-xl bg-muted p-4">
-            <p className="font-bold text-lg">{product.name}</p>
-            <p className="text-sm text-muted-foreground">SKU: {product.sku}</p>
+            {product.imageUrl && (
+              <img
+                src={product.imageUrl}
+                alt={product.name}
+                className="mx-auto mb-3 h-24 w-24 rounded-xl object-contain"
+              />
+            )}
+            <p className="text-center text-lg font-bold">{product.name}</p>
+            <p className="text-center text-sm text-muted-foreground">SKU: {product.sku}</p>
           </div>
+          {pickError && <ErrorBanner message={pickError} />}
           <ScanInput
             label="Escanea el producto"
             expectedValue={product.barcode ?? product.sku}
@@ -150,34 +176,59 @@ export default function WorkerPickingTaskPage() {
       )}
 
       {step === 'quantity' && (
-        <div className="flex flex-col gap-6 items-center">
-          {pickError && <ErrorBanner message={pickError} />}
-          <div className="text-center">
+        <div className="relative flex flex-col items-center gap-6">
+          {confirmed && (
+            <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 rounded-2xl bg-emerald-500/90">
+              <CheckCircle2 className="size-20 text-white" />
+              <p className="text-xl font-bold text-white">¡Confirmado!</p>
+            </div>
+          )}
+          <div className="w-full rounded-xl bg-muted p-4 text-center">
             <p className="text-sm text-muted-foreground">Solicitado</p>
-            <p className="text-5xl font-black">{task.requestedQuantity}</p>
-            <p className="text-sm text-muted-foreground">{product.name}</p>
+            <p className="text-6xl font-black tabular-nums">{task.requestedQuantity}</p>
+            <p className="mt-1 text-sm text-muted-foreground">{product.name}</p>
           </div>
-          <QuantityStepper value={qty} onChange={setQty} min={0} max={task.requestedQuantity} />
-          <Button className="h-12 w-full text-base" onClick={handleConfirmQty}>
-            CONFIRMAR
+          <div className="w-full">
+            <p className="mb-2 text-center text-sm font-medium text-muted-foreground">Cantidad a picar</p>
+            <QuantityStepper value={qty} onChange={setQty} min={0} max={task.requestedQuantity} />
+          </div>
+          {pickError && <ErrorBanner message={pickError} />}
+          <Button
+            className="h-16 w-full text-lg font-bold"
+            onClick={handleConfirmQty}
+            disabled={qty === 0}
+          >
+            CONFIRMAR {qty} UDS
           </Button>
+          {qty < task.requestedQuantity && qty > 0 && (
+            <p className="text-sm text-amber-600">
+              ⚠️ Registrarás {task.requestedQuantity - qty} unidades menos que lo solicitado
+            </p>
+          )}
         </div>
       )}
 
       <Dialog open={showPartialDialog} onOpenChange={setShowPartialDialog}>
         <DialogContent showCloseButton={false}>
           <DialogHeader>
-            <DialogTitle>¿Confirmar cantidad parcial?</DialogTitle>
-            <DialogDescription>
-              Registraste {qty} de {task.requestedQuantity} unidades. Se marcará como pick parcial.
+            <DialogTitle className="text-center">¿Confirmar cantidad parcial?</DialogTitle>
+            <DialogDescription className="text-center">
+              <span className="text-4xl font-black tabular-nums text-foreground">
+                {qty}
+              </span>
+              <span className="text-2xl font-medium text-muted-foreground">
+                {' '}/{' '}{task.requestedQuantity}
+              </span>
+              <br />
+              <span className="text-sm">unidades — se marcará como pick parcial</span>
             </DialogDescription>
           </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" className="h-12" onClick={() => setShowPartialDialog(false)}>
-              Cancelar
+          <DialogFooter className="flex-col gap-2 sm:flex-col">
+            <Button className="h-14 w-full text-base font-bold" onClick={handleConfirmPartial}>
+              Confirmar {qty} uds (parcial)
             </Button>
-            <Button className="h-12" onClick={handleConfirmPartial}>
-              Confirmar parcial
+            <Button variant="outline" className="h-12 w-full" onClick={() => setShowPartialDialog(false)}>
+              Cancelar — seguir picando
             </Button>
           </DialogFooter>
         </DialogContent>
