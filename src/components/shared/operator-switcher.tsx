@@ -38,7 +38,7 @@ interface DemoOperator {
 }
 
 const DEMO_OPERATORS: DemoOperator[] = [
-  { role: 'supervisor', name: 'Carlos Granados', email: 'carlos.granados@wms.co', password: 'WMS2024' },
+  { role: 'supervisor', name: 'Carlos Granados', email: 'carlos.granados@wms.co', password: 'wms2024' },
   { role: 'receiver', name: 'María Recepcionista', email: 'receiver@demo.com', password: '123456' },
   { role: 'picker', name: 'Ana Picker', email: 'picker@demo.com', password: '123456' },
   { role: 'packer', name: 'Pedro Packer', email: 'packer@demo.com', password: '123456' },

@@ -10,7 +10,7 @@
 
 | Rol | Email | Contraseña | URL de entrada |
 |-----|-------|-----------|----------------|
-| Supervisor | carlos.granados@wms.co | WMS2024 | `http://localhost:3000/` |
+| Supervisor | carlos.granados@wms.co | wms2024 | `http://localhost:3000/` |
 | Receiver | receiver@demo.com | 123456 | `http://localhost:3000/worker` |
 | Picker | picker@demo.com | 123456 | `http://localhost:3000/worker` |
 | Packer | packer@demo.com | 123456 | `http://localhost:3000/worker` |
@@ -21,7 +21,7 @@
 ## Preparación (5 min antes — no frente al cliente)
 
 1. Abrir el browser → ir a `http://localhost:3000/auth/login`
-2. Iniciar sesión con **supervisor**: `carlos.granados@wms.co` / `WMS2024`
+2. Iniciar sesión con **supervisor**: `carlos.granados@wms.co` / `wms2024`
 3. Abrir DevTools → F12 → icono de móvil (modo responsive) → seleccionar "iPhone 12 Pro" o similar
 4. En la pestaña móvil ir a `http://localhost:3000/auth/login` → iniciar sesión como **receiver**: `receiver@demo.com` / `123456`
 5. Si los datos demo no aparecen: abrir consola JS → escribir `localStorage.clear()` → Enter → recargar la página → volver a iniciar sesión
