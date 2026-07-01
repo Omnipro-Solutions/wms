@@ -77,6 +77,11 @@ export const buildShippingColumns = ({
   {
     accessorKey: 'carrierName',
     header: ({ column }) => <DataTableColumnHeader column={column} title="Transportadora" />,
+    cell: ({ row }) => (
+      <span className="block max-w-[120px] truncate" title={row.getValue('carrierName')}>
+        {row.getValue('carrierName')}
+      </span>
+    ),
   },
   {
     id: 'modalityType',
@@ -123,10 +128,10 @@ export const buildShippingColumns = ({
       const cost = row.getValue<number | undefined>('quotedCostUsd')
       return (
         <div className="text-right tabular-nums">
-          {cost !== null ? (
+          {cost !== undefined && cost !== null ? (
             <span className="flex items-center justify-end gap-1">
               <DollarSign className="text-muted-foreground size-3" />
-              {cost?.toFixed(2)}
+              {cost.toFixed(2)}
             </span>
           ) : (
             <span className="text-muted-foreground">—</span>
@@ -221,6 +226,7 @@ export const buildShippingColumns = ({
             <Button
               size="icon-sm"
               variant="outline"
+              title="Recotizar tarifa"
               onClick={(e) => {
                 e.stopPropagation()
                 onRateShop(item)
@@ -229,13 +235,14 @@ export const buildShippingColumns = ({
               <DollarSign className="size-3" />
             </Button>
             <Button
-              size="icon-sm"
+              size="sm"
+              title="Despachar envío"
               onClick={(e) => {
                 e.stopPropagation()
                 onShip(item)
               }}
             >
-              <Truck className="size-3" />
+              <Truck className="mr-1 size-3" /> Despachar
             </Button>
           </div>
         )
@@ -243,14 +250,15 @@ export const buildShippingColumns = ({
       if (item.status === 'in_transit') {
         return (
           <Button
-            size="icon-sm"
+            size="sm"
             variant="outline"
+            title="Registrar entrega"
             onClick={(e) => {
               e.stopPropagation()
               onDeliver(item)
             }}
           >
-            <HandHelping className="size-3" />
+            <HandHelping className="mr-1 size-3" /> Entregado
           </Button>
         )
       }
