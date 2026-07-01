@@ -1,11 +1,10 @@
 'use client'
 
 import Image from 'next/image'
-import { LogOut, UserCog } from 'lucide-react'
+import { LogOut } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { useCurrentOperator } from '@/hooks/use-current-operator'
-import { useOperatorPicker } from '@/components/layout/operator-picker-provider'
 import { useAuthStore } from '@/store/auth-store'
 import { cn } from '@/lib/utils'
 import { APP_CONFIG } from '@/config/app-config'
@@ -28,7 +27,6 @@ const ROLE_COLORS: Record<string, string> = {
 
 export const WorkerHeader = () => {
   const { operator } = useCurrentOperator()
-  const { openPicker } = useOperatorPicker()
   const logout = useAuthStore((s) => s.logout)
   const router = useRouter()
 
@@ -51,9 +49,6 @@ export const WorkerHeader = () => {
               {ROLE_LABELS[operator.role]}
             </span>
           </div>
-          <Button variant="ghost" size="icon" onClick={openPicker} title="Cambiar operador">
-            <UserCog className="size-4" />
-          </Button>
           <Button variant="ghost" size="icon" onClick={handleLogout} title="Cerrar sesión">
             <LogOut className="size-4" />
           </Button>
