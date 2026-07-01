@@ -719,16 +719,12 @@ export const useWmsStore = create<WmsState>()(
     const newTotal = asn.receivedQuantity + totalCounted
     const newDamaged = asn.damagedQuantity + damagedQty
 
-    // Validate transition to labels_pending from current status
-    if (!canTransition(asnTransitions, asn.status, 'labels_pending')) {
-      throw new Error(`No se puede avanzar a etiquetado desde el estado ${asn.status}`)
-    }
-
     const updatedAsn: Asn = {
       ...asn,
       receivedQuantity: newTotal,
       damagedQuantity: newDamaged,
       deliveryCount: asn.deliveryCount + 1,
+      status: newTotal >= asn.expectedQuantity ? 'completed' : 'partial',
     }
 
     // Only goodQty enters available/hold stock — damaged units are tracked on the ASN but not stocked.
@@ -848,16 +844,13 @@ export const useWmsStore = create<WmsState>()(
       })
     }
 
-    // ASN advances to labels_pending instead of partial/completed
-    const updatedAsnWithLabels: Asn = { ...updatedAsn, status: 'labels_pending' }
-
     set({
-      asnRecords: state.asnRecords.map((a) => (a.id === asnId ? updatedAsnWithLabels : a)),
+      asnRecords: state.asnRecords.map((a) => (a.id === asnId ? updatedAsn : a)),
       inventoryItems: updatedItems,
       stockMovements: [...state.stockMovements, ...movements],
       labels: [...state.labels, ...receiptLabels],
     })
-    return updatedAsnWithLabels
+    return updatedAsn
   },
 
   printReceiptLabel: (labelId) => {
@@ -868,24 +861,6 @@ export const useWmsStore = create<WmsState>()(
 
     const updated: WmsLabel = { ...label, status: 'completed' }
     const updatedLabels = state.labels.map((l) => (l.id === labelId ? updated : l))
-
-    // If all receipt labels for this ASN are completed, advance ASN to putaway_ready
-    const asnId = label.asnId
-    if (asnId) {
-      const asnLabels = updatedLabels.filter((l) => l.type === 'receipt' && l.asnId === asnId)
-      const allDone = asnLabels.every((l) => l.status === 'completed')
-      if (allDone) {
-        const asn = state.asnRecords.find((a) => a.id === asnId)
-        if (asn && canTransition(asnTransitions, asn.status, 'putaway_ready')) {
-          const updatedAsn: Asn = { ...asn, status: 'putaway_ready' }
-          set({
-            labels: updatedLabels,
-            asnRecords: state.asnRecords.map((a) => (a.id === asnId ? updatedAsn : a)),
-          })
-          return updated
-        }
-      }
-    }
 
     set({ labels: updatedLabels })
     return updated
