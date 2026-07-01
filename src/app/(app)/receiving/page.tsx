@@ -111,7 +111,10 @@ const ReceivingPage = () => {
           deliveryCount: asn.deliveryCount,
           canReceive:
             asn.status === 'pending' || asn.status === 'partial' || asn.status === 'in_progress',
-          canClose: asn.status === 'partial' || asn.status === 'in_progress',
+          canClose:
+            asn.status === 'partial' ||
+            asn.status === 'in_progress' ||
+            asn.status === 'completed',
           canPutaway: (() => {
             const asnLabels = state.labels.filter(
               (l) => l.type === 'receipt' && l.asnId === asn.id
