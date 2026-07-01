@@ -4,7 +4,6 @@ import { useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { CheckCircle2, Circle } from 'lucide-react'
 import { useWmsStore } from '@/store/wms-store'
-import { useCurrentOperator } from '@/hooks/use-current-operator'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,

@@ -16,7 +16,7 @@ export default function WorkerDriverPage() {
 
   const myManifests = loadManifests
     .filter((m) => m.assignedDriverId === operator?.id)
-    .sort((a) => (a.status === 'in_progress' ? -1 : 1))
+    .sort((a, b) => (b.status === 'in_progress' ? 1 : 0) - (a.status === 'in_progress' ? 1 : 0))
 
   const myTransfers = transfers.filter(
     (t) => t.assignedDriverId === operator?.id && t.status === 'in_transit'
