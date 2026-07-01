@@ -1,34 +1,21 @@
 'use client'
 
 import Image from 'next/image'
-import { LogOut } from 'lucide-react'
+import { LogOut, Users } from 'lucide-react'
 import { useRouter } from 'next/navigation'
+import { useState } from 'react'
 import { Button } from '@/components/ui/button'
+import { OperatorSwitcher, ROLE_LABELS, ROLE_COLORS } from '@/components/shared/operator-switcher'
 import { useCurrentOperator } from '@/hooks/use-current-operator'
 import { useAuthStore } from '@/store/auth-store'
 import { cn } from '@/lib/utils'
 import { APP_CONFIG } from '@/config/app-config'
 
-const ROLE_LABELS: Record<string, string> = {
-  picker:     'Picker',
-  packer:     'Empacador',
-  receiver:   'Recepcionista',
-  driver:     'Conductor',
-  supervisor: 'Supervisor',
-}
-
-const ROLE_COLORS: Record<string, string> = {
-  picker:     'bg-blue-100 text-blue-800',
-  packer:     'bg-purple-100 text-purple-800',
-  receiver:   'bg-green-100 text-green-800',
-  driver:     'bg-orange-100 text-orange-800',
-  supervisor: 'bg-red-100 text-red-800',
-}
-
 export const WorkerHeader = () => {
   const { operator } = useCurrentOperator()
   const logout = useAuthStore((s) => s.logout)
   const router = useRouter()
+  const [switcherOpen, setSwitcherOpen] = useState(false)
 
   const handleLogout = () => {
     logout()
@@ -49,11 +36,16 @@ export const WorkerHeader = () => {
               {ROLE_LABELS[operator.role]}
             </span>
           </div>
+          <Button variant="ghost" size="icon" onClick={() => setSwitcherOpen(true)} title="Cambiar rol demo">
+            <Users className="size-4" />
+          </Button>
           <Button variant="ghost" size="icon" onClick={handleLogout} title="Cerrar sesión">
             <LogOut className="size-4" />
           </Button>
         </div>
       )}
+
+      <OperatorSwitcher open={switcherOpen} onOpenChange={setSwitcherOpen} />
     </header>
   )
 }
