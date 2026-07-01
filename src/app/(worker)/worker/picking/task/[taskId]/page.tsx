@@ -3,7 +3,6 @@
 import { useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { CheckCircle2 } from 'lucide-react'
-import { cn } from '@/lib/utils'
 import { useWmsStore } from '@/store/wms-store'
 import { useCurrentOperator } from '@/hooks/use-current-operator'
 import { WorkerStepper } from '@/components/worker/worker-stepper'
