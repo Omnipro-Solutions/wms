@@ -8,8 +8,16 @@ import { useCurrentOperator } from '@/hooks/use-current-operator'
 import { WorkerStepper } from '@/components/worker/worker-stepper'
 import { QuantityStepper } from '@/components/worker/quantity-stepper'
 import { Button } from '@/components/ui/button'
+import { BarcodeScanner } from '@/components/shared/barcode-scanner'
 
-type Step = 'summary' | 'receive' | 'qc' | 'putaway' | 'done'
+type Step = 'summary' | 'receive' | 'serials' | 'qc' | 'putaway' | 'done'
+
+const ErrorBanner = ({ message }: { message: string }) => (
+  <div className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+    <span className="mt-0.5 shrink-0">⚠️</span>
+    <span>{message}</span>
+  </div>
+)
 
 export default function WorkerReceivingAsnPage() {
   const { asnId } = useParams<{ asnId: string }>()
@@ -24,6 +32,8 @@ export default function WorkerReceivingAsnPage() {
   const [step, setStep] = useState<Step>('summary')
   const [recQty, setRecQty] = useState(asn?.expectedQuantity ?? 0)
   const [dmgQty, setDmgQty] = useState(0)
+  const [receiveError, setReceiveError] = useState<string | null>(null)
+  const [serialsRaw, setSerialsRaw] = useState('')
 
   if (!asn) {
     return (
@@ -35,17 +45,47 @@ export default function WorkerReceivingAsnPage() {
 
   const opName = operator?.name ?? 'Operador'
   const hasQc = asn.requiresQualityControl
+  const requiresSerial = product?.trackBy === 'serial'
+
   const stepIndex: Record<Step, number> = hasQc
-    ? { summary: 1, receive: 2, qc: 3, putaway: 4, done: 5 }
-    : { summary: 1, receive: 2, qc: 2, putaway: 3, done: 4 }
+    ? { summary: 1, receive: 2, serials: 2, qc: 3, putaway: 4, done: 5 }
+    : { summary: 1, receive: 2, serials: 2, qc: 2, putaway: 3, done: 4 }
   const totalSteps = hasQc ? 4 : 3
 
+  const parsedSerials = serialsRaw
+    .split(/[\n,]+/)
+    .map((s) => s.trim())
+    .filter(Boolean)
+
   const handleReceive = () => {
-    receiveAsn(asn.id, recQty, opName, dmgQty)
-    if (asn.requiresQualityControl) {
-      setStep('qc')
-    } else {
-      setStep('putaway')
+    setReceiveError(null)
+    if (requiresSerial && recQty > 0) {
+      setStep('serials')
+      return
+    }
+    try {
+      receiveAsn(asn.id, recQty, opName, dmgQty)
+      if (asn.requiresQualityControl) {
+        setStep('qc')
+      } else {
+        setStep('putaway')
+      }
+    } catch (e: unknown) {
+      setReceiveError(e instanceof Error ? e.message : 'Error al registrar recepción')
+    }
+  }
+
+  const handleReceiveWithSerials = () => {
+    setReceiveError(null)
+    try {
+      receiveAsn(asn.id, recQty, opName, dmgQty, parsedSerials)
+      if (asn.requiresQualityControl) {
+        setStep('qc')
+      } else {
+        setStep('putaway')
+      }
+    } catch (e: unknown) {
+      setReceiveError(e instanceof Error ? e.message : 'Error al registrar recepción')
     }
   }
 
@@ -112,8 +152,49 @@ export default function WorkerReceivingAsnPage() {
             <p className="text-sm font-medium">¿Dañadas?</p>
             <QuantityStepper value={dmgQty} onChange={setDmgQty} min={0} max={recQty} />
           </div>
+          {receiveError && <ErrorBanner message={receiveError} />}
           <Button className="h-12 text-base" onClick={handleReceive}>
             RECIBIR ÍTEM
+          </Button>
+        </div>
+      )}
+
+      {step === 'serials' && (
+        <div className="flex flex-col gap-4">
+          <div className="rounded-xl bg-muted p-4">
+            <p className="font-bold">{product?.name ?? 'Producto'}</p>
+            <p className="text-sm text-muted-foreground">
+              Captura {recQty} número(s) de serie
+            </p>
+          </div>
+          <div className="flex flex-col gap-2">
+            <p className="text-sm font-medium">
+              Series capturadas: {parsedSerials.length} / {recQty}
+            </p>
+            <BarcodeScanner
+              onScan={(val) =>
+                setSerialsRaw((prev) => (prev ? `${prev}\n${val}` : val))
+              }
+              placeholder="Escanear serial con cámara o RF..."
+              autoStart
+            />
+            <textarea
+              className="min-h-25 rounded-xl border bg-white px-3 py-2 font-mono text-sm"
+              placeholder={`Ingresa ${recQty} número(s) de serie, uno por línea`}
+              value={serialsRaw}
+              onChange={(e) => setSerialsRaw(e.target.value)}
+            />
+          </div>
+          {receiveError && <ErrorBanner message={receiveError} />}
+          <Button
+            className="h-12 text-base"
+            disabled={parsedSerials.length !== recQty}
+            onClick={handleReceiveWithSerials}
+          >
+            CONFIRMAR CON SERIES
+          </Button>
+          <Button variant="outline" className="h-10" onClick={() => setStep('receive')}>
+            ← Volver a cantidad
           </Button>
         </div>
       )}
