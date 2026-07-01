@@ -2777,3 +2777,90 @@ export const demoCommerceOrders: CommerceOrder[] = [
     ],
   },
 ]
+
+// Flujo 2: Wave demo liberada — supervisor acaba de releasear
+export const demoPickingWave: PickingWave = {
+  id: 'demo-wave-1',
+  code: 'WAVE-DEMO-001',
+  name: 'Oleada Demo — Ecommerce Mañana',
+  orderCount: 3,
+  unitCount: 5,
+  zone: 'A',
+  groupBy: 'zone',
+  groupValue: 'A',
+  priority: 'high',
+  status: 'in_progress',
+  assignedTeam: 'op-picker-1',
+  createdAt: '2026-06-30T07:00:00.000Z',
+  orderIds: ['demo-co-1', 'demo-co-2', 'demo-co-3'],
+}
+
+// Picking tasks para Ana Picker (op-picker-1) — estados activos para demo
+export const demoPickingTasks: PickingTask[] = [
+  {
+    id: 'demo-pt-1',
+    code: 'PICK-DEMO-001',
+    orderId: 'demo-co-1',
+    productId: 'p-cafetera',
+    locationId: 'loc-pickfast1',
+    requestedQuantity: 2,
+    pickedQuantity: 0,
+    pendingQuantity: 2,
+    status: 'assigned',
+    operatorName: 'Ana Picker',
+    assignedOperatorId: 'op-picker-1',
+    priority: 'high',
+  },
+  {
+    id: 'demo-pt-2',
+    code: 'PICK-DEMO-002',
+    orderId: 'demo-co-2',
+    productId: 'p-sanduchera',
+    locationId: 'loc-a0101',
+    requestedQuantity: 1,
+    pickedQuantity: 0,
+    pendingQuantity: 1,
+    status: 'pending',
+    operatorName: 'Ana Picker',
+    assignedOperatorId: 'op-picker-1',
+    priority: 'medium',
+  },
+  {
+    id: 'demo-pt-3',
+    code: 'PICK-DEMO-003',
+    orderId: 'demo-co-3',
+    productId: 'p-licuadora',
+    locationId: 'loc-pickfast1',
+    requestedQuantity: 2,
+    pickedQuantity: 0,
+    pendingQuantity: 2,
+    status: 'pending',
+    operatorName: 'Ana Picker',
+    assignedOperatorId: 'op-picker-1',
+    priority: 'medium',
+  },
+]
+
+// Flujo 2: Packing — orden lista para Pedro Packer (op-packer-1)
+export const demoPackingOrder: PackingOrder = {
+  id: 'demo-pk-1',
+  orderId: 'demo-co-1',
+  orderNumber: 'PED-DEMO-001',
+  customerName: 'Cliente Demo Ecommerce',
+  channel: 'ecommerce',
+  status: 'pending',
+  expectedItems: 2,
+  scannedItems: 0,
+  verificationStatus: 'pending',
+  suggestedBox: 'Caja S',
+  boxTypeId: 'box-s',
+  weightKg: 4.2,
+  volumeM3: 0.014,
+  appliedRuleIds: [],
+  labelGenerated: false,
+  packerName: 'Pedro Packer',
+  createdAt: '2026-06-30T08:00:00.000Z',
+  items: [
+    { productId: 'p-cafetera', productName: 'Cafetera Espresso Automática', requestedQuantity: 2, scannedQuantity: 0 },
+  ],
+}
