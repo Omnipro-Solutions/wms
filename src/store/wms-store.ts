@@ -206,7 +206,7 @@ export interface WmsState {
   updatePackingRule: (id: string, data: Partial<Omit<PackingRule, 'id'>>) => PackingRule
   togglePackingRule: (ruleId: string) => PackingRule
   // Shipping
-  shipOrder: (shipmentId: string, operatorName: string) => Shipment
+  shipOrder: (shipmentId: string, operatorName: string, ownFleet?: { driverName: string; vehiclePlate: string }) => Shipment
   createShipment: (
     data: Omit<Shipment, 'id' | 'status' | 'trackingNumber' | 'shippedAt' | 'deliveredAt'>,
     quote: CarrierRateQuote
@@ -1759,7 +1759,7 @@ export const useWmsStore = create<WmsState>()(
 
   // ─── Shipping ─────────────────────────────────────────────────────────────
 
-  shipOrder: (shipmentId) => {
+  shipOrder: (shipmentId, _operatorName, ownFleet) => {
     const state = get()
     const shipment = state.shipments.find((s) => s.id === shipmentId)
     if (!shipment) throw new Error('shipment not found')
@@ -1768,6 +1768,7 @@ export const useWmsStore = create<WmsState>()(
       status: 'in_transit',
       shippedAt: seed.seedTimestamp,
       trackingNumber: shipment.trackingNumber ?? `TRK-${shipmentId.toUpperCase()}`,
+      ...(ownFleet ? { driverName: ownFleet.driverName, vehiclePlate: ownFleet.vehiclePlate } : {}),
     }
     set({ shipments: state.shipments.map((s) => (s.id === shipmentId ? updated : s)) })
     return updated

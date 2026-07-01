@@ -39,6 +39,7 @@ interface ShipDialogData {
   carrierName: string
   packageCount: number
   weightKg: number
+  modalityType: string | undefined
 }
 
 interface RateShopContext {
@@ -74,6 +75,8 @@ export default function ShippingPage() {
 
   const [rateShopCtx, setRateShopCtx] = useState<RateShopContext | null>(null)
   const [rateShopError, setRateShopError] = useState('')
+  const [driverName, setDriverName] = useState('')
+  const [vehiclePlate, setVehiclePlate] = useState('')
 
   // ── Rows ──────────────────────────────────────────────────────────────────
 
@@ -156,19 +159,27 @@ export default function ShippingPage() {
   // ── Handlers ──────────────────────────────────────────────────────────────
 
   const openShipDialog = (row: ShippingRow) => {
+    setDriverName('')
+    setVehiclePlate('')
     shipDialog.open({
       shipmentId: row.id,
       customerName: row.customerName,
       carrierName: row.carrierName,
       packageCount: row.packageCount,
       weightKg: row.weightKg,
+      modalityType: row.modalityType,
     })
   }
 
   const handleShip = () => {
     if (!shipDialog.data) return
+    const isOwn = shipDialog.data.modalityType === 'own'
     try {
-      shipOrder(shipDialog.data.shipmentId, 'Operador')
+      shipOrder(
+        shipDialog.data.shipmentId,
+        'Operador',
+        isOwn ? { driverName: driverName.trim(), vehiclePlate: vehiclePlate.trim().toUpperCase() } : undefined
+      )
       shipDialog.close()
     } catch (e: unknown) {
       shipDialog.setError(e instanceof Error ? e.message : 'Error al despachar')
@@ -401,6 +412,38 @@ export default function ShippingPage() {
                 Esta acción cambiará el estado del envío a <strong>En tránsito</strong> y generará
                 el número de tracking.
               </p>
+              {shipDialog.data.modalityType === 'own' && (
+                <div className="space-y-3 rounded-lg border bg-muted/30 px-4 py-3">
+                  <p className="text-sm font-semibold">Datos de flota propia</p>
+                  <div className="space-y-2">
+                    <div className="space-y-1">
+                      <label className="text-muted-foreground text-xs font-medium">
+                        Nombre del conductor *
+                      </label>
+                      <input
+                        type="text"
+                        value={driverName}
+                        onChange={(e) => setDriverName(e.target.value)}
+                        placeholder="Ej. Luis Hernández"
+                        className="h-9 w-full rounded-md border bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-muted-foreground text-xs font-medium">
+                        Placa del vehículo * (máx. 7 caracteres)
+                      </label>
+                      <input
+                        type="text"
+                        value={vehiclePlate}
+                        onChange={(e) => setVehiclePlate(e.target.value.toUpperCase().slice(0, 7))}
+                        placeholder="Ej. BJK-412"
+                        className="h-9 w-full rounded-md border bg-background px-3 font-mono text-sm uppercase focus:outline-none focus:ring-2 focus:ring-ring"
+                        maxLength={7}
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
               {shipDialog.error && (
                 <p className="text-destructive flex items-center gap-1 text-sm">
                   <TriangleAlert className="size-3" /> {shipDialog.error}
@@ -412,7 +455,13 @@ export default function ShippingPage() {
             <Button variant="outline" onClick={shipDialog.close}>
               Cancelar
             </Button>
-            <Button onClick={handleShip}>
+            <Button
+              onClick={handleShip}
+              disabled={
+                shipDialog.data?.modalityType === 'own' &&
+                (!driverName.trim() || !vehiclePlate.trim())
+              }
+            >
               <CheckCircle2 className="mr-1 size-4" /> Confirmar despacho
             </Button>
           </DialogFooter>

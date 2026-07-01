@@ -593,6 +593,8 @@ export interface Shipment {
   weightKg: number
   trackingNumber?: string
   otifStatus: 'on_time' | 'at_risk' | 'late'
+  driverName?: string      // flota propia — conductor asignado
+  vehiclePlate?: string    // flota propia — placa del vehículo (formato colombiano ABC-123)
 }
 
 export interface ManifestStop {
