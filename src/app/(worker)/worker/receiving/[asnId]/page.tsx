@@ -48,9 +48,9 @@ export default function WorkerReceivingAsnPage() {
   const requiresSerial = product?.trackBy === 'serial'
 
   const stepIndex: Record<Step, number> = hasQc
-    ? { summary: 1, 'scan-product': 2, receive: 3, serials: 3, qc: 4, putaway: 5, done: 6 }
-    : { summary: 1, 'scan-product': 2, receive: 3, serials: 3, qc: 3, putaway: 4, done: 5 }
-  const totalSteps = hasQc ? 5 : 4
+    ? { summary: 1, 'scan-product': 2, receive: 3, serials: 4, qc: 5, putaway: 6, done: 7 }
+    : { summary: 1, 'scan-product': 2, receive: 3, serials: 4, qc: 4, putaway: 5, done: 6 }
+  const totalSteps = hasQc ? 6 : 5
 
   const parsedSerials = serialsRaw
     .split(/[\n,]+/)

@@ -10,6 +10,7 @@ import { PageHeader } from '@/components/shared/page-header'
 import { KpiCard } from '@/components/shared/kpi-card'
 import { DataTable } from '@/components/data-table'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { Card, CardContent } from '@/components/ui/card'
 import {
   Dialog,
@@ -39,7 +40,7 @@ interface ShipDialogData {
   carrierName: string
   packageCount: number
   weightKg: number
-  modalityType: string | undefined
+  modalityType: ShippingRow['modalityType']
 }
 
 interface RateShopContext {
@@ -420,24 +421,21 @@ export default function ShippingPage() {
                       <label className="text-muted-foreground text-xs font-medium">
                         Nombre del conductor *
                       </label>
-                      <input
-                        type="text"
+                      <Input
                         value={driverName}
                         onChange={(e) => setDriverName(e.target.value)}
                         placeholder="Ej. Luis Hernández"
-                        className="h-9 w-full rounded-md border bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
                       />
                     </div>
                     <div className="space-y-1">
                       <label className="text-muted-foreground text-xs font-medium">
                         Placa del vehículo * (máx. 7 caracteres)
                       </label>
-                      <input
-                        type="text"
+                      <Input
                         value={vehiclePlate}
                         onChange={(e) => setVehiclePlate(e.target.value.toUpperCase().slice(0, 7))}
                         placeholder="Ej. BJK-412"
-                        className="h-9 w-full rounded-md border bg-background px-3 font-mono text-sm uppercase focus:outline-none focus:ring-2 focus:ring-ring"
+                        className="font-mono uppercase"
                         maxLength={7}
                       />
                     </div>

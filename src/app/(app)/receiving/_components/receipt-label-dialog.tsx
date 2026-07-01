@@ -17,38 +17,6 @@ import { ZplPreviewDialog } from '@/app/(app)/labels/_components/zpl-preview-dia
 import { cn } from '@/lib/utils'
 import type { WmsLabel } from '@/types/wms'
 
-// ── Single label button (kept for backwards compatibility) ─────────────────
-interface SingleProps {
-  label: WmsLabel
-}
-
-export const ReceiptLabelButton = ({ label }: SingleProps) => {
-  const [open, setOpen] = useState(false)
-  const { printReceiptLabel } = useWmsStore()
-
-  const handleClose = () => {
-    setOpen(false)
-    if (label.status === 'pending') {
-      printReceiptLabel(label.id)
-    }
-  }
-
-  return (
-    <>
-      <Button
-        size="sm"
-        variant={label.status === 'completed' ? 'outline' : 'default'}
-        onClick={() => setOpen(true)}
-        className="h-7 gap-1 text-xs"
-      >
-        <Printer className="size-3" />
-        {label.status === 'completed' ? 'Reimprimir' : 'Imprimir'}
-      </Button>
-      <ZplPreviewDialog label={label} open={open} onClose={handleClose} />
-    </>
-  )
-}
-
 // ── Bulk labels button + dialog ────────────────────────────────────────────
 interface BulkProps {
   labels: WmsLabel[]

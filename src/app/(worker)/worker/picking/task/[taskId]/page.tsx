@@ -20,6 +20,13 @@ import {
 
 type Step = 'location' | 'product' | 'quantity' | 'done'
 
+const ErrorBanner = ({ message }: { message: string }) => (
+  <div className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+    <span className="mt-0.5 shrink-0">⚠️</span>
+    <span>{message}</span>
+  </div>
+)
+
 export default function WorkerPickingTaskPage() {
   const { taskId } = useParams<{ taskId: string }>()
   const router = useRouter()
@@ -36,13 +43,6 @@ export default function WorkerPickingTaskPage() {
   const [showPartialDialog, setShowPartialDialog] = useState(false)
   const [pickError, setPickError] = useState<string | null>(null)
   const [confirmed, setConfirmed] = useState(false)
-
-  const ErrorBanner = ({ message }: { message: string }) => (
-    <div className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-      <span className="mt-0.5 shrink-0">⚠️</span>
-      <span>{message}</span>
-    </div>
-  )
 
   if (!task || !location || !product) {
     return (

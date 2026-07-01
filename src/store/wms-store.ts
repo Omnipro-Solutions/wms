@@ -1763,6 +1763,9 @@ export const useWmsStore = create<WmsState>()(
     const state = get()
     const shipment = state.shipments.find((s) => s.id === shipmentId)
     if (!shipment) throw new Error('shipment not found')
+    if (shipment.status !== 'pending') {
+      throw new Error(`No se puede despachar envío desde el estado ${shipment.status}`)
+    }
     const updated: Shipment = {
       ...shipment,
       status: 'in_transit',
