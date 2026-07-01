@@ -2,7 +2,6 @@
 
 import { useWmsStore } from '@/store/wms-store'
 import { useCurrentOperator } from '@/hooks/use-current-operator'
-import { WorkerCard } from '@/components/worker/worker-card'
 import { RotateCcw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useStoreHelpers } from '@/hooks/use-store-helpers'
