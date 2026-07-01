@@ -26,6 +26,7 @@ import {
   useSidebar,
 } from '@/components/ui/sidebar'
 import { cn } from '@/lib/utils'
+import { useCurrentOperator } from '@/hooks/use-current-operator'
 import type {
   NavBadge,
   NavGroup,
@@ -77,6 +78,8 @@ const hasSubItems = (item: NavMainItem): item is NavMainParentItem => {
 
 export const NavMain = ({ items }: NavMainProps) => {
   const path = usePathname()
+  const { operator } = useCurrentOperator()
+  const role = operator?.role
 
   const isItemActive = (item: NavMainItem) => {
     if (hasSubItems(item)) {
@@ -96,28 +99,34 @@ export const NavMain = ({ items }: NavMainProps) => {
 
   return (
     <>
-      {items.map((group) => (
-        <SidebarGroup key={group.id}>
-          {group.label && (
-            <SidebarGroupLabel className="group-data-[collapsible=icon]:pointer-events-none">
-              {group.label}
-            </SidebarGroupLabel>
-          )}
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {group.items.map((item) => (
-                <NavItem
-                  key={item.id}
-                  item={item}
-                  isItemActive={isItemActive}
-                  isSubItemActive={isSubItemActive}
-                  isSubmenuOpen={isSubmenuOpen}
-                />
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-      ))}
+      {items.map((group) => {
+        const visibleItems = group.items.filter(
+          (item) => !item.allowedRoles || !role || item.allowedRoles.includes(role)
+        )
+        if (!visibleItems.length) return null
+        return (
+          <SidebarGroup key={group.id}>
+            {group.label && (
+              <SidebarGroupLabel className="group-data-[collapsible=icon]:pointer-events-none">
+                {group.label}
+              </SidebarGroupLabel>
+            )}
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {visibleItems.map((item) => (
+                  <NavItem
+                    key={item.id}
+                    item={item}
+                    isItemActive={isItemActive}
+                    isSubItemActive={isSubItemActive}
+                    isSubmenuOpen={isSubmenuOpen}
+                  />
+                ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )
+      })}
     </>
   )
 }
