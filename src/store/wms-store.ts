@@ -719,12 +719,20 @@ export const useWmsStore = create<WmsState>()(
     const newTotal = asn.receivedQuantity + totalCounted
     const newDamaged = asn.damagedQuantity + damagedQty
 
+    const effectiveStatus = asn.status === 'pending' ? 'in_progress' : asn.status
+    const outboundStatus = newTotal >= asn.expectedQuantity ? 'completed' : 'partial'
+    // partial is always reachable from in_progress/partial; completed is too per FSM
+    // This guard catches edge cases (cancelled, short_received hitting the action)
+    if (!canTransition(asnTransitions, effectiveStatus, outboundStatus)) {
+      throw new Error(`No se puede avanzar a ${outboundStatus} desde el estado ${asn.status}`)
+    }
+
     const updatedAsn: Asn = {
       ...asn,
       receivedQuantity: newTotal,
       damagedQuantity: newDamaged,
       deliveryCount: asn.deliveryCount + 1,
-      status: newTotal >= asn.expectedQuantity ? 'completed' : 'partial',
+      status: outboundStatus,
     }
 
     // Only goodQty enters available/hold stock — damaged units are tracked on the ASN but not stocked.
@@ -894,6 +902,8 @@ export const useWmsStore = create<WmsState>()(
     const state = get()
     const asn = state.asnRecords.find((a) => a.id === asnId)
     if (!asn) throw new Error('ASN not found')
+    if (!canTransition(asnTransitions, asn.status, 'putaway_done'))
+      throw new Error(`No se puede hacer putaway desde el estado ${asn.status}`)
 
     const product = state.products.find((p) => p.id === asn.productId)
     const isSerialTracked = product?.trackBy === 'serial'

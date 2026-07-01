@@ -129,7 +129,7 @@ const ReceivingPage = () => {
           })(),
           canQc:
             asn.requiresQualityControl &&
-            (asn.status === 'partial' || asn.status === 'in_progress'),
+            (asn.status === 'partial' || asn.status === 'in_progress' || asn.status === 'completed'),
           isOverdue:
             asn.appointmentDate < today &&
             asn.status !== 'completed' &&
@@ -161,15 +161,14 @@ const ReceivingPage = () => {
         if (r.status === 'pending' || r.status === 'partial') appointmentRows.push(r)
         if (
           r.status === 'in_progress' ||
-          r.status === 'partial' ||
-          r.status === 'pending'
+          r.status === 'partial'
         ) {
           receivingRows.push({
             ...r,
             receiptLabels: state.labels.filter((l) => l.type === 'receipt' && l.asnId === r.id),
           })
         }
-        if (r.requiresQualityControl && (r.status === 'partial' || r.status === 'in_progress'))
+        if (r.requiresQualityControl && (r.status === 'partial' || r.status === 'in_progress' || r.status === 'completed'))
           qcRows.push(r)
         if (r.canPutaway) putawayRows.push(r)
         if (r.isOverdue) overdueCount++

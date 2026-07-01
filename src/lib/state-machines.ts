@@ -8,7 +8,7 @@ export const asnTransitions: Record<string, OperationalStatus[]> = {
   pending: ['in_progress', 'partial', 'completed', 'cancelled'],
   in_progress: ['partial', 'completed', 'cancelled', 'short_received'],
   partial: ['in_progress', 'completed', 'cancelled', 'short_received'],
-  completed: ['putaway_done'],
+  completed: ['putaway_done', 'short_received'],
   putaway_done: [],
   cancelled: [],
   short_received: [],
