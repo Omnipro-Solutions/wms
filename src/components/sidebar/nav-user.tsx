@@ -1,6 +1,6 @@
 'use client'
 
-import { ChevronsUpDownIcon, MoonIcon, RefreshCwIcon, ShieldCheckIcon, SunIcon } from 'lucide-react'
+import { ChevronsUpDownIcon, MoonIcon, ShieldCheckIcon, SunIcon } from 'lucide-react'
 import { useTheme } from 'next-themes'
 
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
@@ -15,7 +15,6 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { SidebarMenu, SidebarMenuButton, SidebarMenuItem, useSidebar } from '@/components/ui/sidebar'
 import { useCurrentOperator } from '@/hooks/use-current-operator'
-import { useOperatorPicker } from '@/components/layout/operator-picker-provider'
 
 const ROLE_LABELS: Record<string, string> = {
   picker: 'Picker',
@@ -28,7 +27,6 @@ const ROLE_LABELS: Record<string, string> = {
 export function NavUser() {
   const { isMobile } = useSidebar()
   const { operator } = useCurrentOperator()
-  const { openPicker } = useOperatorPicker()
   const { theme, setTheme } = useTheme()
 
   const displayName = operator?.name ?? 'Sin operador'
@@ -88,11 +86,6 @@ export function NavUser() {
                 <MoonIcon className="mr-2 size-4" />
               )}
               {theme === 'dark' ? 'Modo claro' : 'Modo oscuro'}
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={openPicker}>
-              <RefreshCwIcon className="mr-2 size-4" />
-              Cambiar operador
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

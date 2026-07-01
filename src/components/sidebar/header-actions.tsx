@@ -1,6 +1,6 @@
 'use client'
 
-import { MoonIcon, SunIcon, RefreshCwIcon, ShieldCheckIcon, LogOutIcon } from 'lucide-react'
+import { MoonIcon, SunIcon, ShieldCheckIcon, LogOutIcon } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { useTheme } from 'next-themes'
 import { useEffect, useState } from 'react'
@@ -16,7 +16,6 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { useCurrentOperator } from '@/hooks/use-current-operator'
-import { useOperatorPicker } from '@/components/layout/operator-picker-provider'
 import { useAuthStore } from '@/store/auth-store'
 
 const ROLE_LABELS: Record<string, string> = {
@@ -32,7 +31,6 @@ export const HeaderActions = () => {
   const [mounted, setMounted] = useState(false)
   useEffect(() => setMounted(true), [])
   const { operator } = useCurrentOperator()
-  const { openPicker } = useOperatorPicker()
   const logout = useAuthStore((s) => s.logout)
   const router = useRouter()
 
@@ -86,10 +84,6 @@ export const HeaderActions = () => {
               <DropdownMenuSeparator />
             </DropdownMenuGroup>
           )}
-          <DropdownMenuItem onClick={openPicker}>
-            <RefreshCwIcon className="mr-2 size-4" />
-            Cambiar operador
-          </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem onClick={handleLogout} className="text-destructive focus:text-destructive">
             <LogOutIcon className="mr-2 size-4" />
