@@ -10,7 +10,7 @@ import { QuantityStepper } from '@/components/worker/quantity-stepper'
 import { Button } from '@/components/ui/button'
 import { BarcodeScanner } from '@/components/shared/barcode-scanner'
 
-type Step = 'summary' | 'receive' | 'serials' | 'qc' | 'putaway' | 'done'
+type Step = 'summary' | 'scan-product' | 'receive' | 'serials' | 'qc' | 'putaway' | 'done'
 
 const ErrorBanner = ({ message }: { message: string }) => (
   <div className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
@@ -48,9 +48,9 @@ export default function WorkerReceivingAsnPage() {
   const requiresSerial = product?.trackBy === 'serial'
 
   const stepIndex: Record<Step, number> = hasQc
-    ? { summary: 1, receive: 2, serials: 2, qc: 3, putaway: 4, done: 5 }
-    : { summary: 1, receive: 2, serials: 2, qc: 2, putaway: 3, done: 4 }
-  const totalSteps = hasQc ? 4 : 3
+    ? { summary: 1, 'scan-product': 2, receive: 3, serials: 3, qc: 4, putaway: 5, done: 6 }
+    : { summary: 1, 'scan-product': 2, receive: 3, serials: 3, qc: 3, putaway: 4, done: 5 }
+  const totalSteps = hasQc ? 5 : 4
 
   const parsedSerials = serialsRaw
     .split(/[\n,]+/)
@@ -131,30 +131,90 @@ export default function WorkerReceivingAsnPage() {
               <span className="text-muted-foreground"> / {asn.expectedQuantity} uds recibidas</span>
             </p>
           </div>
-          <Button className="h-12 text-base" onClick={() => setStep('receive')}>
+          <Button className="h-12 text-base" onClick={() => setStep('scan-product')}>
             {asn.status === 'in_progress' ? '▶ CONTINUAR RECIBIENDO' : '▶ INICIAR RECEPCIÓN'}
           </Button>
         </div>
       )}
 
-      {step === 'receive' && (
-        <div className="flex flex-col gap-6">
+      {step === 'scan-product' && (
+        <div className="flex flex-col gap-4">
           <div className="rounded-xl bg-muted p-4">
-            <p className="font-bold">{product?.name ?? 'Producto'}</p>
+            {product?.imageUrl && (
+              <img
+                src={product.imageUrl}
+                alt={product.name}
+                className="mx-auto mb-3 h-20 w-20 rounded-lg object-contain"
+              />
+            )}
+            <p className="text-center text-lg font-bold">{product?.name ?? 'Producto'}</p>
+            <p className="text-center text-sm text-muted-foreground">SKU: {product?.sku ?? 'N/A'}</p>
+            <p className="mt-2 text-center text-sm text-muted-foreground">
+              Esperado: <span className="font-bold text-foreground">{asn.expectedQuantity}</span> uds
+            </p>
+          </div>
+          <p className="text-center text-sm font-medium text-muted-foreground">
+            Escanea el producto para verificar
+          </p>
+          <BarcodeScanner
+            onScan={(val) => {
+              if (val === product?.barcode || val === product?.sku) {
+                setStep('receive')
+              } else {
+                setReceiveError(`Código incorrecto: ${val}. Esperado: ${product?.barcode ?? product?.sku}`)
+              }
+            }}
+            placeholder="Escanear código del producto..."
+            autoStart
+          />
+          {receiveError && <ErrorBanner message={receiveError} />}
+          <Button
+            variant="outline"
+            className="h-10 text-sm"
+            onClick={() => { setReceiveError(null); setStep('receive') }}
+          >
+            Omitir verificación
+          </Button>
+          <Button
+            variant="ghost"
+            className="h-10 text-sm"
+            onClick={() => setStep('summary')}
+          >
+            ← Volver
+          </Button>
+        </div>
+      )}
+
+      {step === 'receive' && (
+        <div className="flex flex-col gap-4">
+          <div className="rounded-xl bg-muted p-4">
+            <p className="font-bold text-lg">{product?.name ?? 'Producto'}</p>
             <p className="text-sm text-muted-foreground">SKU: {product?.sku ?? 'N/A'}</p>
-            <p className="text-sm text-muted-foreground">Esperado: {asn.expectedQuantity} uds</p>
+            <div className="mt-2 flex items-center justify-between">
+              <span className="text-sm text-muted-foreground">Esperado</span>
+              <span className="text-xl font-black">{asn.expectedQuantity} uds</span>
+            </div>
+            {asn.receivedQuantity > 0 && (
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">Ya recibido</span>
+                <span className="font-semibold">{asn.receivedQuantity} uds</span>
+              </div>
+            )}
           </div>
           <div className="flex flex-col gap-2">
-            <p className="text-sm font-medium">Cantidad recibida</p>
+            <p className="text-sm font-semibold">Cantidad recibida en buen estado</p>
             <QuantityStepper value={recQty} onChange={setRecQty} min={0} max={asn.expectedQuantity + 10} />
           </div>
           <div className="flex flex-col gap-2">
-            <p className="text-sm font-medium">¿Dañadas?</p>
+            <p className="text-sm font-semibold text-red-600">¿Unidades dañadas?</p>
             <QuantityStepper value={dmgQty} onChange={setDmgQty} min={0} max={recQty} />
           </div>
           {receiveError && <ErrorBanner message={receiveError} />}
-          <Button className="h-12 text-base" onClick={handleReceive}>
-            RECIBIR ÍTEM
+          <Button className="h-14 text-lg font-bold" onClick={handleReceive} disabled={recQty + dmgQty === 0}>
+            RECIBIR ÍTEM ✓
+          </Button>
+          <Button variant="ghost" className="h-10 text-sm" onClick={() => setStep('scan-product')}>
+            ← Volver a verificación
           </Button>
         </div>
       )}
