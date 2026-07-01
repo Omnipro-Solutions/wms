@@ -194,7 +194,7 @@ export interface WmsState {
   startWavelessOrder: (wavelessId: string, operatorName: string) => WavelessOrder
   // Packing
   startPacking: (packingOrderId: string, packerName: string) => PackingOrder
-  scanItem: (packingOrderId: string, qty: number) => PackingOrder
+  scanItem: (packingOrderId: string, productId: string, qty: number) => PackingOrder
   completePacking: (packingOrderId: string, scannedItems: number) => PackingOrder
   applyPackingRule: (packingOrderId: string, ruleId: string) => PackingOrder
   removePackingRule: (packingOrderId: string, ruleId: string) => PackingOrder
@@ -1021,7 +1021,10 @@ export const useWmsStore = create<WmsState>()(
 
     const qcItemIdx = state.inventoryItems.findIndex(
       (i) =>
-        i.productId === asn.productId && i.warehouseId === 'wh-bog' && i.locationId === 'loc-qc'
+        i.productId === asn.productId &&
+        i.warehouseId === 'wh-bog' &&
+        i.locationId === 'loc-qc' &&
+        i.onHandQuantity > 0
     )
     if (qcItemIdx === -1) throw new Error('No hay stock en zona QC para este ASN')
 
@@ -1575,16 +1578,26 @@ export const useWmsStore = create<WmsState>()(
     return updated
   },
 
-  scanItem: (packingOrderId, qty) => {
+  scanItem: (packingOrderId, productId, qty) => {
     const state = get()
     const order = state.packingOrders.find((p) => p.id === packingOrderId)
     if (!order) throw new Error('packing order not found')
     if (order.status !== 'in_progress') throw new Error('El packing no está en progreso')
-    const newScanned = Math.min(order.scannedItems + qty, order.expectedItems)
-    const vStatus = newScanned === order.expectedItems ? 'verified' : 'pending'
+    const line = order.items?.find((i) => i.productId === productId)
+    if (!line) throw new Error('línea de producto no encontrada')
+    const updatedItems = order.items!.map((i) =>
+      i.productId === productId
+        ? { ...i, scannedQuantity: Math.min(i.scannedQuantity + qty, i.requestedQuantity) }
+        : i
+    )
+    const scannedItems = updatedItems.reduce((sum, i) => sum + i.scannedQuantity, 0)
+    const vStatus = updatedItems.every((i) => i.scannedQuantity === i.requestedQuantity)
+      ? 'verified'
+      : 'pending'
     const updated: PackingOrder = {
       ...order,
-      scannedItems: newScanned,
+      items: updatedItems,
+      scannedItems,
       verificationStatus: vStatus,
     }
     set({ packingOrders: state.packingOrders.map((p) => (p.id === packingOrderId ? updated : p)) })
