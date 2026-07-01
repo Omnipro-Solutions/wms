@@ -1,9 +1,10 @@
 'use client'
 
-import { MoonIcon, SunIcon, ShieldCheckIcon, LogOutIcon } from 'lucide-react'
+import { MoonIcon, SunIcon, RefreshCwIcon, ShieldCheckIcon, LogOutIcon } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { useTheme } from 'next-themes'
 import { useEffect, useState } from 'react'
+import { OperatorSwitcher } from '@/components/shared/operator-switcher'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import {
@@ -29,6 +30,7 @@ const ROLE_LABELS: Record<string, string> = {
 export const HeaderActions = () => {
   const { theme, setTheme } = useTheme()
   const [mounted, setMounted] = useState(false)
+  const [switcherOpen, setSwitcherOpen] = useState(false)
   useEffect(() => setMounted(true), [])
   const { operator } = useCurrentOperator()
   const logout = useAuthStore((s) => s.logout)
@@ -84,6 +86,10 @@ export const HeaderActions = () => {
               <DropdownMenuSeparator />
             </DropdownMenuGroup>
           )}
+          <DropdownMenuItem onClick={() => setSwitcherOpen(true)}>
+            <RefreshCwIcon className="mr-2 size-4" />
+            Cambiar operador
+          </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem onClick={handleLogout} className="text-destructive focus:text-destructive">
             <LogOutIcon className="mr-2 size-4" />
@@ -91,6 +97,7 @@ export const HeaderActions = () => {
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
+      <OperatorSwitcher open={switcherOpen} onOpenChange={setSwitcherOpen} />
     </div>
   )
 }
