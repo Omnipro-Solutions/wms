@@ -2713,3 +2713,67 @@ export const sapRoutes: SapRoute[] = [
     status: 'error',
   },
 ]
+
+// ─── DEMO DATA — no tocar en producción ──────────────────────────────────────
+
+// Flujo 1: Inbound — ASN activa para receiver@demo.com
+export const demoAsnInbound: Asn = {
+  id: 'demo-asn-inbound',
+  code: 'ASN-DEMO-001',
+  supplierName: 'Distribuidora Demo S.A.',
+  appointmentDate: '2026-06-30',
+  expectedQuantity: 15,
+  receivedQuantity: 5,
+  damagedQuantity: 0,
+  status: 'in_progress',
+  requiresQualityControl: false,
+  crossDocking: false,
+  productId: 'p-microondas',
+  suggestedPutawayLocationId: 'loc-a0101',
+  deliveryCount: 1,
+  purchaseOrderId: 'po-3',
+  sourceType: 'purchase',
+}
+
+// Flujo 2: Outbound — órdenes listas para wave demo
+export const demoCommerceOrders: CommerceOrder[] = [
+  {
+    id: 'demo-co-1',
+    orderNumber: 'PED-DEMO-001',
+    channel: 'ecommerce',
+    customerName: 'Cliente Demo Ecommerce',
+    status: 'pending',
+    createdAt: '2026-06-30T06:00:00.000Z',
+    promisedDeliveryDate: '2026-07-01',
+    fulfillmentType: 'ship_from_dc',
+    items: [
+      { id: 'demo-col-1a', productId: 'p-cafetera', requestedQuantity: 2, pickedQuantity: 0 },
+    ],
+  },
+  {
+    id: 'demo-co-2',
+    orderNumber: 'PED-DEMO-002',
+    channel: 'marketplace',
+    customerName: 'Cliente Demo Marketplace',
+    status: 'pending',
+    createdAt: '2026-06-30T06:10:00.000Z',
+    promisedDeliveryDate: '2026-07-01',
+    fulfillmentType: 'ship_from_dc',
+    items: [
+      { id: 'demo-col-2a', productId: 'p-sanduchera', requestedQuantity: 1, pickedQuantity: 0 },
+    ],
+  },
+  {
+    id: 'demo-co-3',
+    orderNumber: 'PED-DEMO-003',
+    channel: 'ecommerce',
+    customerName: 'Cliente Demo Ecommerce 2',
+    status: 'pending',
+    createdAt: '2026-06-30T06:20:00.000Z',
+    promisedDeliveryDate: '2026-07-02',
+    fulfillmentType: 'ship_from_dc',
+    items: [
+      { id: 'demo-col-3a', productId: 'p-licuadora', requestedQuantity: 2, pickedQuantity: 0 },
+    ],
+  },
+]
