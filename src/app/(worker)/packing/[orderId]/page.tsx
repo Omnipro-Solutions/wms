@@ -23,6 +23,7 @@ export default function WorkerPackingOrderPage() {
   const activeRules = packingRules.filter((r) => order?.appliedRuleIds?.includes(r.id) ?? false)
   const hasRules = activeRules.length > 0
 
+  // ponytail: hooks before guard — useState initialises once; hasRules is false when order is undefined, safe default
   const [step, setStep] = useState<Step>(hasRules ? 'rules' : 'items')
   const [scannedCount, setScannedCount] = useState(0)
   const [selectedBoxId, setSelectedBoxId] = useState<string | null>(null)
@@ -61,11 +62,11 @@ export default function WorkerPackingOrderPage() {
 
   const handleGenerateLabel = () => {
     generateLabel(order.id)
+    sendToShipping(order.id)
     setStep('done')
   }
 
   const handleDone = () => {
-    sendToShipping(order.id)
     router.push('/worker/packing')
   }
 

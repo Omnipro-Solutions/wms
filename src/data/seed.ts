@@ -1733,7 +1733,7 @@ export const loadManifests: LoadManifest[] = [
     driverName: 'Luis Hernández',
     carrierName: 'Coordinadora',
     manifestDate: '2026-06-28',
-    status: 'dispatched',
+    status: 'in_progress',
     orderIds: ['co-b2b-1'],
     transferIds: [],
     returnIds: [],

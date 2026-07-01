@@ -28,7 +28,8 @@ export const useAuthStore = create<AuthState>()(
 
         setAuthCookie(operator.id, remember)
         // Write role cookie so middleware can redirect without DB access
-        document.cookie = `wms-operator-role=${operator.role}; path=/; SameSite=Lax`
+        const maxAge = remember ? 60 * 60 * 24 * 30 : undefined
+        document.cookie = `wms-operator-role=${operator.role}; path=/; SameSite=Lax${maxAge ? `; max-age=${maxAge}` : ''}`
         set({ operatorId: operator.id })
         useWmsStore.getState().setCurrentOperator(operator.id)
         return { success: true }

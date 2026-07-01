@@ -30,6 +30,11 @@ export const middleware = (request: NextRequest) => {
     return NextResponse.redirect(new URL(resolveWorkerRoute(role), request.url))
   }
 
+  // Non-worker roles trying to access worker routes → redirect to desktop
+  if (pathname.startsWith('/worker') && role && !WORKER_ROLES.includes(role)) {
+    return NextResponse.redirect(new URL('/', request.url))
+  }
+
   return NextResponse.next()
 }
 
