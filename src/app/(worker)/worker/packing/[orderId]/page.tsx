@@ -7,15 +7,23 @@ import { useWmsStore } from '@/store/wms-store'
 import { useCurrentOperator } from '@/hooks/use-current-operator'
 import { WorkerStepper } from '@/components/worker/worker-stepper'
 import { Button } from '@/components/ui/button'
+import { ScanInput } from '@/components/worker/scan-input'
 import { suggestBox } from '@/lib/rules/packing'
 
 type Step = 'rules' | 'items' | 'box' | 'label' | 'done'
+
+const ErrorBanner = ({ message }: { message: string }) => (
+  <div className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+    <span className="mt-0.5 shrink-0">⚠️</span>
+    <span>{message}</span>
+  </div>
+)
 
 export default function WorkerPackingOrderPage() {
   const { orderId } = useParams<{ orderId: string }>()
   const router = useRouter()
   const { operator } = useCurrentOperator()
-  const { packingOrders, packingBoxTypes, packingRules, startPacking, scanItem, applyPackingRule, selectBox, generateLabel, sendToShipping } =
+  const { packingOrders, packingBoxTypes, packingRules, products, startPacking, scanItem, applyPackingRule, selectBox, generateLabel, sendToShipping } =
     useWmsStore()
 
   const order = packingOrders.find((o) => o.id === orderId)
@@ -25,9 +33,9 @@ export default function WorkerPackingOrderPage() {
 
   // ponytail: hooks before guard — useState initialises once; hasRules is false when order is undefined, safe default
   const [step, setStep] = useState<Step>(hasRules ? 'rules' : 'items')
-  const [scannedCount, setScannedCount] = useState(0)
   const [selectedBoxId, setSelectedBoxId] = useState<string | null>(null)
   const [showBoxList, setShowBoxList] = useState(false)
+  const [scanError, setScanError] = useState<string | null>(null)
 
   if (!order) {
     return (
@@ -36,6 +44,11 @@ export default function WorkerPackingOrderPage() {
       </div>
     )
   }
+
+  const pendingLine = order.items?.find((i) => i.scannedQuantity < i.requestedQuantity)
+  const pendingProduct = products.find((p) => p.id === pendingLine?.productId)
+  const lineCount = order.items?.length ?? 0
+  const completedLines = order.items?.filter((i) => i.scannedQuantity >= i.requestedQuantity).length ?? 0
 
   const stepIndex: Record<Step, number> = { rules: 1, items: hasRules ? 2 : 1, box: hasRules ? 3 : 2, label: hasRules ? 4 : 3, done: hasRules ? 5 : 4 }
   const totalSteps = hasRules ? 4 : 3
@@ -47,11 +60,23 @@ export default function WorkerPackingOrderPage() {
     setStep('items')
   }
 
-  const handleScanItem = () => {
-    scanItem(order.id, scannedCount + 1)
-    const next = scannedCount + 1
-    setScannedCount(next)
-    if (next >= order.expectedItems) setStep('box')
+  const handleLineMatch = () => {
+    if (!pendingLine) return
+    setScanError(null)
+    if (order.status === 'pending') startPacking(order.id, operator?.name ?? 'Empacador')
+    scanItem(order.id, pendingLine.productId, pendingLine.requestedQuantity)
+    const remaining = (order.items?.length ?? 0) - completedLines - 1
+    if (remaining <= 0) setStep('box')
+  }
+
+  const handleLineError = (scanned: string) => {
+    setScanError(`Código incorrecto: ${scanned}. Esperado: ${pendingProduct?.barcode ?? pendingProduct?.sku}`)
+  }
+
+  const handleSkipVerification = () => {
+    if (!pendingLine) return
+    setScanError(null)
+    handleLineMatch()
   }
 
   const handleSelectBox = (boxTypeId: string) => {
@@ -104,15 +129,32 @@ export default function WorkerPackingOrderPage() {
         </div>
       )}
 
-      {step === 'items' && (
-        <div className="flex flex-col gap-4 items-center">
-          <WorkerStepper current={scannedCount + 1} total={order.expectedItems} />
-          <div className="text-center">
-            <p className="text-sm text-muted-foreground">Ítem {scannedCount + 1} de {order.expectedItems}</p>
-            <p className="text-xl font-bold mt-1">{order.items?.[scannedCount]?.productName ?? 'Producto'}</p>
+      {step === 'items' && pendingLine && (
+        <div className="flex flex-col gap-4">
+          <WorkerStepper current={completedLines + 1} total={lineCount} />
+          <div className="bg-muted rounded-xl p-4">
+            {pendingProduct?.imageUrl && (
+              <img
+                src={pendingProduct.imageUrl}
+                alt={pendingProduct.name}
+                className="mx-auto mb-3 h-20 w-20 rounded-lg object-contain"
+              />
+            )}
+            <p className="text-center text-lg font-bold">{pendingLine.productName}</p>
+            <p className="text-muted-foreground text-center text-sm">SKU: {pendingProduct?.sku ?? 'N/A'}</p>
+            <p className="text-muted-foreground mt-2 text-center text-sm">
+              Cantidad: <span className="text-foreground font-bold">{pendingLine.requestedQuantity}</span> uds
+            </p>
           </div>
-          <Button className="h-12 w-full text-base" onClick={handleScanItem}>
-            ✓ ESCANEAR ÍTEM
+          <ScanInput
+            label="Escanea el producto"
+            expectedValue={pendingProduct?.barcode ?? pendingProduct?.sku ?? ''}
+            onMatch={handleLineMatch}
+            onError={handleLineError}
+          />
+          {scanError && <ErrorBanner message={scanError} />}
+          <Button variant="outline" className="h-10 text-sm" onClick={handleSkipVerification}>
+            Omitir verificación
           </Button>
         </div>
       )}
