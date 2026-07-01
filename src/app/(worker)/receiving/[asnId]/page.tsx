@@ -34,10 +34,11 @@ export default function WorkerReceivingAsnPage() {
   }
 
   const opName = operator?.name ?? 'Operador'
-  const stepIndex: Record<Step, number> = {
-    summary: 1, receive: 2, qc: 3, putaway: 4, done: 5,
-  }
-  const totalSteps = asn.requiresQualityControl ? 4 : 3
+  const hasQc = asn.requiresQualityControl
+  const stepIndex: Record<Step, number> = hasQc
+    ? { summary: 1, receive: 2, qc: 3, putaway: 4, done: 5 }
+    : { summary: 1, receive: 2, qc: 2, putaway: 3, done: 4 }
+  const totalSteps = hasQc ? 4 : 3
 
   const handleReceive = () => {
     receiveAsn(asn.id, recQty, opName, dmgQty)
@@ -100,7 +101,7 @@ export default function WorkerReceivingAsnPage() {
         <div className="flex flex-col gap-6">
           <div className="rounded-xl bg-muted p-4">
             <p className="font-bold">{product?.name ?? 'Producto'}</p>
-            <p className="text-sm text-muted-foreground">SKU: {product?.sku}</p>
+            <p className="text-sm text-muted-foreground">SKU: {product?.sku ?? 'N/A'}</p>
             <p className="text-sm text-muted-foreground">Esperado: {asn.expectedQuantity} uds</p>
           </div>
           <div className="flex flex-col gap-2">

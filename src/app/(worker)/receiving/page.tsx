@@ -19,7 +19,7 @@ export default function WorkerReceivingPage() {
         ['pending', 'in_progress'].includes(a.status) &&
         a.appointmentDate.startsWith(today)
     )
-    .sort((a, b) => (a.status === 'in_progress' ? -1 : 1) - (b.status === 'in_progress' ? -1 : 1))
+    .sort((a) => (a.status === 'in_progress' ? -1 : 1))
 
   if (!todayAsns.length) {
     return (
