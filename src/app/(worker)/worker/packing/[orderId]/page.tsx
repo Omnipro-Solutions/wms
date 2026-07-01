@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { CheckCircle2 } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, Package, Printer } from 'lucide-react'
 import { useWmsStore } from '@/store/wms-store'
 import { useCurrentOperator } from '@/hooks/use-current-operator'
 import { WorkerStepper } from '@/components/worker/worker-stepper'
@@ -14,7 +14,7 @@ type Step = 'rules' | 'items' | 'box' | 'label' | 'done'
 
 const ErrorBanner = ({ message }: { message: string }) => (
   <div className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-    <span className="mt-0.5 shrink-0">⚠️</span>
+    <AlertTriangle className="mt-0.5 size-4 shrink-0" />
     <span>{message}</span>
   </div>
 )
@@ -114,7 +114,9 @@ export default function WorkerPackingOrderPage() {
 
       {step === 'rules' && (
         <div className="flex flex-col gap-4">
-          <h2 className="text-lg font-bold">⚠ Reglas de manejo</h2>
+          <h2 className="flex items-center gap-2 text-lg font-bold">
+            <AlertTriangle className="size-5 text-amber-500" /> Reglas de manejo
+          </h2>
           <div className="flex flex-col gap-2">
             {activeRules.map((rule) => (
               <div key={rule.id} className="rounded-xl border border-amber-300 bg-amber-50 p-4">
@@ -169,12 +171,14 @@ export default function WorkerPackingOrderPage() {
           {suggested && !showBoxList && (
             <div className="rounded-xl border-2 border-primary bg-primary/5 p-4">
               <p className="text-xs text-muted-foreground uppercase tracking-wide">Sugerida</p>
-              <p className="font-bold text-lg">📦 {suggested.name}</p>
+              <p className="flex items-center gap-2 text-lg font-bold">
+                <Package className="size-5" /> {suggested.name}
+              </p>
               <p className="text-sm text-muted-foreground">
                 {suggested.dimensionsCm} · máx {suggested.maxWeightKg}kg
               </p>
-              <Button className="h-12 w-full mt-3 text-base" onClick={() => handleSelectBox(suggested.id)}>
-                ✅ USAR ESTA CAJA
+              <Button className="h-12 w-full mt-3 text-base gap-2" onClick={() => handleSelectBox(suggested.id)}>
+                <CheckCircle2 className="size-4" /> USAR ESTA CAJA
               </Button>
             </div>
           )}
@@ -210,8 +214,8 @@ export default function WorkerPackingOrderPage() {
             <p className="text-sm text-muted-foreground mt-2">Cliente</p>
             <p className="font-semibold">{order.customerName}</p>
           </div>
-          <Button className="h-12 text-base" onClick={handleGenerateLabel}>
-            🖨 GENERAR ETIQUETA
+          <Button className="h-12 text-base gap-2" onClick={handleGenerateLabel}>
+            <Printer className="size-4" /> GENERAR ETIQUETA
           </Button>
         </div>
       )}
