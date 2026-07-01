@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useCallback, useState } from 'react'
-import { useRouter, usePathname, useSearchParams } from 'next/navigation'
+import { useSearchParams } from 'next/navigation'
 import { AlertTriangle, FileText, MapPin, PackageCheck, ShieldCheck, Truck } from 'lucide-react'
 
 import { cn } from '@/lib/utils'
@@ -69,7 +69,6 @@ const PO_STATUS_OPTIONS: { value: string; label: string; active: string }[] = [
 const ReceivingPage = () => {
   const state = useWmsStore()
   const { productName: getProductName } = useStoreHelpers()
-  const router = useRouter()
   const searchParams = useSearchParams()
   const [poStatusFilter, setPoStatusFilter] = useState<Set<string>>(new Set())
   const [crossDockAsn, setCrossDockAsn] = useState<Asn | null>(null)
@@ -113,8 +112,18 @@ const ReceivingPage = () => {
           canReceive:
             asn.status === 'pending' || asn.status === 'partial' || asn.status === 'in_progress',
           canClose: asn.status === 'partial' || asn.status === 'in_progress',
-          canPutaway:
-            asn.status === 'completed' || (!asn.requiresQualityControl && asn.status === 'partial'),
+          canPutaway: (() => {
+            const asnLabels = state.labels.filter(
+              (l) => l.type === 'receipt' && l.asnId === asn.id
+            )
+            const allLabelsPrinted =
+              asnLabels.length > 0 && asnLabels.every((l) => l.status === 'completed')
+            return (
+              (asn.status === 'completed' || asn.status === 'partial') &&
+              allLabelsPrinted &&
+              !asn.requiresQualityControl
+            )
+          })(),
           canQc:
             asn.requiresQualityControl &&
             (asn.status === 'partial' || asn.status === 'in_progress'),
@@ -132,7 +141,7 @@ const ReceivingPage = () => {
       })
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [state.asnRecords, state.products]
+    [state.asnRecords, state.products, state.labels]
   )
 
   // Single pass derives all tab subsets and KPI counts
@@ -149,8 +158,8 @@ const ReceivingPage = () => {
         if (r.status === 'pending' || r.status === 'partial') appointmentRows.push(r)
         if (
           r.status === 'in_progress' ||
-          r.status === 'labels_pending' ||
-          r.status === 'putaway_ready'
+          r.status === 'partial' ||
+          r.status === 'pending'
         ) {
           receivingRows.push({
             ...r,
@@ -159,8 +168,7 @@ const ReceivingPage = () => {
         }
         if (r.requiresQualityControl && (r.status === 'partial' || r.status === 'in_progress'))
           qcRows.push(r)
-        if (r.status === 'completed' || (!r.requiresQualityControl && r.status === 'partial'))
-          putawayRows.push(r)
+        if (r.canPutaway) putawayRows.push(r)
         if (r.isOverdue) overdueCount++
         if (
           r.status === 'putaway_done' ||
@@ -481,24 +489,6 @@ const ReceivingPage = () => {
           title="Ubicación en almacén (Putaway)"
           description="Mercancía lista para ser ubicada. El sistema recomienda la posición óptima según rotación del producto."
         >
-          {state.asnRecords.some((a) => a.status === 'labels_pending') && (
-            <div className="mb-4 flex items-center gap-3 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
-              <AlertTriangle className="size-4 shrink-0" />
-              <span>
-                {state.asnRecords.filter((a) => a.status === 'labels_pending').length} ASN(s) con
-                etiquetas pendientes de imprimir. El putaway está bloqueado hasta imprimir todas las
-                etiquetas.
-              </span>
-              <Button
-                size="sm"
-                variant="outline"
-                className="ml-auto shrink-0"
-                onClick={() => router.push('?tab=recibiendo')}
-              >
-                Ir a imprimir
-              </Button>
-            </div>
-          )}
           {putawayRows.length === 0 ? (
             <EmptyState
               icon={MapPin}
