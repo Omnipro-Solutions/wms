@@ -108,7 +108,10 @@ export default function WorkerReceivingAsnPage() {
   }
 
   const pendingReceiptLabels = labels.filter(
-    (l) => l.type === 'receipt' && l.asnId === asn.id && l.status === 'pending'
+    (l) =>
+      l.type === 'receipt' &&
+      l.asnId === asn.id &&
+      (l.status === 'pending' || printedLabelIds.includes(l.id))
   )
 
   const handlePrintLabel = (labelId: string) => {
