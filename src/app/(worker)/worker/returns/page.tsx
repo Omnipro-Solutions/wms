@@ -31,6 +31,7 @@ const ReturnInspectionCard = ({ ret }: { ret: ReturnOrder }) => {
   const [conditions, setConditions] = useState<Record<string, ItemCondition>>({})
   const [notes, setNotes] = useState('')
   const [inspected, setInspected] = useState(false)
+  const [dispositionChosen, setDispositionChosen] = useState(false)
 
   const opName = operator?.name ?? 'Operador'
   const needsAdvanceToValidation = ['received_at_store', 'received_at_dc'].includes(ret.status)
@@ -63,6 +64,7 @@ const ReturnInspectionCard = ({ ret }: { ret: ReturnOrder }) => {
 
   const handleDisposition = (disposition: ReturnOrder['disposition']) => {
     setReturnDisposition(ret.id, disposition)
+    setDispositionChosen(true)
   }
 
   const allConditionsSet = ret.items.every((line) => conditions[line.id])
@@ -130,7 +132,7 @@ const ReturnInspectionCard = ({ ret }: { ret: ReturnOrder }) => {
             {DISPOSITIONS.map((d) => (
               <Button
                 key={d.value}
-                variant={ret.disposition === d.value ? 'default' : 'outline'}
+                variant={dispositionChosen && ret.disposition === d.value ? 'default' : 'outline'}
                 className="h-12"
                 onClick={() => handleDisposition(d.value)}
               >
