@@ -12,7 +12,7 @@ interface Props {
 }
 
 export const QuantityStepper = ({ value, onChange, min = 0, max, className }: Props) => (
-  <div className={cn('flex items-center gap-4', className)}>
+  <div className={cn('flex items-center justify-center gap-4', className)}>
     <Button
       variant="outline"
       size="icon"

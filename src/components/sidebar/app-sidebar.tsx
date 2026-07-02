@@ -1,6 +1,5 @@
 'use client'
 
-import Image from 'next/image'
 import Link from 'next/link'
 
 import { useShallow } from 'zustand/react/shallow'
@@ -14,6 +13,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from '@/components/ui/sidebar'
+import { Logo } from '@/components/shared/logo'
 import { APP_CONFIG } from '@/config/app-config'
 import { sidebarItems } from '@/components/navigation/sidebar/sidebar-items'
 import { usePreferencesStore } from '@/store/preferences/preferences-provider'
@@ -40,10 +40,10 @@ export const AppSidebar = ({ ...props }: React.ComponentProps<typeof Sidebar>) =
           <SidebarMenuItem>
             <SidebarMenuButton size="lg" asChild>
               <Link prefetch={false} href="/">
-                <Image src="/logo.svg" alt="Logo" width={32} height={32} className="shrink-0" />
+                <Logo className="size-8! shrink-0 text-white" />
                 <div className="grid flex-1 text-left text-sm leading-tight">
                   <span className="truncate font-semibold">{APP_CONFIG.name}</span>
-                  <span className="truncate text-xs text-muted-foreground">{APP_CONFIG.brand}</span>
+                  <span className="text-muted-foreground truncate text-xs">{APP_CONFIG.brand}</span>
                 </div>
               </Link>
             </SidebarMenuButton>

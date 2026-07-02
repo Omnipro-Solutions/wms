@@ -789,6 +789,7 @@ const PickingPage = () => {
         <WavesTab
           pickingWaves={state.pickingWaves}
           commerceOrders={state.commerceOrders}
+          pickingTasks={state.pickingTasks}
           activeWaveCount={activeWaveCount}
           draftWaveCount={draftWaveCount}
           waveActiveUnits={waveActiveUnits}

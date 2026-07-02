@@ -122,7 +122,7 @@ const ReceivingPage = () => {
             const allLabelsPrinted =
               asnLabels.length > 0 && asnLabels.every((l) => l.status === 'completed')
             return (
-              (asn.status === 'completed' || asn.status === 'partial') &&
+              (asn.status === 'completed' || asn.status === 'partial' || asn.status === 'short_received') &&
               allLabelsPrinted &&
               !asn.requiresQualityControl
             )
@@ -158,10 +158,12 @@ const ReceivingPage = () => {
       let completedToday = 0
 
       for (const r of rows) {
-        if (r.status === 'pending' || r.status === 'partial') appointmentRows.push(r)
+        if (r.status === 'pending') appointmentRows.push(r)
         if (
           r.status === 'in_progress' ||
-          r.status === 'partial'
+          r.status === 'partial' ||
+          (r.status === 'completed' && !r.canPutaway) ||
+          (r.status === 'short_received' && !r.canPutaway)
         ) {
           receivingRows.push({
             ...r,

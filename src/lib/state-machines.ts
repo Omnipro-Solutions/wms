@@ -11,7 +11,7 @@ export const asnTransitions: Record<string, OperationalStatus[]> = {
   completed: ['putaway_done', 'short_received'],
   putaway_done: [],
   cancelled: [],
-  short_received: [],
+  short_received: ['putaway_done'],
 }
 
 export const transferTransitions: Record<string, OperationalStatus[]> = {

@@ -5,7 +5,7 @@ import { useWmsStore } from '@/store/wms-store'
 import { useCurrentOperator } from '@/hooks/use-current-operator'
 import { WorkerCard } from '@/components/worker/worker-card'
 import { Button } from '@/components/ui/button'
-import { Truck, ArrowRightLeft } from 'lucide-react'
+import { Truck, ArrowRightLeft, CheckCircle2 } from 'lucide-react'
 
 export default function WorkerDriverPage() {
   const router = useRouter()
@@ -31,9 +31,11 @@ export default function WorkerDriverPage() {
   if (!myManifests.length && !myTransfers.length) {
     return (
       <div className="flex min-h-[60vh] flex-col items-center justify-center gap-3 text-center">
-        <Truck className="size-12 text-muted-foreground" />
+        <div className="bg-muted flex size-16 items-center justify-center rounded-full">
+          <Truck className="text-muted-foreground size-8" />
+        </div>
         <p className="font-semibold">Sin asignaciones hoy</p>
-        <p className="text-sm text-muted-foreground">
+        <p className="text-muted-foreground text-sm">
           No tienes manifiestos ni transferencias asignadas.
         </p>
       </div>
@@ -44,7 +46,7 @@ export default function WorkerDriverPage() {
     <div className="flex flex-col gap-6">
       {myManifests.length > 0 && (
         <section className="flex flex-col gap-2">
-          <h2 className="flex items-center gap-2 font-bold">
+          <h2 className="text-muted-foreground flex items-center gap-2 text-sm font-semibold tracking-wide uppercase">
             <Truck className="size-4" /> Manifiestos
           </h2>
           {myManifests.map((m) => (
@@ -61,7 +63,7 @@ export default function WorkerDriverPage() {
 
       {myTransfers.length > 0 && (
         <section className="flex flex-col gap-2">
-          <h2 className="flex items-center gap-2 font-bold">
+          <h2 className="text-muted-foreground flex items-center gap-2 text-sm font-semibold tracking-wide uppercase">
             <ArrowRightLeft className="size-4" /> Transferencias
           </h2>
           {myTransfers.map((t) => (
@@ -69,14 +71,14 @@ export default function WorkerDriverPage() {
               <WorkerCard
                 title={t.code}
                 subtitle={`${t.originId} → ${t.destinationId}`}
-                badge="En tránsito"
+                badge="in_transit"
                 onClick={() => {}}
               />
               <Button
-                className="h-12 w-full bg-emerald-600 hover:bg-emerald-700 text-white"
+                className="h-12 w-full gap-2 bg-emerald-600 text-white hover:bg-emerald-700"
                 onClick={() => handleConfirmArrival(t.id)}
               >
-                ✅ CONFIRMAR LLEGADA
+                <CheckCircle2 className="size-4" /> CONFIRMAR LLEGADA
               </Button>
             </div>
           ))}

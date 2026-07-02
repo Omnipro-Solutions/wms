@@ -11,11 +11,12 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { TabPanel } from '@/app/(app)/receiving/_components/tab-panel'
 import { EmptyState } from '@/app/(app)/receiving/_components/empty-state'
 import type { ColumnDef } from '@tanstack/react-table'
-import type { CommerceOrder, PickingWave } from '@/types/wms'
+import type { CommerceOrder, PickingTask, PickingWave } from '@/types/wms'
 
 interface Props {
   pickingWaves: PickingWave[]
   commerceOrders: CommerceOrder[]
+  pickingTasks: PickingTask[]
   activeWaveCount: number
   draftWaveCount: number
   waveActiveUnits: number
@@ -26,6 +27,7 @@ interface Props {
 export const WavesTab = ({
   pickingWaves,
   commerceOrders,
+  pickingTasks,
   activeWaveCount,
   draftWaveCount,
   waveActiveUnits,
@@ -110,6 +112,7 @@ export const WavesTab = ({
                   <TableHead>Cliente</TableHead>
                   <TableHead>Canal</TableHead>
                   <TableHead>Estado</TableHead>
+                  <TableHead>Picker asignado</TableHead>
                   <TableHead className="text-right">Líneas</TableHead>
                 </TableRow>
               </TableHeader>
@@ -117,6 +120,13 @@ export const WavesTab = ({
                 {wave.orderIds.map((oid) => {
                   const order = commerceOrders.find((o) => o.id === oid)
                   if (!order) return null
+                  const operatorNames = Array.from(
+                    new Set(
+                      pickingTasks
+                        .filter((t) => t.orderId === oid && t.operatorName)
+                        .map((t) => t.operatorName as string),
+                    ),
+                  )
                   return (
                     <TableRow key={oid}>
                       <TableCell className="font-mono text-xs font-semibold">
@@ -128,6 +138,13 @@ export const WavesTab = ({
                       </TableCell>
                       <TableCell>
                         <StatusBadge status={order.status} />
+                      </TableCell>
+                      <TableCell className="text-sm">
+                        {operatorNames.length > 0 ? (
+                          operatorNames.join(', ')
+                        ) : (
+                          <span className="text-muted-foreground">Sin asignar</span>
+                        )}
                       </TableCell>
                       <TableCell className="text-right tabular-nums">
                         {order.items.length}

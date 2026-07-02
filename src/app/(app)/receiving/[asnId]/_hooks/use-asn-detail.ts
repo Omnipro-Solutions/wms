@@ -82,7 +82,7 @@ export const useAsnDetail = (asnId: string): AsnDetail | null => {
     asn.status === 'partial'
 
   const canPutaway =
-    (asn.status === 'completed' || asn.status === 'partial') &&
+    (asn.status === 'completed' || asn.status === 'partial' || asn.status === 'short_received') &&
     allLabelsPrinted &&
     !asn.requiresQualityControl
 

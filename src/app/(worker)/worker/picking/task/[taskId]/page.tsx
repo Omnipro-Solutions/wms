@@ -2,13 +2,15 @@
 
 import { useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { CheckCircle2 } from 'lucide-react'
+import { CheckCircle2, Hash } from 'lucide-react'
 import { useWmsStore } from '@/store/wms-store'
 import { useCurrentOperator } from '@/hooks/use-current-operator'
 import { WorkerStepper } from '@/components/worker/worker-stepper'
 import { ScanInput } from '@/components/worker/scan-input'
 import { QuantityStepper } from '@/components/worker/quantity-stepper'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import {
   Dialog,
   DialogContent,
@@ -40,6 +42,7 @@ export default function WorkerPickingTaskPage() {
 
   const [step, setStep] = useState<Step>('location')
   const [qty, setQty] = useState(task?.requestedQuantity ?? 0)
+  const [serial, setSerial] = useState('')
   const [showPartialDialog, setShowPartialDialog] = useState(false)
   const [pickError, setPickError] = useState<string | null>(null)
   const [confirmed, setConfirmed] = useState(false)
@@ -68,8 +71,14 @@ export default function WorkerPickingTaskPage() {
 
   const handleProductMatch = () => setStep('quantity')
 
+  const requiresSerial = product.trackBy === 'serial'
+
   const handleConfirmQty = () => {
     setPickError(null)
+    if (requiresSerial && qty > 0 && !serial.trim()) {
+      setPickError('Este producto requiere captura de serial.')
+      return
+    }
     try {
       if (task.status === 'assigned' || task.status === 'pending') {
         startPicking(task.id, operator?.name ?? 'Operador')
@@ -77,7 +86,7 @@ export default function WorkerPickingTaskPage() {
       if (qty < task.requestedQuantity) {
         setShowPartialDialog(true)
       } else {
-        completePick(task.id, qty)
+        completePick(task.id, qty, undefined, serial.trim() || undefined)
         setConfirmed(true)
         setTimeout(() => {
           setConfirmed(false)
@@ -92,7 +101,7 @@ export default function WorkerPickingTaskPage() {
   const handleConfirmPartial = () => {
     setPickError(null)
     try {
-      completePick(task.id, qty)
+      completePick(task.id, qty, undefined, serial.trim() || undefined)
       approvePart(task.id)
       setShowPartialDialog(false)
       setStep('done')
@@ -191,6 +200,21 @@ export default function WorkerPickingTaskPage() {
             <p className="mb-2 text-center text-sm font-medium text-muted-foreground">Cantidad a picar</p>
             <QuantityStepper value={qty} onChange={setQty} min={0} max={task.requestedQuantity} />
           </div>
+          {requiresSerial && (
+            <div className="w-full space-y-1">
+              <Label htmlFor="worker-pick-serial" className="flex items-center gap-1">
+                <Hash className="size-3" /> Serial del producto
+                <span className="text-destructive ml-0.5">*</span>
+              </Label>
+              <Input
+                id="worker-pick-serial"
+                placeholder="Escanear o ingresar serial…"
+                value={serial}
+                onChange={(e) => setSerial(e.target.value)}
+                className="h-12 font-mono text-base"
+              />
+            </div>
+          )}
           {pickError && <ErrorBanner message={pickError} />}
           <Button
             className="h-16 w-full text-lg font-bold"

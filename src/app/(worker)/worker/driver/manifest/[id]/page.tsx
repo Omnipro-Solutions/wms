@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { CheckCircle2, Circle } from 'lucide-react'
+import { CheckCircle2, Circle, ArrowLeft, TriangleAlert } from 'lucide-react'
 import { useWmsStore } from '@/store/wms-store'
 import { Button } from '@/components/ui/button'
 import {
@@ -64,13 +64,19 @@ export default function WorkerManifestPage() {
   if (allDone) {
     return (
       <div className="flex min-h-[60vh] flex-col items-center justify-center gap-6 text-center">
-        <CheckCircle2 className="size-16 text-emerald-500" />
+        <div className="flex size-20 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-950/40">
+          <CheckCircle2 className="size-12 text-emerald-500" />
+        </div>
         <div>
           <p className="text-2xl font-bold">Ruta completada</p>
-          <p className="text-sm text-muted-foreground mt-1">{manifest.code}</p>
+          <p className="text-muted-foreground mt-1 text-sm">{manifest.code}</p>
         </div>
-        <Button className="h-12 w-full" onClick={() => router.push('/worker/driver')}>
-          ← Volver
+        <Button
+          variant="outline"
+          className="h-12 w-full gap-2"
+          onClick={() => router.push('/worker/driver')}
+        >
+          <ArrowLeft className="size-4" /> Volver
         </Button>
       </div>
     )
@@ -95,17 +101,17 @@ export default function WorkerManifestPage() {
             <div
               key={stop.id}
               className={cn(
-                'rounded-xl border p-4',
-                isDone && 'border-emerald-200 bg-emerald-50 opacity-60',
-                isCurrent && 'border-primary bg-primary/5',
+                'rounded-xl border p-4 transition-opacity',
+                isDone && 'border-emerald-200 bg-emerald-50 opacity-60 dark:bg-emerald-950/20',
+                isCurrent && 'border-primary bg-primary/5 shadow-sm',
                 !isDone && !isCurrent && 'opacity-40'
               )}
             >
-              <div className="flex items-center gap-2 mb-2">
+              <div className="mb-2 flex items-center gap-2">
                 {isDone ? (
                   <CheckCircle2 className="size-5 text-emerald-500" />
                 ) : (
-                  <Circle className="size-5 text-muted-foreground" />
+                  <Circle className="text-muted-foreground size-5" />
                 )}
                 <p className="font-semibold">
                   Parada {stop.sequence} — {destination?.name ?? stop.destinationId}
@@ -113,19 +119,19 @@ export default function WorkerManifestPage() {
               </div>
 
               {isCurrent && (
-                <div className="flex gap-2 mt-3">
+                <div className="mt-3 flex gap-2">
                   <Button
-                    className="flex-1 h-12 bg-emerald-600 hover:bg-emerald-700 text-white"
+                    className="h-12 flex-1 gap-2 bg-emerald-600 text-white hover:bg-emerald-700"
                     onClick={() => handleDeliver(stop.id)}
                   >
-                    ✅ CONFIRMAR ENTREGA
+                    <CheckCircle2 className="size-4" /> CONFIRMAR ENTREGA
                   </Button>
                   <Button
                     variant="outline"
-                    className="flex-1 h-12 border-amber-400 text-amber-700"
+                    className="h-12 flex-1 gap-2 border-amber-400 text-amber-700 dark:text-amber-400"
                     onClick={() => setNovedadStop(stop.id)}
                   >
-                    ⚠ NOVEDAD
+                    <TriangleAlert className="size-4" /> NOVEDAD
                   </Button>
                 </div>
               )}
