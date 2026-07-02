@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { CheckCircle2 } from 'lucide-react'
+import { CheckCircle2, Printer } from 'lucide-react'
 import { useWmsStore } from '@/store/wms-store'
 import { useCurrentOperator } from '@/hooks/use-current-operator'
 import { WorkerStepper } from '@/components/worker/worker-stepper'
@@ -10,7 +10,7 @@ import { QuantityStepper } from '@/components/worker/quantity-stepper'
 import { Button } from '@/components/ui/button'
 import { BarcodeScanner } from '@/components/shared/barcode-scanner'
 
-type Step = 'summary' | 'scan-product' | 'receive' | 'serials' | 'qc' | 'putaway' | 'done'
+type Step = 'summary' | 'scan-product' | 'receive' | 'serials' | 'qc' | 'putaway' | 'print-label' | 'done'
 
 const ErrorBanner = ({ message }: { message: string }) => (
   <div className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
@@ -23,7 +23,7 @@ export default function WorkerReceivingAsnPage() {
   const { asnId } = useParams<{ asnId: string }>()
   const router = useRouter()
   const { operator } = useCurrentOperator()
-  const { asnRecords, products, locations, receiveAsn, approveQc, rejectQc, putawayItem } =
+  const { asnRecords, products, locations, labels, receiveAsn, approveQc, rejectQc, putawayItem, printReceiptLabel } =
     useWmsStore()
 
   const asn = asnRecords.find((a) => a.id === asnId)
@@ -35,6 +35,7 @@ export default function WorkerReceivingAsnPage() {
   const [dmgQty, setDmgQty] = useState(0)
   const [receiveError, setReceiveError] = useState<string | null>(null)
   const [serialsRaw, setSerialsRaw] = useState('')
+  const [printedLabelIds, setPrintedLabelIds] = useState<string[]>([])
 
   if (!asn) {
     return (
@@ -49,9 +50,9 @@ export default function WorkerReceivingAsnPage() {
   const requiresSerial = product?.trackBy === 'serial'
 
   const stepIndex: Record<Step, number> = hasQc
-    ? { summary: 1, 'scan-product': 2, receive: 3, serials: 4, qc: 5, putaway: 6, done: 7 }
-    : { summary: 1, 'scan-product': 2, receive: 3, serials: 4, qc: 4, putaway: 5, done: 6 }
-  const totalSteps = hasQc ? 6 : 5
+    ? { summary: 1, 'scan-product': 2, receive: 3, serials: 4, qc: 5, putaway: 6, 'print-label': 7, done: 8 }
+    : { summary: 1, 'scan-product': 2, receive: 3, serials: 4, qc: 4, putaway: 5, 'print-label': 6, done: 7 }
+  const totalSteps = hasQc ? 7 : 6
 
   const parsedSerials = serialsRaw
     .split(/[\n,]+/)
@@ -103,7 +104,16 @@ export default function WorkerReceivingAsnPage() {
     if (suggestedLocation) {
       putawayItem(asn.id, suggestedLocation.id, opName)
     }
-    setStep('done')
+    setStep('print-label')
+  }
+
+  const pendingReceiptLabels = labels.filter(
+    (l) => l.type === 'receipt' && l.asnId === asn.id && l.status === 'pending'
+  )
+
+  const handlePrintLabel = (labelId: string) => {
+    printReceiptLabel(labelId)
+    setPrintedLabelIds((prev) => [...prev, labelId])
   }
 
   if (step === 'done') {
@@ -291,6 +301,49 @@ export default function WorkerReceivingAsnPage() {
           </Button>
           <Button variant="destructive" className="h-12 text-base" onClick={handleRejectQc}>
             ❌ RECHAZAR QC
+          </Button>
+        </div>
+      )}
+
+      {step === 'print-label' && (
+        <div className="flex flex-col gap-4">
+          <h2 className="text-lg font-bold">Imprimir etiquetas de recepción</h2>
+          <p className="text-muted-foreground text-sm">
+            {pendingReceiptLabels.length} etiqueta(s) generada(s) para este ASN
+          </p>
+          <div className="flex flex-col gap-2">
+            {pendingReceiptLabels.map((label) => {
+              const printed = printedLabelIds.includes(label.id)
+              return (
+                <div
+                  key={label.id}
+                  className="bg-muted flex items-center justify-between rounded-xl p-4"
+                >
+                  <div>
+                    <p className="font-mono font-bold">{label.code}</p>
+                    <p className="text-muted-foreground text-xs">
+                      {label.receivedQty} uds
+                    </p>
+                  </div>
+                  <Button
+                    variant={printed ? 'outline' : 'default'}
+                    className="h-10"
+                    disabled={printed}
+                    onClick={() => handlePrintLabel(label.id)}
+                  >
+                    <Printer className="mr-2 size-4" />
+                    {printed ? 'Impresa ✓' : 'Imprimir'}
+                  </Button>
+                </div>
+              )
+            })}
+          </div>
+          <Button
+            className="h-12 text-base"
+            disabled={printedLabelIds.length < pendingReceiptLabels.length}
+            onClick={() => setStep('done')}
+          >
+            Continuar
           </Button>
         </div>
       )}

@@ -51,3 +51,28 @@ describe('printReceiptLabel', () => {
     expect(asn?.status).toBe('putaway_ready')
   })
 })
+
+describe('flujo completo receiving worker — receive, putaway, print', () => {
+  it('lista las receipt labels pendientes de un ASN después de recibir', () => {
+    const store = useWmsStore.getState()
+    store.receiveAsn(TEST_ASN_ID, 1, 'Operador', 0, [TEST_SERIAL])
+    const state = useWmsStore.getState()
+    const pendingLabels = state.labels.filter(
+      (l) => l.type === 'receipt' && l.asnId === TEST_ASN_ID && l.status === 'pending'
+    )
+    expect(pendingLabels.length).toBeGreaterThan(0)
+  })
+
+  it('después de imprimir todas las labels, no quedan receipt labels pendientes para ese ASN', () => {
+    const store = useWmsStore.getState()
+    store.receiveAsn(TEST_ASN_ID, 1, 'Operador', 0, [TEST_SERIAL])
+    const pendingLabels = useWmsStore
+      .getState()
+      .labels.filter((l) => l.type === 'receipt' && l.asnId === TEST_ASN_ID && l.status === 'pending')
+    pendingLabels.forEach((l) => store.printReceiptLabel(l.id))
+    const stillPending = useWmsStore
+      .getState()
+      .labels.filter((l) => l.type === 'receipt' && l.asnId === TEST_ASN_ID && l.status === 'pending')
+    expect(stillPending).toHaveLength(0)
+  })
+})
