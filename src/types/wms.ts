@@ -18,14 +18,14 @@ export type OperationalStatus =
   | 'error'
   | 'synced'
   | 'short_received'
-  | 'ready_for_pickup'  // BOPIS/Ship-from-Store: prepared, awaiting customer
+  | 'ready_for_pickup' // BOPIS/Ship-from-Store: prepared, awaiting customer
 
 // Sprint 4: Unit of Measure entity. Every Product has a baseUomId (the
 // smallest countable unit) plus optional conversion rules to larger units.
 export interface UnitOfMeasure {
   id: string
-  code: string       // e.g. 'UND', 'CAJ', 'PAL'
-  name: string       // e.g. 'Unidad', 'Caja', 'Pallet'
+  code: string // e.g. 'UND', 'CAJ', 'PAL'
+  name: string // e.g. 'Unidad', 'Caja', 'Pallet'
   abbreviation: string // e.g. 'und', 'caj', 'pal'
   active: boolean
 }
@@ -40,7 +40,7 @@ export interface UomConversion {
 
 export interface DeliveryWindow {
   dayOfWeek: 0 | 1 | 2 | 3 | 4 | 5 | 6 // 0=domingo, 1=lunes, …, 6=sábado
-  openTime: string  // 'HH:mm' — hora apertura recepción
+  openTime: string // 'HH:mm' — hora apertura recepción
   closeTime: string // 'HH:mm' — hora cierre recepción
 }
 
@@ -71,7 +71,7 @@ export interface Store {
 export interface StorageLocation {
   id: string
   code: string
-  barcode: string  // ej. "LOC-A-A0101" — escaneado por lector bluetooth en picking
+  barcode: string // ej. "LOC-A-A0101" — escaneado por lector bluetooth en picking
   warehouseId: string
   zone: string
   type: 'pick' | 'reserve' | 'quality_control' | 'staging' | 'returns'
@@ -220,8 +220,8 @@ export interface Asn {
   sourceType: 'purchase' | 'internal_transfer' | 'adjustment'
   // Notes added during reception (carrier reference, delivery note number, etc.)
   receptionNotes?: string
-  dockId?: string           // muelle asignado, e.g. 'dock-1'
-  timeSlot?: string         // ventana horaria, e.g. '08:00-10:00'
+  dockId?: string // muelle asignado, e.g. 'dock-1'
+  timeSlot?: string // ventana horaria, e.g. '08:00-10:00'
   carrierConfirmed?: boolean // transportista confirmó la cita
 }
 
@@ -265,7 +265,7 @@ export interface CrossDockTask {
   productId: string
   warehouseId: string
   quantity: number
-  stagingLocationId: string   // where inbound stock temporarily lands
+  stagingLocationId: string // where inbound stock temporarily lands
   status: CrossDockStatus
   assignedOperatorId?: string
   createdAt: string
@@ -285,7 +285,7 @@ export type ReturnStatus =
   | 'rejected'
   | 'closed'
 
-export type ItemCondition = 'new' | 'like_new' | 'good' | 'fair' | 'defective'
+export type ItemCondition = 'new' | 'like_new' | 'good' | 'fair' | 'defective' | 'damaged'
 
 export interface ReturnItemInspection {
   returnLineId: string // references OrderLine.id in ReturnOrder.items
@@ -591,8 +591,8 @@ export interface Shipment {
   weightKg: number
   trackingNumber?: string
   otifStatus: 'on_time' | 'at_risk' | 'late'
-  driverName?: string      // flota propia — conductor asignado
-  vehiclePlate?: string    // flota propia — placa del vehículo (formato colombiano ABC-123)
+  driverName?: string // flota propia — conductor asignado
+  vehiclePlate?: string // flota propia — placa del vehículo (formato colombiano ABC-123)
 }
 
 export interface ManifestStop {
@@ -773,12 +773,12 @@ export interface RouteSlottingRecommendation {
   routeLabel: string
   currentLocationId: string
   candidateLocationId: string
-  routePickFrequency: number   // 0-1: ratio picks en esta ruta / total picks
+  routePickFrequency: number // 0-1: ratio picks en esta ruta / total picks
   currentDistanceToStagingM: number
   candidateDistanceToStagingM: number
   distanceGainM: number
-  totalDistanceSavedM: number  // distanceGainM × pickingFrequency del producto
-  score: number                // 0-100
+  totalDistanceSavedM: number // distanceGainM × pickingFrequency del producto
+  score: number // 0-100
 }
 
 // --- Administration domain ---
@@ -826,9 +826,9 @@ export interface SlaConfig {
   id: string
   channel: CommerceOrder['channel'] | 'all'
   fulfillmentType: CommerceOrder['fulfillmentType'] | 'all'
-  maxHours: number          // max hours from order creation to completion
-  alertAtPercent: number    // alert when elapsed > maxHours * (alertAtPercent/100)
-  label: string             // Spanish display name
+  maxHours: number // max hours from order creation to completion
+  alertAtPercent: number // alert when elapsed > maxHours * (alertAtPercent/100)
+  label: string // Spanish display name
 }
 
 export interface WmsSettings {
@@ -842,8 +842,8 @@ export interface WmsSettings {
   inventoryFreezeActive: boolean
   adjustmentApprovalThreshold: number // units delta above which supervisor approval is required
   // Sprint 6: configurable alerts
-  stockAlertThreshold: number    // available units <= this triggers critical stock alert
-  expirationAlertDays: number    // items expiring within N days trigger expiration alert
+  stockAlertThreshold: number // available units <= this triggers critical stock alert
+  expirationAlertDays: number // items expiring within N days trigger expiration alert
   // Sprint 7: SLA configs
   slaConfigs: SlaConfig[]
 }
@@ -948,14 +948,14 @@ export type SapRouteStatus =
 
 export interface SapRoute {
   id: string
-  code: string             // e.g. 'SAP-RT-001'
-  name: string             // e.g. 'Ruta Bogotá Norte'
-  originId: string         // warehouseId del CD origen
+  code: string // e.g. 'SAP-RT-001'
+  name: string // e.g. 'Ruta Bogotá Norte'
+  originId: string // warehouseId del CD origen
   destinationIds: string[] // warehouseIds de tiendas destino
   carrierName: string
   driverName: string
-  truckPlate: string       // formato colombiano 'ABC-123'
-  routeDate: string        // ISO date 'YYYY-MM-DD'
+  truckPlate: string // formato colombiano 'ABC-123'
+  routeDate: string // ISO date 'YYYY-MM-DD'
   currentLoadKg: number
   capacityKg: number
   status: SapRouteStatus
