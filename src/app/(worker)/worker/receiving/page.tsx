@@ -16,7 +16,7 @@ export default function WorkerReceivingPage() {
 
   const todayAsns = asnRecords
     .filter(
-      (a) => ['pending', 'in_progress'].includes(a.status) && a.appointmentDate.startsWith(today)
+      (a) => ['pending', 'in_progress'].includes(a.status) && a.appointmentDate <= today
     )
     .sort((a, b) => (b.status === 'in_progress' ? 1 : 0) - (a.status === 'in_progress' ? 1 : 0))
 
