@@ -2963,11 +2963,13 @@ export const sapRoutes: SapRoute[] = [
 // ─── DEMO DATA — no tocar en producción ──────────────────────────────────────
 
 // Flujo 1: Inbound — ASN activa para receiver@demo.com
+// Fecha fija en el pasado (no "hoy") a propósito: el filtro en /worker/receiving
+// muestra todo lo pendiente con fecha <= hoy, así esto no se desincroniza en demos futuras.
 export const demoAsnInbound: Asn = {
   id: 'demo-asn-inbound',
   code: 'ASN-DEMO-001',
   supplierName: 'Distribuidora Demo S.A.',
-  appointmentDate: '2026-07-01',
+  appointmentDate: '2026-06-30',
   expectedQuantity: 15,
   receivedQuantity: 0,
   damagedQuantity: 0,
@@ -2976,6 +2978,25 @@ export const demoAsnInbound: Asn = {
   crossDocking: false,
   productId: 'p-microondas',
   suggestedPutawayLocationId: 'loc-a0101',
+  deliveryCount: 0,
+  purchaseOrderId: 'po-3',
+  sourceType: 'purchase',
+}
+
+// Segunda ASN demo — para que la vista de recepción no muestre un solo ítem
+export const demoAsn2: Asn = {
+  id: 'demo-asn-2',
+  code: 'ASN-DEMO-002',
+  supplierName: 'Importadora Andina Ltda.',
+  appointmentDate: '2026-06-29',
+  expectedQuantity: 20,
+  receivedQuantity: 0,
+  damagedQuantity: 0,
+  status: 'pending',
+  requiresQualityControl: false,
+  crossDocking: false,
+  productId: 'p-licuadora',
+  suggestedPutawayLocationId: 'loc-pickfast1',
   deliveryCount: 0,
   purchaseOrderId: 'po-3',
   sourceType: 'purchase',
@@ -3164,4 +3185,19 @@ export const demoReturnOrder: ReturnOrder = {
   disposition: 'quality_control', // ponytail: pending supervisor decision, most common at received_at_dc
   items: [{ id: 'demo-retl-1', productId: 'p-sanduchera', requestedQuantity: 3 }],
   createdAt: '2026-06-30T07:30:00.000Z',
+}
+
+// Segunda devolución demo — ya en under_validation, lista para inspección
+export const demoReturnOrder2: ReturnOrder = {
+  id: 'demo-ret-2',
+  rmaCode: 'RMA-DEMO-002',
+  customerName: 'Tienda Andino',
+  type: 'store_to_dc',
+  originId: 'wh-andino',
+  destinationId: 'wh-bog',
+  status: 'under_validation',
+  reasonId: 'rs-2',
+  disposition: 'quality_control', // ponytail: pending inspection decision, same default as demo-ret-1
+  items: [{ id: 'demo-retl-2', productId: 'p-cafetera', requestedQuantity: 1 }],
+  createdAt: '2026-06-29T09:00:00.000Z',
 }
