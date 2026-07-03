@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button'
 import { ScanInput } from '@/components/worker/scan-input'
 import { suggestBox } from '@/lib/rules/packing'
 
-type Step = 'rules' | 'items' | 'box' | 'label' | 'done'
+type Step = 'rules' | 'items' | 'box' | 'label' | 'printing' | 'done'
 
 const ErrorBanner = ({ message }: { message: string }) => (
   <div className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
@@ -87,12 +87,27 @@ export default function WorkerPackingOrderPage() {
 
   const handleGenerateLabel = () => {
     generateLabel(order.id)
-    sendToShipping(order.id)
-    setStep('done')
+    setStep('printing')
+    setTimeout(() => {
+      sendToShipping(order.id)
+      setStep('done')
+    }, 1200)
   }
 
   const handleDone = () => {
     router.push('/worker/packing')
+  }
+
+  if (step === 'printing') {
+    return (
+      <div className="flex min-h-[60vh] flex-col items-center justify-center gap-6 text-center">
+        <Printer className="size-16 animate-pulse text-primary" />
+        <div>
+          <p className="text-xl font-bold">Enviando a la impresora…</p>
+          <p className="text-sm text-muted-foreground mt-1">{order.orderNumber ?? order.id}</p>
+        </div>
+      </div>
+    )
   }
 
   if (step === 'done') {

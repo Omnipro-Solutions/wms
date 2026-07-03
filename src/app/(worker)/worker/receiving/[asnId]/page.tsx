@@ -119,6 +119,14 @@ export default function WorkerReceivingAsnPage() {
     setPrintedLabelIds((prev) => [...prev, labelId])
   }
 
+  const handlePrintAllLabels = () => {
+    const pendingIds = pendingReceiptLabels
+      .filter((l) => !printedLabelIds.includes(l.id))
+      .map((l) => l.id)
+    pendingIds.forEach((id) => printReceiptLabel(id))
+    setPrintedLabelIds((prev) => [...prev, ...pendingIds])
+  }
+
   if (step === 'done') {
     return (
       <div className="flex min-h-[60vh] flex-col items-center justify-center gap-6 text-center">
@@ -314,6 +322,12 @@ export default function WorkerReceivingAsnPage() {
           <p className="text-muted-foreground text-sm">
             {pendingReceiptLabels.length} etiqueta(s) generada(s) para este ASN
           </p>
+          {printedLabelIds.length < pendingReceiptLabels.length && (
+            <Button variant="outline" className="h-11 text-sm" onClick={handlePrintAllLabels}>
+              <Printer className="mr-2 size-4" />
+              Imprimir todas ({pendingReceiptLabels.length - printedLabelIds.length})
+            </Button>
+          )}
           <div className="flex flex-col gap-2">
             {pendingReceiptLabels.map((label) => {
               const printed = printedLabelIds.includes(label.id)
