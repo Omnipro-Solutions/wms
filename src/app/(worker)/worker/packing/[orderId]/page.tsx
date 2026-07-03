@@ -50,8 +50,15 @@ export default function WorkerPackingOrderPage() {
   const lineCount = order.items?.length ?? 0
   const completedLines = order.items?.filter((i) => i.scannedQuantity >= i.requestedQuantity).length ?? 0
 
-  const stepIndex: Record<Step, number> = { rules: 1, items: hasRules ? 2 : 1, box: hasRules ? 3 : 2, label: hasRules ? 4 : 3, done: hasRules ? 5 : 4 }
-  const totalSteps = hasRules ? 4 : 3
+  const stepIndex: Record<Step, number> = {
+    rules: 1,
+    items: hasRules ? 2 : 1,
+    box: hasRules ? 3 : 2,
+    label: hasRules ? 4 : 3,
+    printing: hasRules ? 5 : 4,
+    done: hasRules ? 6 : 5,
+  }
+  const totalSteps = hasRules ? 5 : 4
 
   const suggested = suggestBox(order.weightKg, order.volumeM3, packingBoxTypes)
 
