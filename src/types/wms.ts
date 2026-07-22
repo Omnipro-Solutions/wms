@@ -127,6 +127,12 @@ export interface InventoryItem {
   holdReasonId?: string // references a Reason (context: 'hold')
   // availableQuantity is DERIVED via rules/inventory.ts, not stored.
   status: 'available' | 'reserved' | 'on_hold' | 'in_transit' | 'expired' | 'damaged'
+  // Raw fact, stamped once when stock first enters the system (receiveAsn) — powers
+  // aging/low-rotation reporting. Not touched by relocation/putaway.
+  receivedDate?: string
+  // TTL for the current reservation on this item — see reserveInventory/releaseExpiredReservations.
+  // Simplification: one expiry per item (latest reservation wins), not a per-order ledger.
+  reservationExpiresAt?: string
 }
 
 // The audit log. Every receipt, putaway, pick, transfer, adjustment,
@@ -846,6 +852,9 @@ export interface WmsSettings {
   expirationAlertDays: number // items expiring within N days trigger expiration alert
   // Sprint 7: SLA configs
   slaConfigs: SlaConfig[]
+  // Inventory module — Estándar tier: reservations with TTL + aging/low-rotation alerts
+  reservationTtlHours: number // hours a commerce-order reservation holds stock before it's eligible for release
+  agingLowRotationDays: number // days on hand without movement before an item is flagged low-rotation
 }
 
 // --- Inventory adjustment requests (Sprint 2 — #56) ---

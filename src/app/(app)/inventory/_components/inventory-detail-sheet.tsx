@@ -242,7 +242,7 @@ export const InventoryDetailSheet = ({ item, movements, onClose }: InventoryDeta
           <div className="space-y-5 px-5 py-4">
             {/* ── Status + Estado ── */}
             <div className="flex items-center gap-2">
-              <StatusBadge status={item.status} />
+              <StatusBadge status={item.computedStatus} />
               <Badge variant="outline" className="text-xs">
                 {item.productCategory}
               </Badge>

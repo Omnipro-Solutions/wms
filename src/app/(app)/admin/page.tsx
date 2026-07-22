@@ -7,8 +7,6 @@ import {
   Box,
   Building2,
   CalendarClock,
-  CheckCircle2,
-  ClipboardCheck,
   Database,
   MapPin,
   Package,
@@ -18,14 +16,11 @@ import {
   Ruler,
   Settings,
   ShieldCheck,
-  Snowflake,
   Truck,
   Users,
   X,
-  XCircle,
 } from 'lucide-react'
 import { useWmsStore, resetStore } from '@/store/wms-store'
-import { selectInventoryAccuracy } from '@/store/selectors'
 import { PageHeader } from '@/components/shared/page-header'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -48,7 +43,6 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
-import { Switch } from '@/components/ui/switch'
 import {
   Table,
   TableBody,
@@ -58,6 +52,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { SubNav, type SubNavItem } from '@/components/shared/sub-nav'
+import { SettingField } from '@/components/shared/setting-field'
 import { cn } from '@/lib/utils'
 import type { CyclicCountMethod, DeliveryWindow, Product, UnitOfMeasure, Warehouse } from '@/types/wms'
 
@@ -100,7 +95,6 @@ const ADMIN_TABS: SubNavItem[] = [
   { value: 'operators', label: 'Operadores' },
   { value: 'reasons', label: 'Razones' },
   { value: 'carriers', label: 'Carriers' },
-  { value: 'inventory-control', label: 'Control inventario' },
   { value: 'cyclic-counts', label: 'Conteos cíclicos' },
   { value: 'uom', label: 'Unidades de medida' },
   { value: 'products', label: 'Productos' },
@@ -128,15 +122,12 @@ const AdminPage = () => {
     stockMovements,
     commerceOrders,
     pickingTasks,
-    adjustmentRequests,
     cyclicCountPlans,
     settings,
     toggleOperator,
     toggleReason,
     toggleCarrier,
     updateSettings,
-    approveAdjustment,
-    rejectAdjustment,
     createCyclicCount,
     startCyclicCount,
     completeCyclicCount,
@@ -147,16 +138,9 @@ const AdminPage = () => {
     updateProduct,
   } = useWmsStore()
 
-  const accuracy = selectInventoryAccuracy(state)
-
   const [resetDialogOpen, setResetDialogOpen] = useState(false)
   const [settingsChanged, setSettingsChanged] = useState(false)
   const [localSettings, setLocalSettings] = useState({ ...settings })
-
-  // Reject dialog state
-  const [rejectDialogOpen, setRejectDialogOpen] = useState(false)
-  const [rejectingId, setRejectingId] = useState('')
-  const [rejectNote, setRejectNote] = useState('')
 
   // Create cyclic count form
   const [countFormOpen, setCountFormOpen] = useState(false)
@@ -201,24 +185,6 @@ const AdminPage = () => {
   const handleSaveSettings = () => {
     updateSettings(localSettings)
     setSettingsChanged(false)
-  }
-
-  const handleToggleFreeze = () => {
-    const next = !settings.inventoryFreezeActive
-    updateSettings({ inventoryFreezeActive: next })
-    setLocalSettings((prev) => ({ ...prev, inventoryFreezeActive: next }))
-  }
-
-  const handleOpenReject = (id: string) => {
-    setRejectingId(id)
-    setRejectNote('')
-    setRejectDialogOpen(true)
-  }
-
-  const handleConfirmReject = () => {
-    if (!rejectNote.trim()) return
-    rejectAdjustment(rejectingId, 'Supervisor', rejectNote.trim())
-    setRejectDialogOpen(false)
   }
 
   const handleCreateCount = () => {
@@ -339,8 +305,6 @@ const AdminPage = () => {
     { label: 'Tareas de picking', value: pickingTasks.length, icon: RefreshCw },
   ]
 
-  const pendingAdj = adjustmentRequests.filter((r) => r.status === 'pending_approval')
-
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
@@ -353,33 +317,6 @@ const AdminPage = () => {
           </Button>
         }
       />
-
-      {/* Freeze banner */}
-      {settings.inventoryFreezeActive && (
-        <div className="flex items-center gap-3 rounded-lg border border-blue-300 dark:border-blue-900/50 bg-blue-50 dark:bg-blue-950/40 px-4 py-3">
-          <Snowflake className="size-5 shrink-0 text-blue-600 dark:text-blue-300" />
-          <div className="flex-1 text-sm text-blue-800 dark:text-blue-300">
-            <p className="font-semibold">Inventario congelado</p>
-            <p className="text-blue-700 dark:text-blue-300">Los ajustes, bloqueos y liberaciones de stock están deshabilitados hasta que se desactive el modo congelado.</p>
-          </div>
-          <Button size="sm" variant="outline" className="border-blue-300 dark:border-blue-900/50 text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-950/50" onClick={handleToggleFreeze}>
-            Descongelar
-          </Button>
-        </div>
-      )}
-
-      {/* Pending adjustments alert */}
-      {pendingAdj.length > 0 && (
-        <div className="flex items-center gap-3 rounded-lg border border-amber-300 dark:border-amber-900/50 bg-amber-50 dark:bg-amber-950/40 px-4 py-3">
-          <AlertTriangle className="size-5 shrink-0 text-amber-600 dark:text-amber-300" />
-          <p className="flex-1 text-sm text-amber-800 dark:text-amber-300">
-            <span className="font-semibold">{pendingAdj.length} ajuste(s) de inventario</span> esperan aprobación de supervisor.
-          </p>
-          <Button size="sm" variant="outline" className="border-amber-300 dark:border-amber-900/50 text-amber-700 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-950/50" onClick={() => {}}>
-            Ver en Inventario
-          </Button>
-        </div>
-      )}
 
       {/* Store health */}
       <Card>
@@ -543,127 +480,6 @@ const AdminPage = () => {
               </Table>
             </CardContent>
           </Card>
-      )}
-
-      {/* ── Inventory Control ── */}
-      {activeTab === 'inventory-control' && (
-        <div className="space-y-4">
-
-          {/* IRA KPI + Freeze toggle */}
-          <div className="grid gap-4 sm:grid-cols-3">
-            <Card className={cn('border-2', accuracy.ira >= 95 ? 'border-emerald-200 dark:border-emerald-900/50 bg-emerald-50 dark:bg-emerald-950/40' : accuracy.ira >= 80 ? 'border-amber-200 dark:border-amber-900/50 bg-amber-50 dark:bg-amber-950/40' : 'border-red-200 dark:border-red-900/50 bg-red-50 dark:bg-red-950/40')}>
-              <CardContent className="pt-5">
-                <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">IRA — Exactitud de inventario</p>
-                <p className={cn('mt-1 text-4xl font-bold tabular-nums', accuracy.ira >= 95 ? 'text-emerald-700 dark:text-emerald-300' : accuracy.ira >= 80 ? 'text-amber-700 dark:text-amber-300' : 'text-red-700 dark:text-red-300')}>
-                  {accuracy.ira}%
-                </p>
-                <p className="mt-1 text-xs text-zinc-500">
-                  {accuracy.totalDeviation} uds de desviación en {accuracy.adjustmentsApproved} conteos
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardContent className="flex items-start gap-4 pt-5">
-                <Snowflake className={cn('mt-0.5 size-8 shrink-0', settings.inventoryFreezeActive ? 'text-blue-500' : 'text-zinc-300')} />
-                <div className="flex-1">
-                  <p className="font-medium text-sm">Modo congelado</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">Bloquea ajustes, bloqueos y liberaciones de stock.</p>
-                  <div className="mt-3 flex items-center gap-2">
-                    <Switch
-                      checked={settings.inventoryFreezeActive}
-                      onCheckedChange={handleToggleFreeze}
-                    />
-                    <span className="text-sm">{settings.inventoryFreezeActive ? 'Activo' : 'Inactivo'}</span>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardContent className="pt-5">
-                <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Ajustes pendientes</p>
-                <p className="mt-1 text-4xl font-bold tabular-nums text-amber-600 dark:text-amber-300">{accuracy.adjustmentsPending}</p>
-                <p className="mt-1 text-xs text-zinc-500">
-                  {accuracy.adjustmentsApproved} aprobados · {accuracy.adjustmentsRejected} rechazados
-                </p>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Adjustment requests table */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-sm">
-                <ClipboardCheck className="size-4" />
-                Solicitudes de ajuste de inventario
-              </CardTitle>
-              <CardDescription>
-                Ajustes con delta &gt; umbral de aprobación ({settings.adjustmentApprovalThreshold} uds) que requieren revisión del supervisor.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="p-0">
-              {adjustmentRequests.length === 0 ? (
-                <div className="flex flex-col items-center gap-2 py-10 text-center">
-                  <CheckCircle2 className="size-8 text-zinc-300" />
-                  <p className="text-sm text-muted-foreground">Sin solicitudes de ajuste registradas.</p>
-                </div>
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Producto</TableHead>
-                      <TableHead className="text-right">Actual</TableHead>
-                      <TableHead className="text-right">Contado</TableHead>
-                      <TableHead className="text-right">Delta</TableHead>
-                      <TableHead>Operador</TableHead>
-                      <TableHead>Estado</TableHead>
-                      <TableHead />
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {adjustmentRequests.map((req) => {
-                      const product = products.find((p) => p.id === req.productId)
-                      return (
-                        <TableRow key={req.id}>
-                          <TableCell className="max-w-40 truncate text-sm font-medium">
-                            {product?.name ?? req.productId}
-                          </TableCell>
-                          <TableCell className="text-right tabular-nums">{req.currentQty}</TableCell>
-                          <TableCell className="text-right tabular-nums">{req.countedQty}</TableCell>
-                          <TableCell className={cn('text-right tabular-nums font-semibold', req.delta > 0 ? 'text-emerald-600' : 'text-red-600')}>
-                            {req.delta > 0 ? '+' : ''}{req.delta}
-                          </TableCell>
-                          <TableCell className="text-muted-foreground text-sm">{req.operatorName}</TableCell>
-                          <TableCell>
-                            <Badge
-                              variant="outline"
-                              className={cn('text-xs', req.status === 'pending_approval' ? 'border-amber-200 dark:border-amber-900/50 bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300' : req.status === 'approved' ? 'border-emerald-200 dark:border-emerald-900/50 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300' : 'border-zinc-200 dark:border-zinc-700/50 bg-zinc-50 dark:bg-zinc-800/50 text-zinc-500 dark:text-zinc-300')}
-                            >
-                              {req.status === 'pending_approval' ? 'Pendiente' : req.status === 'approved' ? 'Aprobado' : 'Rechazado'}
-                            </Badge>
-                          </TableCell>
-                          <TableCell className="text-right">
-                            {req.status === 'pending_approval' && (
-                              <div className="flex justify-end gap-1">
-                                <Button variant="ghost" size="sm" className="text-emerald-600 hover:text-emerald-700" onClick={() => approveAdjustment(req.id, 'Supervisor')}>
-                                  <CheckCircle2 className="size-4" />
-                                </Button>
-                                <Button variant="ghost" size="sm" className="text-red-500 hover:text-red-600" onClick={() => handleOpenReject(req.id)}>
-                                  <XCircle className="size-4" />
-                                </Button>
-                              </div>
-                            )}
-                          </TableCell>
-                        </TableRow>
-                      )
-                    })}
-                  </TableBody>
-                </Table>
-              )}
-            </CardContent>
-          </Card>
-        </div>
       )}
 
       {/* ── Cyclic Counts ── */}
@@ -1040,11 +856,10 @@ const AdminPage = () => {
 
               <Separator />
 
-              <div>
-                <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-300">Control de inventario</p>
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <SettingField label="Umbral aprobación ajuste (uds)" description="Delta absoluto en unidades por encima del cual el ajuste requiere aprobación de supervisor." value={localSettings.adjustmentApprovalThreshold} min={1} max={500} step={1} onChange={(v) => handleSettingChange('adjustmentApprovalThreshold', v)} />
-                </div>
+              <div className="flex items-center gap-2 rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
+                Los parámetros de congelamiento, alertas de stock/vencimiento, TTL de reservas y baja rotación se
+                movieron a <span className="font-medium text-foreground">Config. Inventario</span> (menú lateral),
+                junto con la aprobación de ajustes.
               </div>
             </CardContent>
           </Card>
@@ -1208,24 +1023,6 @@ const AdminPage = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Reject adjustment dialog */}
-      <Dialog open={rejectDialogOpen} onOpenChange={setRejectDialogOpen}>
-        <DialogContent className="sm:max-w-sm">
-          <DialogHeader>
-            <DialogTitle>Rechazar ajuste</DialogTitle>
-            <DialogDescription>Indica el motivo del rechazo. El operador verá esta nota.</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-1 py-2">
-            <Label htmlFor="reject-note">Motivo de rechazo *</Label>
-            <Input id="reject-note" placeholder="Ej: Diferencia fuera de rango aceptable…" value={rejectNote} onChange={(e) => setRejectNote(e.target.value)} />
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setRejectDialogOpen(false)}>Cancelar</Button>
-            <Button variant="destructive" disabled={!rejectNote.trim()} onClick={handleConfirmReject}>Rechazar</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
       {/* Create cyclic count dialog */}
       <Dialog open={countFormOpen} onOpenChange={setCountFormOpen}>
         <DialogContent className="sm:max-w-lg">
@@ -1286,32 +1083,5 @@ const AdminPage = () => {
     </div>
   )
 }
-
-interface SettingFieldProps {
-  label: string
-  description: string
-  value: number
-  min: number
-  max: number
-  step: number
-  onChange: (value: number) => void
-}
-
-const SettingField = ({ label, description, value, min, max, step, onChange }: SettingFieldProps) => (
-  <div className="flex flex-col gap-1.5 rounded-lg border dark:border-zinc-700/50 bg-zinc-50 dark:bg-zinc-800/50 p-4">
-    <div className="flex items-center justify-between">
-      <p className="text-sm font-medium">{label}</p>
-      <span className="rounded bg-white dark:bg-zinc-800 px-2 py-0.5 text-sm font-bold tabular-nums shadow-sm ring-1 ring-zinc-200 dark:ring-zinc-700">
-        {value % 1 === 0 ? value : value.toFixed(2)}
-      </span>
-    </div>
-    <p className="text-muted-foreground text-xs">{description}</p>
-    <input type="range" min={min} max={max} step={step} value={value} onChange={(e) => onChange(parseFloat(e.target.value))} className="mt-1 w-full accent-zinc-800" />
-    <div className="flex justify-between text-xs text-zinc-400">
-      <span>{min}</span>
-      <span>{max}</span>
-    </div>
-  </div>
-)
 
 export default AdminPage

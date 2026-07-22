@@ -47,11 +47,12 @@ const STATUS_MAP: Record<string, StatusMeta> = {
   partial_rejected: { label: 'Parcial rechazado', variant: 'danger' },
   with_issue: { label: 'Con incidencia', variant: 'danger' },
 
-  // Inventory item status
+  // Inventory item status (computed via resolveStockState, see lib/rules/inventory.ts)
   available: { label: 'Disponible', variant: 'success' },
   reserved: { label: 'Reservado', variant: 'info' },
   expired: { label: 'Vencido', variant: 'danger' },
   damaged: { label: 'Dañado', variant: 'danger' },
+  quarantine: { label: 'Cuarentena', variant: 'progress' },
 
   // Integration status
   active: { label: 'Activo', variant: 'success' },

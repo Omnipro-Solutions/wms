@@ -75,6 +75,43 @@ export function applyAdjustment(item: StockLevels, countedOnHand: number): Stock
   return { ...item, onHandQuantity: countedOnHand }
 }
 
+// Days since the item first entered stock (InventoryItem.receivedDate). Used for
+// aging/low-rotation reporting — never for the FIFO/FEFO expiry gate (that's isExpired).
+export const agingDays = (item: { receivedDate?: string }, now: Date = new Date()): number => {
+  if (!item.receivedDate) return 0
+  const received = new Date(item.receivedDate)
+  return Math.max(0, Math.floor((now.getTime() - received.getTime()) / (1000 * 60 * 60 * 24)))
+}
+
+export const isLowRotation = (agingInDays: number, thresholdDays: number): boolean =>
+  agingInDays > thresholdDays
+
+export type StockStateCode =
+  | 'available'
+  | 'reserved'
+  | 'on_hold'
+  | 'quarantine'
+  | 'damaged'
+  | 'expired'
+  | 'in_transit'
+
+// Single source of truth for the "multiple stock states" the catalog asks for.
+// Most of these are computed on read rather than stored, so they can never drift
+// from the underlying quantities/dates (same principle as availableStock).
+export const resolveStockState = (
+  item: Pick<StockLevels, 'onHandQuantity' | 'reservedQuantity' | 'holdQuantity' | 'expirationDate'> & {
+    status: InventoryItem['status']
+  },
+  locationType?: string
+): StockStateCode => {
+  if (isExpired(item)) return 'expired'
+  if (item.status === 'damaged') return 'damaged'
+  if (item.status === 'on_hold') return locationType === 'quality_control' ? 'quarantine' : 'on_hold'
+  if (item.status === 'in_transit') return 'in_transit'
+  if (item.reservedQuantity > 0 && availableStock(item) === 0) return 'reserved'
+  return 'available'
+}
+
 export function selectByStrategy(
   items: Pick<InventoryItem, 'id' | 'onHandQuantity' | 'expirationDate' | 'status' | 'reservedQuantity' | 'holdQuantity'>[],
   strategy: 'fifo' | 'fefo' | 'lifo'

@@ -1,4 +1,5 @@
-import { availableStock, isNearExpiration } from '@/lib/rules/inventory'
+import { availableStock, isNearExpiration, agingDays, isLowRotation, resolveStockState } from '@/lib/rules/inventory'
+import type { StockStateCode } from '@/lib/rules/inventory'
 import {
   buildAffinityMatrix,
   classifyAbc,
@@ -557,6 +558,106 @@ export const selectAtp = (state: WmsState): AtpRecord[] => {
     const [productId, warehouseId] = key.split('|')
     return { productId, warehouseId, available }
   })
+}
+
+// ── Reservations with TTL — Estándar #1 ("Reservas con TTL y ATP en tiempo real") ─
+//
+// nowMs must be passed in by the caller (e.g. Date.now()) — keeps Date.now() out of
+// the selector so Zustand can compare results by reference without spurious re-renders.
+
+export interface ReservationRow {
+  itemId: string
+  productId: string
+  warehouseId: string
+  locationId: string
+  reservedQuantity: number
+  reservationExpiresAt?: string
+  isExpired: boolean
+  hoursRemaining: number | null
+}
+
+export const selectActiveReservations = (state: WmsState, nowMs = 0): ReservationRow[] =>
+  state.inventoryItems
+    .filter((i) => i.reservedQuantity > 0)
+    .map((i) => {
+      const expiresAtMs = i.reservationExpiresAt ? new Date(i.reservationExpiresAt).getTime() : null
+      return {
+        itemId: i.id,
+        productId: i.productId,
+        warehouseId: i.warehouseId,
+        locationId: i.locationId,
+        reservedQuantity: i.reservedQuantity,
+        reservationExpiresAt: i.reservationExpiresAt,
+        isExpired: expiresAtMs !== null && expiresAtMs < nowMs,
+        hoursRemaining: expiresAtMs === null ? null : Math.round(((expiresAtMs - nowMs) / 36e5) * 10) / 10,
+      }
+    })
+    .sort((a, b) => (a.hoursRemaining ?? Infinity) - (b.hoursRemaining ?? Infinity))
+
+// ── Aging / low-rotation report — Estándar #4 ("Antigüedad de inventario y alertas
+// por baja rotación") ────────────────────────────────────────────────────────────
+
+export interface AgingReportRow {
+  itemId: string
+  productId: string
+  warehouseId: string
+  locationId: string
+  lot?: string
+  serial?: string
+  onHandQuantity: number
+  available: number
+  abcClass: AbcClass
+  receivedDate?: string
+  agingInDays: number
+  isLowRotation: boolean
+}
+
+export const selectAgingReport = (state: WmsState): AgingReportRow[] => {
+  const abc = abcByProduct(state)
+  return state.inventoryItems
+    .filter((i) => i.onHandQuantity > 0)
+    .map((i) => {
+      const aging = agingDays(i)
+      return {
+        itemId: i.id,
+        productId: i.productId,
+        warehouseId: i.warehouseId,
+        locationId: i.locationId,
+        lot: i.lot,
+        serial: i.serial,
+        onHandQuantity: i.onHandQuantity,
+        available: availableStock(i),
+        abcClass: abc[i.productId] ?? 'C',
+        receivedDate: i.receivedDate,
+        agingInDays: aging,
+        isLowRotation: isLowRotation(aging, state.settings.agingLowRotationDays),
+      }
+    })
+    .sort((a, b) => b.agingInDays - a.agingInDays)
+}
+
+export const selectLowRotationAlerts = (state: WmsState): AgingReportRow[] =>
+  selectAgingReport(state).filter((r) => r.isLowRotation)
+
+// ── Stock-state breakdown — Base #2 ("Múltiples estados de stock") ──────────────
+// Counts positions (not units) per computed StockStateCode. Zero-onHand rows excluded.
+
+export const selectStockStateCounts = (state: WmsState): Record<StockStateCode, number> => {
+  const counts: Record<StockStateCode, number> = {
+    available: 0,
+    reserved: 0,
+    on_hold: 0,
+    quarantine: 0,
+    damaged: 0,
+    expired: 0,
+    in_transit: 0,
+  }
+  for (const item of state.inventoryItems) {
+    if (item.onHandQuantity <= 0) continue
+    const loc = state.locations.find((l) => l.id === item.locationId)
+    counts[resolveStockState(item, loc?.type)] += 1
+  }
+  return counts
 }
 
 // ── SLA breach detection — Sprint 7 #97/98 ───────────────────────────────────

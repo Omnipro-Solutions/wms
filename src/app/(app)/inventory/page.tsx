@@ -1,25 +1,28 @@
 'use client'
 
 import { useMemo, useState } from 'react'
+import { useSearchParams } from 'next/navigation'
 import {
   Boxes,
   CalendarClock,
-  CheckCircle2,
   ClipboardCheck,
   PackageSearch,
   Search,
   Snowflake,
   TriangleAlert,
   Warehouse,
-  XCircle,
 } from 'lucide-react'
 
 import { useWmsStore } from '@/store/wms-store'
-import { availableStock, abcByProduct, selectInventoryAccuracy } from '@/store/selectors'
+import { availableStock, abcByProduct, selectInventoryAccuracy, selectStockStateCounts } from '@/store/selectors'
+import { resolveStockState, type StockStateCode } from '@/lib/rules/inventory'
 import { useStoreHelpers } from '@/hooks/use-store-helpers'
+import { useCurrentOperator } from '@/hooks/use-current-operator'
 import { useDialogState } from '@/hooks/use-dialog-state'
 import { PageHeader } from '@/components/shared/page-header'
 import { KpiCard } from '@/components/shared/kpi-card'
+import { StatusBadge } from '@/components/shared/status-badge'
+import { SubNav, type SubNavItem } from '@/components/shared/sub-nav'
 import { DataTable } from '@/components/data-table'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -45,15 +48,31 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Badge } from '@/components/ui/badge'
 import { Field, FieldLabel, FieldDescription } from '@/components/ui/field'
 import { Separator } from '@/components/ui/separator'
-import { cn } from '@/lib/utils'
 import { InventoryDetailSheet } from './_components/inventory-detail-sheet'
+import { ReservationsAtpPanel } from './_components/reservations-atp-panel'
+import { AgingReportPanel } from './_components/aging-report-panel'
 import { buildInventoryColumns, daysUntilExpiry, type InventoryRow } from './columns'
 
-type ActionType = 'hold' | 'release' | 'adjust' | 'relocate'
+type ActionType = 'hold' | 'release' | 'adjust' | 'relocate' | 'damage'
 type BulkActionType = 'hold_lot' | 'hold_location'
+
+const INVENTORY_TABS: SubNavItem[] = [
+  { value: 'stock', label: 'Stock' },
+  { value: 'reservations', label: 'Reservas & ATP' },
+  { value: 'aging', label: 'Antigüedad' },
+]
+
+const STOCK_STATE_LABELS: Record<StockStateCode, string> = {
+  available: 'Disponible',
+  reserved: 'Reservado',
+  on_hold: 'En espera',
+  quarantine: 'Cuarentena',
+  damaged: 'Dañado',
+  expired: 'Vencido',
+  in_transit: 'En tránsito',
+}
 
 interface ActionDialogData {
   type: ActionType
@@ -73,6 +92,7 @@ const DIALOG_TITLES: Record<ActionType, string> = {
   release: 'Liberar del hold',
   adjust: 'Ajuste de inventario',
   relocate: 'Reubicar inventario',
+  damage: 'Marcar como dañado',
 }
 
 const BULK_DIALOG_TITLES: Record<BulkActionType, string> = {
@@ -87,40 +107,25 @@ export default function InventoryPage() {
   const {
     holdInventory,
     releaseInventory,
-    adjustInventory,
     relocateInventory,
     holdByLot,
     holdByLocation,
+    markDamaged,
+    releaseExpiredReservations,
     locations,
-    products,
     unitsOfMeasure,
-    adjustmentRequests,
-    approveAdjustment,
-    rejectAdjustment,
     settings,
   } = state
   const { productName, productSku, locationCode } = useStoreHelpers()
+  const { operator } = useCurrentOperator()
+  const operatorName = operator?.name ?? 'Sistema'
+
+  const searchParams = useSearchParams()
+  const activeTab = searchParams.get('tab') ?? 'stock'
 
   const abc = abcByProduct(state)
   const accuracy = selectInventoryAccuracy(state)
-
-  const [rejectDialogOpen, setRejectDialogOpen] = useState(false)
-  const [rejectingId, setRejectingId] = useState('')
-  const [rejectNote, setRejectNote] = useState('')
-
-  const handleOpenReject = (id: string) => {
-    setRejectingId(id)
-    setRejectNote('')
-    setRejectDialogOpen(true)
-  }
-
-  const handleConfirmReject = () => {
-    if (!rejectNote.trim()) return
-    rejectAdjustment(rejectingId, 'Supervisor', rejectNote.trim())
-    setRejectDialogOpen(false)
-  }
-
-  const pendingAdj = adjustmentRequests.filter((r) => r.status === 'pending_approval')
+  const stockStateCounts = selectStockStateCounts(state)
 
   const [productFilter, setProductFilter] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
@@ -128,7 +133,7 @@ export default function InventoryPage() {
   const [lotFilter, setLotFilter] = useState('')
   const [qty, setQty] = useState('')
   const [relocateLocationId, setRelocateLocationId] = useState('')
-  const [holdReasonId, setHoldReasonId] = useState('')
+  const [reasonId, setReasonId] = useState('')
   const [bulkLotInput, setBulkLotInput] = useState('')
   const [bulkLocationId, setBulkLocationId] = useState('')
   const [selectedItem, setSelectedItem] = useState<InventoryRow | null>(null)
@@ -137,6 +142,7 @@ export default function InventoryPage() {
   const bulkDialog = useDialogState<BulkDialogData>()
 
   const holdReasons = state.reasons.filter((r) => r.context === 'hold' && r.active)
+  const adjustmentReasons = state.reasons.filter((r) => r.context === 'adjustment' && r.active)
 
   const rows = useMemo<InventoryRow[]>(
     () =>
@@ -144,6 +150,7 @@ export default function InventoryPage() {
         .filter((i) => i.onHandQuantity > 0)
         .map((i) => {
           const product = state.products.find((p) => p.id === i.productId)
+          const location = state.locations.find((l) => l.id === i.locationId)
           return {
             id: i.id,
             productId: i.productId,
@@ -162,15 +169,17 @@ export default function InventoryPage() {
             holdQuantity: i.holdQuantity,
             available: availableStock(i),
             status: i.status,
+            computedStatus: resolveStockState(i, location?.type),
             baseUomAbbr: unitsOfMeasure.find((u) => u.id === product?.baseUomId)?.abbreviation,
           }
         }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [state.inventoryItems]
+    [state.inventoryItems, state.locations]
   )
 
   const filteredRows = useMemo(() => {
-    let result = statusFilter === 'all' ? rows : rows.filter((r) => r.status === statusFilter)
+    let result =
+      statusFilter === 'all' ? rows : rows.filter((r) => r.computedStatus === statusFilter)
     if (expiryFilter === 'expired') {
       result = result.filter(
         (r) => r.expirationDate !== null && daysUntilExpiry(r.expirationDate) < 0
@@ -225,7 +234,7 @@ export default function InventoryPage() {
     })
     setQty(type === 'adjust' ? String(item.onHandQuantity) : '')
     setRelocateLocationId('')
-    setHoldReasonId('')
+    setReasonId('')
   }
 
   const handleSubmit = () => {
@@ -248,14 +257,15 @@ export default function InventoryPage() {
           actionDialog.setError('Ingresa una cantidad válida.')
           return
         }
-        if (type === 'hold') holdInventory(itemId, n, 'Operador', holdReasonId || undefined)
+        if (type === 'hold') holdInventory(itemId, n, 'Operador', reasonId || undefined)
         else if (type === 'release') releaseInventory(itemId, n, 'Operador')
-        else state.requestAdjustment(itemId, n, 'Operador')
+        else if (type === 'damage') markDamaged(itemId, n, operatorName, reasonId || undefined)
+        else state.requestAdjustment(itemId, n, 'Operador', reasonId || undefined)
       }
       actionDialog.close()
       setQty('')
       setRelocateLocationId('')
-      setHoldReasonId('')
+      setReasonId('')
     } catch (e: unknown) {
       actionDialog.setError(e instanceof Error ? e.message : 'Error en la operación')
     }
@@ -266,7 +276,7 @@ export default function InventoryPage() {
     bulkDialog.open({ type })
     setBulkLotInput('')
     setBulkLocationId('')
-    setHoldReasonId('')
+    setReasonId('')
   }
 
   const handleBulkSubmit = () => {
@@ -279,18 +289,18 @@ export default function InventoryPage() {
           return
         }
         const warehouseId = state.warehouses[0]?.id ?? 'wh-bog'
-        holdByLot(bulkLotInput.trim(), warehouseId, 'Operador', holdReasonId || undefined)
+        holdByLot(bulkLotInput.trim(), warehouseId, 'Operador', reasonId || undefined)
       } else {
         if (!bulkLocationId) {
           bulkDialog.setError('Selecciona una ubicación.')
           return
         }
-        holdByLocation(bulkLocationId, 'Operador', holdReasonId || undefined)
+        holdByLocation(bulkLocationId, 'Operador', reasonId || undefined)
       }
       bulkDialog.close()
       setBulkLotInput('')
       setBulkLocationId('')
-      setHoldReasonId('')
+      setReasonId('')
     } catch (e: unknown) {
       bulkDialog.setError(e instanceof Error ? e.message : 'Error en la operación')
     }
@@ -334,16 +344,23 @@ export default function InventoryPage() {
           className="h-8 w-44 pl-7 text-xs"
         />
       </div>
+      <Input
+        value={lotFilter}
+        onChange={(e) => setLotFilter(e.target.value)}
+        placeholder="Lote o serial..."
+        className="h-8 w-36 font-mono text-xs"
+      />
       <Select value={statusFilter} onValueChange={setStatusFilter}>
         <SelectTrigger className="h-8 w-40">
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
           <SelectItem value="all">Todos los estados</SelectItem>
-          <SelectItem value="available">Disponible</SelectItem>
-          <SelectItem value="on_hold">En espera</SelectItem>
-          <SelectItem value="reserved">Reservado</SelectItem>
-          <SelectItem value="in_transit">En tránsito</SelectItem>
+          {(Object.keys(STOCK_STATE_LABELS) as StockStateCode[]).map((code) => (
+            <SelectItem key={code} value={code}>
+              {STOCK_STATE_LABELS[code]}
+            </SelectItem>
+          ))}
         </SelectContent>
       </Select>
       <Select value={expiryFilter} onValueChange={setExpiryFilter}>
@@ -381,6 +398,10 @@ export default function InventoryPage() {
         description="Stock en tiempo real. Fuente única de verdad calculada desde el store central."
       />
 
+      <SubNav items={INVENTORY_TABS} defaultValue="stock" />
+
+      {activeTab === 'stock' && (
+      <>
       {/* ── Freeze banner ────────────────────────────────────────────────── */}
       {settings.inventoryFreezeActive && (
         <div className="flex items-center gap-3 rounded-lg border border-blue-300 bg-blue-50 px-4 py-3">
@@ -431,64 +452,22 @@ export default function InventoryPage() {
         />
       </div>
 
-      {/* ── Pending adjustments panel ────────────────────────────────────── */}
-      {adjustmentRequests.length > 0 && (
-        <Card>
-          <CardHeader className="pb-2">
-            <div className="flex items-center justify-between">
-              <CardTitle className="flex items-center gap-2 text-sm">
-                <ClipboardCheck className="size-4" />
-                Solicitudes de ajuste de inventario
-                {pendingAdj.length > 0 && (
-                  <Badge variant="outline" className="border-amber-200 bg-amber-50 text-amber-700">
-                    {pendingAdj.length} pendiente{pendingAdj.length !== 1 ? 's' : ''}
-                  </Badge>
-                )}
-              </CardTitle>
+      {/* ── Stock state breakdown (Base — múltiples estados de stock) ──────── */}
+      <div className="flex flex-wrap gap-2">
+        {(Object.keys(STOCK_STATE_LABELS) as StockStateCode[])
+          .filter((code) => stockStateCounts[code] > 0)
+          .map((code) => (
+            <div
+              key={code}
+              className="flex items-center gap-1.5 rounded-full border bg-muted/30 px-3 py-1 text-xs"
+            >
+              <StatusBadge status={code} />
+              <span className="text-muted-foreground">·</span>
+              <span className="font-semibold tabular-nums">{stockStateCounts[code]}</span>
+              <span className="text-muted-foreground">posición{stockStateCounts[code] !== 1 ? 'es' : ''}</span>
             </div>
-            <CardDescription>
-              Ajustes con delta &gt; {settings.adjustmentApprovalThreshold} uds que requieren aprobación de supervisor.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="p-0">
-            <div className="divide-y">
-              {adjustmentRequests.map((req) => {
-                const product = products.find((p) => p.id === req.productId)
-                return (
-                  <div key={req.id} className="flex flex-wrap items-center gap-4 px-4 py-3 text-sm">
-                    <div className="flex-1 min-w-40">
-                      <p className="font-medium truncate">{product?.name ?? req.productId}</p>
-                      <p className="text-xs text-muted-foreground">{req.operatorName} · {req.requestedAt.slice(0, 10)}</p>
-                    </div>
-                    <div className="flex items-center gap-4 tabular-nums text-xs text-muted-foreground">
-                      <span>{req.currentQty} → {req.countedQty}</span>
-                      <span className={cn('font-semibold text-sm', req.delta > 0 ? 'text-emerald-600' : 'text-red-600')}>
-                        {req.delta > 0 ? '+' : ''}{req.delta}
-                      </span>
-                    </div>
-                    <Badge
-                      variant="outline"
-                      className={cn('text-xs shrink-0', req.status === 'pending_approval' ? 'border-amber-200 bg-amber-50 text-amber-700' : req.status === 'approved' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-zinc-200 bg-zinc-50 text-zinc-500')}
-                    >
-                      {req.status === 'pending_approval' ? 'Pendiente' : req.status === 'approved' ? 'Aprobado' : 'Rechazado'}
-                    </Badge>
-                    {req.status === 'pending_approval' && (
-                      <div className="flex gap-1 shrink-0">
-                        <Button variant="ghost" size="sm" className="h-7 px-2 text-emerald-600 hover:text-emerald-700" onClick={() => approveAdjustment(req.id, 'Supervisor')}>
-                          <CheckCircle2 className="size-4" />
-                        </Button>
-                        <Button variant="ghost" size="sm" className="h-7 px-2 text-red-500 hover:text-red-600" onClick={() => handleOpenReject(req.id)}>
-                          <XCircle className="size-4" />
-                        </Button>
-                      </div>
-                    )}
-                  </div>
-                )
-              })}
-            </div>
-          </CardContent>
-        </Card>
-      )}
+          ))}
+      </div>
 
       <Separator />
 
@@ -530,6 +509,23 @@ export default function InventoryPage() {
           />
         </CardContent>
       </Card>
+      </>
+      )}
+
+      {activeTab === 'reservations' && (
+        <ReservationsAtpPanel
+          operatorName={operatorName}
+          releaseExpiredReservations={releaseExpiredReservations}
+        />
+      )}
+
+      {activeTab === 'aging' && (
+        <AgingReportPanel
+          inventoryRows={rows}
+          onRelocate={(row) => openActionDialog('relocate', row)}
+          onOpenDetail={(row) => setSelectedItem(row)}
+        />
+      )}
 
       {/* ── Item action dialog ───────────────────────────────────────────── */}
       <Dialog open={!!actionDialog.data} onOpenChange={(o) => { if (!o) actionDialog.close() }}>
@@ -594,15 +590,17 @@ export default function InventoryPage() {
                       onChange={(e) => setQty(e.target.value)}
                     />
                   </Field>
-                  {actionDialog.data.type === 'hold' && (
+                  {(actionDialog.data.type === 'hold' ||
+                    actionDialog.data.type === 'damage' ||
+                    actionDialog.data.type === 'adjust') && (
                     <Field className="w-full">
-                      <FieldLabel htmlFor="inv-hold-reason">Motivo de hold</FieldLabel>
-                      <Select value={holdReasonId} onValueChange={setHoldReasonId}>
+                      <FieldLabel htmlFor="inv-hold-reason">Motivo</FieldLabel>
+                      <Select value={reasonId} onValueChange={setReasonId}>
                         <SelectTrigger id="inv-hold-reason">
                           <SelectValue placeholder="Seleccionar motivo (opcional)..." />
                         </SelectTrigger>
                         <SelectContent>
-                          {holdReasons.map((r) => (
+                          {(actionDialog.data.type === 'adjust' ? adjustmentReasons : holdReasons).map((r) => (
                             <SelectItem key={r.id} value={r.id}>
                               {r.label}
                             </SelectItem>
@@ -680,7 +678,7 @@ export default function InventoryPage() {
 
               <Field className="w-full">
                 <FieldLabel htmlFor="bulk-reason">Motivo de hold</FieldLabel>
-                <Select value={holdReasonId} onValueChange={setHoldReasonId}>
+                <Select value={reasonId} onValueChange={setReasonId}>
                   <SelectTrigger id="bulk-reason">
                     <SelectValue placeholder="Seleccionar motivo (opcional)..." />
                   </SelectTrigger>
@@ -705,30 +703,6 @@ export default function InventoryPage() {
           <DialogFooter>
             <Button variant="outline" onClick={bulkDialog.close}>Cancelar</Button>
             <Button onClick={handleBulkSubmit}>Confirmar hold masivo</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* ── Reject adjustment dialog ────────────────────────────────────── */}
-      <Dialog open={rejectDialogOpen} onOpenChange={setRejectDialogOpen}>
-        <DialogContent className="sm:max-w-sm">
-          <DialogHeader>
-            <DialogTitle>Rechazar ajuste</DialogTitle>
-            <DialogDescription>Indica el motivo del rechazo.</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-1 py-2">
-            <label htmlFor="inv-reject-note" className="text-sm font-medium">Motivo *</label>
-            <input
-              id="inv-reject-note"
-              className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-zinc-400"
-              placeholder="Ej: Diferencia fuera de rango aceptable…"
-              value={rejectNote}
-              onChange={(e) => setRejectNote(e.target.value)}
-            />
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setRejectDialogOpen(false)}>Cancelar</Button>
-            <Button variant="destructive" disabled={!rejectNote.trim()} onClick={handleConfirmReject}>Rechazar</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

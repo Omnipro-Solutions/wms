@@ -18,6 +18,7 @@ import { DataTableColumnHeader } from '@/components/data-table'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { formatNumber, formatDate } from '@/lib/formatters'
 import { cn } from '@/lib/utils'
+import type { StockStateCode } from '@/lib/rules/inventory'
 import type { AbcClass } from '@/types/wms'
 
 export interface InventoryRow {
@@ -38,6 +39,8 @@ export interface InventoryRow {
   holdQuantity: number
   available: number
   status: string
+  // Computed via resolveStockState — what's actually shown/filtered (see lib/rules/inventory.ts).
+  computedStatus: StockStateCode
   baseUomAbbr?: string
 }
 
@@ -267,7 +270,7 @@ const StockCell = ({ onHand, reserved, hold, available, uomAbbr }: StockCellProp
 }
 
 // ── Column definitions ────────────────────────────────────────────────────────
-type ActionType = 'hold' | 'release' | 'adjust' | 'relocate'
+type ActionType = 'hold' | 'release' | 'adjust' | 'relocate' | 'damage'
 type ActionHandler = (type: ActionType, row: InventoryRow) => void
 
 export const buildInventoryColumns = (onAction: ActionHandler): ColumnDef<InventoryRow>[] => [
@@ -340,11 +343,11 @@ export const buildInventoryColumns = (onAction: ActionHandler): ColumnDef<Invent
     ),
   },
   {
-    accessorKey: 'status',
+    accessorKey: 'computedStatus',
     header: ({ column }) => <DataTableColumnHeader column={column} title="Estado" />,
-    cell: ({ row }) => <StatusBadge status={row.getValue('status')} />,
+    cell: ({ row }) => <StatusBadge status={row.getValue('computedStatus')} />,
     filterFn: (row, _id, filterValue) =>
-      filterValue === 'all' || row.original.status === filterValue,
+      filterValue === 'all' || row.original.computedStatus === filterValue,
   },
   {
     id: 'actions',
@@ -375,9 +378,12 @@ export const buildInventoryColumns = (onAction: ActionHandler): ColumnDef<Invent
                 Liberar hold
               </DropdownMenuItem>
             )}
-            {(item.status !== 'on_hold' || item.holdQuantity > 0) && (
-              <DropdownMenuSeparator />
+            {item.status !== 'damaged' && (
+              <DropdownMenuItem onClick={() => onAction('damage', item)}>
+                Marcar como dañado
+              </DropdownMenuItem>
             )}
+            <DropdownMenuSeparator />
             <DropdownMenuItem onClick={() => onAction('relocate', item)}>
               Reubicar
             </DropdownMenuItem>

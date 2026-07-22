@@ -153,6 +153,8 @@ export interface WmsState {
   releaseInventory: (itemId: string, qty: number, operatorName: string) => void
   holdByLot: (lot: string, warehouseId: string, operatorName: string, reasonId?: string) => void
   holdByLocation: (locationId: string, operatorName: string, reasonId?: string) => void
+  markDamaged: (itemId: string, qty: number, operatorName: string, reasonId?: string) => void
+  releaseExpiredReservations: (operatorName: string) => number
   // Receiving
   confirmArrival: (asnId: string) => Asn
   receiveAsn: (asnId: string, receivedQty: number, operatorName: string, damagedQty?: number, serials?: string[], uomId?: string) => Asn
@@ -479,13 +481,19 @@ export const useWmsStore = create<WmsState>()(
 
     const items = [...state.inventoryItems]
     const movements: StockMovement[] = []
+    const reservationExpiresAt = new Date(
+      Date.now() + state.settings.reservationTtlHours * 60 * 60 * 1000
+    ).toISOString()
     for (const line of order.items) {
       const idx = items.findIndex(
         (i) => i.productId === line.productId && availableStock(i) >= line.requestedQuantity
       )
       if (idx === -1) throw new Error(`Stock insuficiente para reservar ${line.productId}`)
       const reserved = applyReserve(items[idx], line.requestedQuantity)
-      items[idx] = { ...items[idx], ...reserved }
+      // Simplification: TTL tracked per item (latest reservation wins), not per order —
+      // see releaseExpiredReservations. Fine for a single-item demo; a real ATP ledger
+      // would track TTL per reservation line.
+      items[idx] = { ...items[idx], ...reserved, reservationExpiresAt }
       movements.push(
         recordMovement({
           productId: line.productId,
@@ -560,8 +568,37 @@ export const useWmsStore = create<WmsState>()(
     })
   },
 
+  markDamaged: (itemId, qty, operatorName, reasonId) => {
+    const state = get()
+    if (state.settings.inventoryFreezeActive) throw new Error('Inventario en modo congelado. No se permiten bloqueos.')
+    const item = state.inventoryItems.find((i) => i.id === itemId)
+    if (!item) throw new Error('inventory item not found')
+    const held = applyHold(item, qty)
+    set({
+      inventoryItems: state.inventoryItems.map((i) =>
+        i.id === itemId
+          ? { ...i, ...held, status: 'damaged', holdReasonId: reasonId ?? 'rs-8' }
+          : i
+      ),
+      stockMovements: [
+        ...state.stockMovements,
+        recordMovement({
+          productId: item.productId,
+          warehouseId: item.warehouseId,
+          fromLocationId: item.locationId,
+          type: 'hold',
+          quantity: qty,
+          referenceType: 'manual',
+          referenceId: itemId,
+          operatorName,
+        }),
+      ],
+    })
+  },
+
   holdByLot: (lot, warehouseId, operatorName, reasonId) => {
     const state = get()
+    if (state.settings.inventoryFreezeActive) throw new Error('Inventario en modo congelado. No se permiten bloqueos.')
     const targetIds = new Set(
       state.inventoryItems
         .filter((i) => i.lot === lot && i.warehouseId === warehouseId && i.status !== 'on_hold')
@@ -598,6 +635,7 @@ export const useWmsStore = create<WmsState>()(
 
   holdByLocation: (locationId, operatorName, reasonId) => {
     const state = get()
+    if (state.settings.inventoryFreezeActive) throw new Error('Inventario en modo congelado. No se permiten bloqueos.')
     const targetIds = new Set(
       state.inventoryItems
         .filter((i) => i.locationId === locationId && i.status !== 'on_hold')
@@ -635,6 +673,7 @@ export const useWmsStore = create<WmsState>()(
 
   releaseInventory: (itemId, qty, operatorName) => {
     const state = get()
+    if (state.settings.inventoryFreezeActive) throw new Error('Inventario en modo congelado. No se permiten liberaciones.')
     const item = state.inventoryItems.find((i) => i.id === itemId)
     if (!item) throw new Error('inventory item not found')
     const released = applyRelease(item, qty)
@@ -645,7 +684,7 @@ export const useWmsStore = create<WmsState>()(
           ? {
               ...i,
               ...released,
-              status: released.holdQuantity > 0 ? 'on_hold' : 'available',
+              status: released.holdQuantity > 0 ? i.status : 'available',
               ...(isFullyReleased ? { holdReasonId: undefined } : {}),
             }
           : i
@@ -664,6 +703,40 @@ export const useWmsStore = create<WmsState>()(
         }),
       ],
     })
+  },
+
+  // TTL sweep: releases reservations that outlived settings.reservationTtlHours (Estándar —
+  // "Reservas con TTL"). Not freeze-guarded — it's a passive cleanup, not a new commitment.
+  releaseExpiredReservations: (operatorName) => {
+    const state = get()
+    const now = Date.now()
+    const expired = state.inventoryItems.filter(
+      (i) => i.reservedQuantity > 0 && i.reservationExpiresAt && new Date(i.reservationExpiresAt).getTime() < now
+    )
+    if (expired.length === 0) return 0
+
+    const movements: StockMovement[] = expired.map((item) =>
+      recordMovement({
+        productId: item.productId,
+        warehouseId: item.warehouseId,
+        fromLocationId: item.locationId,
+        type: 'release',
+        quantity: item.reservedQuantity,
+        lot: item.lot,
+        serial: item.serial,
+        referenceType: 'commerce_order',
+        referenceId: 'ttl-sweep',
+        operatorName,
+      })
+    )
+    const expiredIds = new Set(expired.map((i) => i.id))
+    set({
+      inventoryItems: state.inventoryItems.map((i) =>
+        expiredIds.has(i.id) ? { ...i, reservedQuantity: 0, reservationExpiresAt: undefined } : i
+      ),
+      stockMovements: [...state.stockMovements, ...movements],
+    })
+    return expired.length
   },
 
   confirmArrival: (asnId) => {
@@ -755,6 +828,7 @@ export const useWmsStore = create<WmsState>()(
               reservedQuantity: 0,
               holdQuantity: 0,
               status: asn.requiresQualityControl ? ('on_hold' as const) : ('available' as const),
+              receivedDate: new Date().toISOString(),
             },
           ]
           movements.push(
@@ -798,6 +872,7 @@ export const useWmsStore = create<WmsState>()(
               reservedQuantity: 0,
               holdQuantity: 0,
               status: asn.requiresQualityControl ? ('on_hold' as const) : ('available' as const),
+              receivedDate: new Date().toISOString(),
             },
           ]
         }
@@ -1145,6 +1220,7 @@ export const useWmsStore = create<WmsState>()(
 
   relocateInventory: (itemId, toLocationId, operatorName) => {
     const state = get()
+    if (state.settings.inventoryFreezeActive) throw new Error('Inventario en modo congelado. No se permiten reubicaciones.')
     const item = state.inventoryItems.find((i) => i.id === itemId)
     if (!item) throw new Error('inventory item not found')
     const qty = item.onHandQuantity
@@ -2804,6 +2880,7 @@ export const useWmsStore = create<WmsState>()(
 
   approveAdjustment: (requestId, reviewerName) => {
     const state = get()
+    if (state.settings.inventoryFreezeActive) throw new Error('Inventario en modo congelado. No se permiten ajustes.')
     const req = state.adjustmentRequests.find((r) => r.id === requestId)
     if (!req) throw new Error('adjustment request not found')
     if (req.status !== 'pending_approval') throw new Error('La solicitud ya fue procesada')

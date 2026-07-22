@@ -15,6 +15,7 @@ import {
   Settings2,
   ShoppingCart,
   ScanLine,
+  SlidersHorizontal,
   Tags,
   Truck,
   Undo2,
@@ -61,6 +62,7 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       // { label: 'Reportes', href: '/reports', icon: BarChart3 },
       { label: 'Integraciones', href: '/integrations', icon: Cable },
+      { label: 'Config. Inventario', href: '/inventory-settings', icon: SlidersHorizontal },
       { label: 'Administración', href: '/admin', icon: Settings2 },
     ],
   },
