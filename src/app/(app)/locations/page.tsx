@@ -5,31 +5,44 @@ import { type ColumnDef } from '@tanstack/react-table'
 import {
   AlertOctagon,
   CheckCircle2,
+  Grid3x3,
+  Layers,
   Lock,
   LockOpen,
   MapPin,
+  MoreHorizontal,
   Package,
+  Pencil,
+  Plus,
   Star,
+  Trash2,
   TriangleAlert,
-  Warehouse,
+  Warehouse as WarehouseIcon,
+  X,
 } from 'lucide-react'
 
 import { useWmsStore } from '@/store/wms-store'
 import { PageHeader } from '@/components/shared/page-header'
 import { KpiCard } from '@/components/shared/kpi-card'
-import { DataTable } from '@/components/data-table'
-import { DataTableColumnHeader } from '@/components/data-table'
+import { DataTable, DataTableColumnHeader } from '@/components/data-table'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogDescription,
 } from '@/components/ui/dialog'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import {
   Select,
   SelectContent,
@@ -37,29 +50,25 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { Separator } from '@/components/ui/separator'
 import { cn } from '@/lib/utils'
 import { formatNumber } from '@/lib/formatters'
+import {
+  isGoldenEligible,
+  locationHierarchyPath,
+  locationUtilizationPct,
+  LOCATION_TYPE_LABELS,
+} from '@/lib/rules/locations'
 import type { StorageLocation } from '@/types/wms'
+import { GenerateLayoutDialog } from './_components/generate-layout-dialog'
+import { LocationFormDialog } from './_components/location-form-dialog'
+import { WarehouseMap, type LocationRow } from './_components/warehouse-map'
 
-// ── Types ─────────────────────────────────────────────────────────────────────
-
-interface LocationRow extends StorageLocation {
-  onHandUnits: number
-  skuCount: number
-  utilizationPct: number
-}
-
-// ── Constants ─────────────────────────────────────────────────────────────────
-
-const TYPE_LABELS: Record<StorageLocation['type'], string> = {
-  pick: 'Pick',
-  reserve: 'Reserva',
-  quality_control: 'Control de calidad',
-  staging: 'Staging',
-  returns: 'Devoluciones',
-}
+// Virtual slots (en tránsito / recibo de traslado) are pipeline placeholders,
+// not physical positions of the layout — kept out of this structure view.
+const VIRTUAL_ZONES = new Set(['TR', 'RB'])
 
 const TYPE_COLORS: Record<StorageLocation['type'], string> = {
   pick: 'border-blue-200 bg-blue-50 text-blue-700',
@@ -69,7 +78,7 @@ const TYPE_COLORS: Record<StorageLocation['type'], string> = {
   returns: 'border-rose-200 bg-rose-50 text-rose-700',
 }
 
-// ── Sub-components ────────────────────────────────────────────────────────────
+// ── Cell sub-components ─────────────────────────────────────────────────────────
 
 const LocationCodeCell = ({ loc }: { loc: LocationRow }) => (
   <div className="flex items-center gap-2">
@@ -93,14 +102,14 @@ const LocationCodeCell = ({ loc }: { loc: LocationRow }) => (
     </div>
     <div className="min-w-0">
       <p className="font-mono text-sm font-semibold leading-tight">{loc.code}</p>
-      <p className="text-muted-foreground text-[11px]">Zona {loc.zone}</p>
+      <p className="text-muted-foreground text-[11px]">{locationHierarchyPath(loc)}</p>
     </div>
   </div>
 )
 
 const TypeBadge = ({ type }: { type: StorageLocation['type'] }) => (
   <Badge variant="outline" className={cn('text-xs', TYPE_COLORS[type])}>
-    {TYPE_LABELS[type]}
+    {LOCATION_TYPE_LABELS[type]}
   </Badge>
 )
 
@@ -134,8 +143,7 @@ const UtilizationCell = ({ loc }: { loc: LocationRow }) => {
     return <span className="text-muted-foreground text-xs">—</span>
   }
   const pct = Math.min(100, loc.utilizationPct)
-  const barColor =
-    pct >= 90 ? 'bg-destructive' : pct >= 70 ? 'bg-amber-400' : 'bg-emerald-400'
+  const barColor = pct >= 90 ? 'bg-destructive' : pct >= 70 ? 'bg-amber-400' : 'bg-emerald-400'
 
   return (
     <div className="flex min-w-28 flex-col gap-1">
@@ -152,8 +160,7 @@ const UtilizationCell = ({ loc }: { loc: LocationRow }) => {
 }
 
 const AccessibilityCell = ({ score }: { score: number }) => {
-  const color =
-    score >= 80 ? 'text-emerald-600' : score >= 50 ? 'text-amber-600' : 'text-zinc-400'
+  const color = score >= 80 ? 'text-emerald-600' : score >= 50 ? 'text-amber-600' : 'text-zinc-400'
   return (
     <Tooltip>
       <TooltipTrigger asChild>
@@ -178,11 +185,17 @@ const AccessibilityCell = ({ score }: { score: number }) => {
   )
 }
 
-// ── Column definitions ────────────────────────────────────────────────────────
+// ── Column definitions ──────────────────────────────────────────────────────────
 
-type BlockHandler = (loc: LocationRow, action: 'block' | 'unblock') => void
+interface ColumnHandlers {
+  onEdit: (loc: LocationRow) => void
+  onBlock: (loc: LocationRow) => void
+  onUnblock: (loc: LocationRow) => void
+  onDelete: (loc: LocationRow) => void
+  rackTypeName: (id?: string) => string
+}
 
-const buildColumns = (onAction: BlockHandler): ColumnDef<LocationRow>[] => [
+const buildColumns = (h: ColumnHandlers): ColumnDef<LocationRow>[] => [
   {
     id: 'code',
     accessorKey: 'code',
@@ -193,6 +206,14 @@ const buildColumns = (onAction: BlockHandler): ColumnDef<LocationRow>[] => [
     accessorKey: 'type',
     header: ({ column }) => <DataTableColumnHeader column={column} title="Tipo" />,
     cell: ({ row }) => <TypeBadge type={row.getValue('type')} />,
+  },
+  {
+    id: 'rackType',
+    header: 'Estiba',
+    cell: ({ row }) => (
+      <span className="text-muted-foreground text-xs">{h.rackTypeName(row.original.rackTypeId)}</span>
+    ),
+    enableSorting: false,
   },
   {
     id: 'status',
@@ -228,7 +249,7 @@ const buildColumns = (onAction: BlockHandler): ColumnDef<LocationRow>[] => [
       return (
         <div className="text-muted-foreground text-[11px] tabular-nums">
           <p>{loc.maxWeightKg} kg</p>
-          <p>{loc.maxVolumeM3 > 0 ? `${loc.maxVolumeM3} m³` : '—'}</p>
+          <p>{loc.volumeCapacityM3 > 0 ? `${loc.volumeCapacityM3} m³` : '—'}</p>
         </div>
       )
     },
@@ -241,35 +262,40 @@ const buildColumns = (onAction: BlockHandler): ColumnDef<LocationRow>[] => [
     cell: ({ row }) => {
       const loc = row.original
       return (
-        <div className="flex gap-1">
-          {loc.isBlocked ? (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
             <Button
               size="sm"
-              variant="outline"
-              className="text-emerald-700 border-emerald-300 hover:bg-emerald-50"
-              onClick={(e) => {
-                e.stopPropagation()
-                onAction(loc, 'unblock')
-              }}
+              variant="ghost"
+              className="size-8 p-0"
+              onClick={(e) => e.stopPropagation()}
             >
-              <LockOpen className="mr-1 size-3" />
-              Desbloquear
+              <MoreHorizontal className="size-4" />
             </Button>
-          ) : (
-            <Button
-              size="sm"
-              variant="outline"
-              className="text-destructive border-destructive/30 hover:bg-destructive/5"
-              onClick={(e) => {
-                e.stopPropagation()
-                onAction(loc, 'block')
-              }}
-            >
-              <Lock className="mr-1 size-3" />
-              Bloquear
-            </Button>
-          )}
-        </div>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => h.onEdit(loc)}>
+              <Pencil className="mr-2 size-3.5" />
+              Editar
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            {loc.isBlocked ? (
+              <DropdownMenuItem className="text-emerald-700 focus:text-emerald-700" onClick={() => h.onUnblock(loc)}>
+                <LockOpen className="mr-2 size-3.5" />
+                Desbloquear
+              </DropdownMenuItem>
+            ) : (
+              <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={() => h.onBlock(loc)}>
+                <Lock className="mr-2 size-3.5" />
+                Bloquear
+              </DropdownMenuItem>
+            )}
+            <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={() => h.onDelete(loc)}>
+              <Trash2 className="mr-2 size-3.5" />
+              Eliminar
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       )
     },
   },
@@ -277,69 +303,140 @@ const buildColumns = (onAction: BlockHandler): ColumnDef<LocationRow>[] => [
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
-interface ConfirmDialog {
-  loc: LocationRow
-  action: 'block' | 'unblock'
-}
-
 export default function LocationsPage() {
-  const { locations, inventoryItems, blockLocation, unblockLocation } = useWmsStore()
+  const {
+    warehouses,
+    locations,
+    rackTypes,
+    reasons,
+    inventoryItems,
+    settings,
+    blockLocation,
+    unblockLocation,
+    deleteLocation,
+  } = useWmsStore()
 
+  const firstWarehouseWithLocations =
+    warehouses.find((w) => locations.some((l) => l.warehouseId === w.id && !VIRTUAL_ZONES.has(l.zone)))?.id ??
+    warehouses[0]?.id ??
+    ''
+
+  const [warehouseId, setWarehouseId] = useState(firstWarehouseWithLocations)
+  const [tab, setTab] = useState('map')
+  const [selectedZone, setSelectedZone] = useState<string | null>(null)
   const [typeFilter, setTypeFilter] = useState('all')
   const [statusFilter, setStatusFilter] = useState('all')
-  const [confirmDialog, setConfirmDialog] = useState<ConfirmDialog | null>(null)
+
+  const [formDialog, setFormDialog] = useState<{ open: boolean; location: StorageLocation | null }>({
+    open: false,
+    location: null,
+  })
+  const [generateOpen, setGenerateOpen] = useState(false)
+  const [blockLoc, setBlockLoc] = useState<LocationRow | null>(null)
+  const [blockReasonId, setBlockReasonId] = useState('')
+  const [blockError, setBlockError] = useState('')
+  const [deleteLoc, setDeleteLoc] = useState<LocationRow | null>(null)
+  const [deleteError, setDeleteError] = useState('')
+
+  const holdReasons = useMemo(() => reasons.filter((r) => r.context === 'hold' && r.active), [reasons])
+  const rackTypeName = (id?: string) => (id ? rackTypes.find((r) => r.id === id)?.name ?? '—' : '—')
 
   const rows = useMemo<LocationRow[]>(() => {
-    return locations.map((loc) => {
-      const items = inventoryItems.filter((i) => i.locationId === loc.id && i.onHandQuantity > 0)
-      const onHandUnits = items.reduce((s, i) => s + i.onHandQuantity, 0)
-      const skuCount = new Set(items.map((i) => i.productId)).size
-      const volumeUsed = items.reduce((s, i) => {
-        return s + i.onHandQuantity * 0.002
-      }, 0)
-      const utilizationPct =
-        loc.volumeCapacityM3 > 0
-          ? Math.round((volumeUsed / loc.volumeCapacityM3) * 100)
-          : 0
-      return { ...loc, onHandUnits, skuCount, utilizationPct }
-    })
-  }, [locations, inventoryItems])
+    return locations
+      .filter((loc) => loc.warehouseId === warehouseId && !VIRTUAL_ZONES.has(loc.zone))
+      .map((loc) => {
+        const items = inventoryItems.filter((i) => i.locationId === loc.id && i.onHandQuantity > 0)
+        const onHandUnits = items.reduce((s, i) => s + i.onHandQuantity, 0)
+        const skuCount = new Set(items.map((i) => i.productId)).size
+        const utilizationPct = locationUtilizationPct(onHandUnits, loc.volumeCapacityM3)
+        return { ...loc, onHandUnits, skuCount, utilizationPct }
+      })
+  }, [locations, inventoryItems, warehouseId])
 
   const filteredRows = useMemo(() => {
-    let result = typeFilter === 'all' ? rows : rows.filter((r) => r.type === typeFilter)
+    let result = selectedZone ? rows.filter((r) => r.zone === selectedZone) : rows
+    if (typeFilter !== 'all') result = result.filter((r) => r.type === typeFilter)
     if (statusFilter === 'occupied') result = result.filter((r) => r.onHandUnits > 0 && !r.isBlocked)
     else if (statusFilter === 'available') result = result.filter((r) => r.onHandUnits === 0 && !r.isBlocked)
     else if (statusFilter === 'blocked') result = result.filter((r) => r.isBlocked)
+    else if (statusFilter === 'golden') result = result.filter((r) => r.golden)
     return result
-  }, [rows, typeFilter, statusFilter])
+  }, [rows, selectedZone, typeFilter, statusFilter])
 
   // ── KPIs ─────────────────────────────────────────────────────────────────
   const totalLocations = rows.length
   const occupiedCount = rows.filter((r) => r.onHandUnits > 0 && !r.isBlocked).length
   const availableCount = rows.filter((r) => r.onHandUnits === 0 && !r.isBlocked).length
   const blockedCount = rows.filter((r) => r.isBlocked).length
+  const goldenMismatchCount = rows.filter(
+    (r) => r.type === 'pick' && isGoldenEligible(r, settings) !== r.golden
+  ).length
 
   // ── Handlers ─────────────────────────────────────────────────────────────
-  const handleAction = (loc: LocationRow, action: 'block' | 'unblock') => {
-    setConfirmDialog({ loc, action })
+  const handleNew = () => setFormDialog({ open: true, location: null })
+  const handleEdit = (loc: LocationRow) => setFormDialog({ open: true, location: loc })
+  const handleOpenBlock = (loc: LocationRow) => {
+    setBlockLoc(loc)
+    setBlockReasonId('')
+    setBlockError('')
   }
-
-  const handleConfirm = () => {
-    if (!confirmDialog) return
-    if (confirmDialog.action === 'block') {
-      blockLocation(confirmDialog.loc.id)
-    } else {
-      unblockLocation(confirmDialog.loc.id)
+  const handleUnblock = (loc: LocationRow) => unblockLocation(loc.id)
+  const handleConfirmBlock = () => {
+    if (!blockLoc) return
+    try {
+      blockLocation(blockLoc.id, blockReasonId || undefined)
+      setBlockLoc(null)
+    } catch (e: unknown) {
+      setBlockError(e instanceof Error ? e.message : 'No se pudo bloquear la ubicación')
     }
-    setConfirmDialog(null)
+  }
+  const handleOpenDelete = (loc: LocationRow) => {
+    setDeleteLoc(loc)
+    setDeleteError('')
+  }
+  const handleConfirmDelete = () => {
+    if (!deleteLoc) return
+    try {
+      deleteLocation(deleteLoc.id)
+      setDeleteLoc(null)
+    } catch (e: unknown) {
+      setDeleteError(e instanceof Error ? e.message : 'No se pudo eliminar la ubicación')
+    }
   }
 
-  const columns = useMemo(() => buildColumns(handleAction), [])
+  const columns = useMemo(
+    () =>
+      buildColumns({
+        onEdit: handleEdit,
+        onBlock: handleOpenBlock,
+        onUnblock: handleUnblock,
+        onDelete: handleOpenDelete,
+        rackTypeName,
+      }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [rackTypes]
+  )
 
-  const hasActiveFilters = typeFilter !== 'all' || statusFilter !== 'all'
+  const hasActiveFilters = typeFilter !== 'all' || statusFilter !== 'all' || selectedZone !== null
 
   const filtersNode = (
     <div className="flex flex-wrap items-center gap-2">
+      {selectedZone && (
+        <Badge
+          variant="outline"
+          className="h-8 gap-1.5 border-zinc-300 pl-2.5 pr-1.5 text-xs font-medium"
+        >
+          Zona {selectedZone}
+          <button
+            type="button"
+            onClick={() => setSelectedZone(null)}
+            className="hover:bg-muted flex size-4 items-center justify-center rounded-full"
+            aria-label="Quitar filtro de zona"
+          >
+            <X className="size-3" />
+          </button>
+        </Badge>
+      )}
       <Select value={typeFilter} onValueChange={setTypeFilter}>
         <SelectTrigger className="h-8 w-48">
           <SelectValue />
@@ -362,6 +459,7 @@ export default function LocationsPage() {
           <SelectItem value="available">Disponible</SelectItem>
           <SelectItem value="occupied">Ocupada</SelectItem>
           <SelectItem value="blocked">Bloqueada</SelectItem>
+          <SelectItem value="golden">Golden</SelectItem>
         </SelectContent>
       </Select>
       {hasActiveFilters && (
@@ -372,6 +470,7 @@ export default function LocationsPage() {
           onClick={() => {
             setTypeFilter('all')
             setStatusFilter('all')
+            setSelectedZone(null)
           }}
         >
           Limpiar
@@ -383,25 +482,43 @@ export default function LocationsPage() {
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
-        title="Ubicaciones"
-        description="Vista de todas las posiciones del almacén — ocupación, accesibilidad y estado operativo."
+        title="Ubicaciones y layout"
+        description="Modelo digital del almacén — jerarquía zona → pasillo → rack → nivel → posición, con ocupación, accesibilidad y estado operativo."
+        actions={
+          <div className="flex items-center gap-2">
+            <Select value={warehouseId} onValueChange={setWarehouseId}>
+              <SelectTrigger className="h-9 w-56">
+                <WarehouseIcon className="text-muted-foreground size-4" />
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {warehouses.map((w) => (
+                  <SelectItem key={w.id} value={w.id}>
+                    {w.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button size="sm" variant="outline" onClick={() => setGenerateOpen(true)}>
+              <Grid3x3 className="mr-1.5 size-3.5" />
+              Generar layout
+            </Button>
+            <Button size="sm" onClick={handleNew}>
+              <Plus className="mr-1.5 size-3.5" />
+              Nueva ubicación
+            </Button>
+          </div>
+        }
       />
 
       {/* ── KPI row ──────────────────────────────────────────────────────── */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
         <KpiCard
-          icon={Warehouse}
+          icon={WarehouseIcon}
           value={totalLocations}
-          label="Total ubicaciones"
-          sublabel="Posiciones configuradas"
+          label="Ubicaciones"
+          sublabel={`${occupiedCount} ocupadas`}
           tone="neutral"
-        />
-        <KpiCard
-          icon={Package}
-          value={occupiedCount}
-          label="Ocupadas"
-          sublabel={`${availableCount} disponibles`}
-          tone="blue"
         />
         <KpiCard
           icon={CheckCircle2}
@@ -409,6 +526,13 @@ export default function LocationsPage() {
           label="Disponibles"
           sublabel="Sin stock actual"
           tone="green"
+        />
+        <KpiCard
+          icon={Star}
+          value={goldenMismatchCount}
+          label="Golden desalineadas"
+          sublabel={goldenMismatchCount > 0 ? 'Reclasificar en Config.' : 'Alineado con umbral'}
+          tone={goldenMismatchCount > 0 ? 'amber' : 'green'}
         />
         <KpiCard
           icon={Lock}
@@ -419,106 +543,176 @@ export default function LocationsPage() {
         />
       </div>
 
-      {/* ── Locations table ───────────────────────────────────────────────── */}
-      <Card>
-        <CardHeader className="pb-2">
-          <div className="flex items-center gap-2">
-            <MapPin className="text-muted-foreground size-4" />
-            <CardTitle className="text-base">Mapa de ubicaciones</CardTitle>
-          </div>
-          <CardDescription>
-            Cada fila es una posición física del almacén. Zona · Tipo · Estado · Ocupación.
-          </CardDescription>
-        </CardHeader>
-
-        {/* ── Zone summary legend ──────────────────────────────────────────── */}
-        <div className="border-b px-6 pb-3">
-          <ZoneSummary rows={rows} />
+      {/* ── Map (primary) / list (secondary) ─────────────────────────────── */}
+      <Tabs value={tab} onValueChange={setTab} className="gap-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <TabsList>
+            <TabsTrigger value="map">
+              <MapPin className="mr-1.5 size-3.5" />
+              Mapa
+            </TabsTrigger>
+            <TabsTrigger value="list">
+              <Layers className="mr-1.5 size-3.5" />
+              Listado
+            </TabsTrigger>
+          </TabsList>
+          <p className="text-muted-foreground hidden text-xs sm:block">
+            Clic en una posición para editarla · clic en una zona para ver su uso
+          </p>
         </div>
 
-        <CardContent className="pt-3">
-          <DataTable
-            columns={columns}
-            data={filteredRows}
-            searchColumn="code"
-            searchPlaceholder="Buscar ubicación..."
-            filters={filtersNode}
-            emptyMessage="No hay ubicaciones con los filtros seleccionados."
+        <TabsContent value="map">
+          <WarehouseMap
+            rows={rows}
+            settings={settings}
+            selectedZone={selectedZone}
+            onSelectZone={setSelectedZone}
+            onViewList={(zone) => {
+              setSelectedZone(zone)
+              setTab('list')
+            }}
+            onSelect={handleEdit}
           />
-        </CardContent>
-      </Card>
+        </TabsContent>
 
-      {/* ── Confirm block/unblock dialog ─────────────────────────────────── */}
-      <Dialog
-        open={!!confirmDialog}
-        onOpenChange={(open) => {
-          if (!open) setConfirmDialog(null)
-        }}
-      >
+        <TabsContent value="list">
+          <Card>
+            <CardHeader className="pb-2">
+              <div className="flex items-center gap-2">
+                <MapPin className="text-muted-foreground size-4" />
+                <CardTitle className="text-base">Listado de ubicaciones</CardTitle>
+              </div>
+              <CardDescription>
+                Búsqueda, orden y atributos completos (estiba, capacidad, accesibilidad) de cada posición.
+              </CardDescription>
+            </CardHeader>
+            <div className="border-b px-6 pb-3">
+              <ZoneSummary rows={rows} />
+            </div>
+            <CardContent className="pt-3">
+              <DataTable
+                columns={columns}
+                data={filteredRows}
+                searchColumn="code"
+                searchPlaceholder="Buscar ubicación..."
+                filters={filtersNode}
+                emptyMessage="No hay ubicaciones con los filtros seleccionados."
+              />
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
+
+      {/* ── Create / edit dialog ─────────────────────────────────────────── */}
+      <LocationFormDialog
+        open={formDialog.open}
+        location={formDialog.location}
+        onClose={() => setFormDialog({ open: false, location: null })}
+      />
+
+      {/* ── Bulk layout generator ────────────────────────────────────────── */}
+      <GenerateLayoutDialog
+        open={generateOpen}
+        warehouseId={warehouseId}
+        onClose={() => setGenerateOpen(false)}
+      />
+
+      {/* ── Block dialog (with reason) ───────────────────────────────────── */}
+      <Dialog open={!!blockLoc} onOpenChange={(o) => !o && setBlockLoc(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>
-              {confirmDialog?.action === 'block' ? 'Bloquear ubicación' : 'Desbloquear ubicación'}
-            </DialogTitle>
+            <DialogTitle>Bloquear ubicación</DialogTitle>
             <DialogDescription>
-              {confirmDialog?.action === 'block'
-                ? 'La ubicación quedará marcada como bloqueada. No se podrán realizar nuevas operaciones de putaway ni picking sobre ella.'
-                : 'La ubicación volverá a estar disponible para operaciones de putaway y picking.'}
+              La ubicación quedará marcada como bloqueada. No se podrán realizar nuevas operaciones de
+              putaway ni picking sobre ella.
             </DialogDescription>
           </DialogHeader>
 
-          {confirmDialog && (
+          {blockLoc && (
             <div className="space-y-3 py-1">
-              <div className="rounded-lg border bg-zinc-50 px-4 py-3">
+              <div className="rounded-lg border bg-zinc-50 px-4 py-3 dark:bg-zinc-900/40">
                 <div className="flex items-center gap-3">
-                  <div
-                    className={cn(
-                      'flex size-9 items-center justify-center rounded-md border',
-                      confirmDialog.action === 'block'
-                        ? 'border-destructive/30 bg-destructive/10'
-                        : 'border-emerald-200 bg-emerald-50'
-                    )}
-                  >
-                    {confirmDialog.action === 'block' ? (
-                      <Lock className="text-destructive size-4" />
-                    ) : (
-                      <LockOpen className="size-4 text-emerald-600" />
-                    )}
+                  <div className="border-destructive/30 bg-destructive/10 flex size-9 items-center justify-center rounded-md border">
+                    <Lock className="text-destructive size-4" />
                   </div>
                   <div>
-                    <p className="font-mono text-sm font-semibold">{confirmDialog.loc.code}</p>
+                    <p className="font-mono text-sm font-semibold">{blockLoc.code}</p>
                     <p className="text-muted-foreground text-xs">
-                      Zona {confirmDialog.loc.zone} · {TYPE_LABELS[confirmDialog.loc.type]}
+                      {locationHierarchyPath(blockLoc)} · {LOCATION_TYPE_LABELS[blockLoc.type]}
                     </p>
                   </div>
                 </div>
               </div>
 
-              {confirmDialog.action === 'block' && confirmDialog.loc.onHandUnits > 0 && (
-                <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2">
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">Motivo del bloqueo</label>
+                <Select value={blockReasonId} onValueChange={setBlockReasonId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Seleccionar motivo (opcional)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {holdReasons.map((r) => (
+                      <SelectItem key={r.id} value={r.id}>
+                        {r.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {blockLoc.onHandUnits > 0 && (
+                <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 dark:border-amber-900/50 dark:bg-amber-950/40">
                   <TriangleAlert className="mt-0.5 size-3.5 shrink-0 text-amber-600" />
-                  <p className="text-xs text-amber-700">
+                  <p className="text-xs text-amber-700 dark:text-amber-300">
                     Esta ubicación tiene{' '}
-                    <span className="font-semibold">
-                      {formatNumber(confirmDialog.loc.onHandUnits)} unidades
-                    </span>{' '}
-                    en stock. El inventario existente permanecerá, pero no se podrán realizar nuevas
-                    operaciones.
+                    <span className="font-semibold">{formatNumber(blockLoc.onHandUnits)} unidades</span> en
+                    stock.
+                    {settings.blockRequiresEmptyLocation
+                      ? ' La configuración exige vaciarla antes de bloquear.'
+                      : ' El inventario permanecerá, pero no se podrán realizar nuevas operaciones.'}
                   </p>
                 </div>
               )}
+
+              {blockError && <p className="text-destructive text-sm">{blockError}</p>}
             </div>
           )}
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setConfirmDialog(null)}>
+            <Button variant="outline" onClick={() => setBlockLoc(null)}>
               Cancelar
             </Button>
-            <Button
-              variant={confirmDialog?.action === 'block' ? 'destructive' : 'default'}
-              onClick={handleConfirm}
-            >
-              {confirmDialog?.action === 'block' ? 'Bloquear' : 'Desbloquear'}
+            <Button variant="destructive" onClick={handleConfirmBlock}>
+              Bloquear
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Delete dialog ────────────────────────────────────────────────── */}
+      <Dialog open={!!deleteLoc} onOpenChange={(o) => !o && setDeleteLoc(null)}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Eliminar ubicación</DialogTitle>
+            <DialogDescription>
+              Esta acción no se puede deshacer. Solo se pueden eliminar ubicaciones sin stock.
+            </DialogDescription>
+          </DialogHeader>
+          {deleteLoc && (
+            <div className="space-y-3 py-1">
+              <div className="rounded-lg border bg-zinc-50 px-4 py-3 dark:bg-zinc-900/40">
+                <p className="font-mono text-sm font-semibold">{deleteLoc.code}</p>
+                <p className="text-muted-foreground text-xs">{locationHierarchyPath(deleteLoc)}</p>
+              </div>
+              {deleteError && <p className="text-destructive text-sm">{deleteError}</p>}
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteLoc(null)}>
+              Cancelar
+            </Button>
+            <Button variant="destructive" onClick={handleConfirmDelete}>
+              Eliminar
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -527,7 +721,7 @@ export default function LocationsPage() {
   )
 }
 
-// ── Zone summary strip ────────────────────────────────────────────────────────
+// ── Zone summary strip ──────────────────────────────────────────────────────────
 
 const ZoneSummary = ({ rows }: { rows: LocationRow[] }) => {
   const zones = useMemo(() => {
@@ -546,11 +740,11 @@ const ZoneSummary = ({ rows }: { rows: LocationRow[] }) => {
     <div className="flex flex-wrap gap-3">
       {zones.map(({ zone, total, occupied, blocked }) => (
         <div key={zone} className="flex items-center gap-2">
-          <div className="rounded border bg-zinc-100 px-1.5 py-0.5 font-mono text-[11px] font-semibold text-zinc-600">
+          <div className="rounded border bg-zinc-100 px-1.5 py-0.5 font-mono text-[11px] font-semibold text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
             {zone}
           </div>
           <div className="flex items-center gap-1 text-[11px] text-zinc-500">
-            <span className="font-medium text-zinc-700">{total}</span> pos.
+            <span className="font-medium text-zinc-700 dark:text-zinc-300">{total}</span> pos.
             {occupied > 0 && (
               <>
                 <Separator orientation="vertical" className="mx-0.5 h-3" />

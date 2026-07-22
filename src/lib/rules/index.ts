@@ -1,4 +1,5 @@
 export * from './inventory'
+export * from './locations'
 export * from './picking'
 export * from './replenishment'
 export * from './shipping'

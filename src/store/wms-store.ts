@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
+import { idbStorage } from '@/lib/idb-storage.client'
 import * as seed from '@/data/seed'
 import {
   applyAdjustment,
@@ -56,6 +57,7 @@ import type {
   ProductDemandStat,
   PurchaseOrder,
   PutToStoreTask,
+  RackType,
   Reason,
   ReentryBatch,
   ReentryLine,
@@ -80,6 +82,7 @@ import type {
   WavelessOrder,
 } from '@/types/wms'
 import { canCrossDock } from '@/lib/rules/crossdock'
+import { isGoldenEligible } from '@/lib/rules/locations'
 import { toBaseQty } from '@/lib/rules/uom'
 
 let movementCounter = seed.stockMovements.length
@@ -89,9 +92,28 @@ const nextMovementId = (): string => {
   return `mv-${movementCounter}`
 }
 
+// Bulk layout generator input — one call materialises aisles × racks × levels ×
+// positions worth of StorageLocation records for a warehouse zone.
+export interface LayoutGenerationSpec {
+  warehouseId: string
+  zone: string
+  type: StorageLocation['type']
+  rackTypeId?: string
+  aisles: number
+  racksPerAisle: number
+  levelsPerRack: number
+  positionsPerLevel: number
+  isPickFace: boolean
+  maxWeightKg: number
+  maxVolumeM3: number
+  baseDistanceToDispatchM: number
+  baseAccessibilityScore: number
+}
+
 export interface WmsState {
   warehouses: Warehouse[]
   locations: StorageLocation[]
+  rackTypes: RackType[]
   products: Product[]
   demandStats: ProductDemandStat[]
   inventoryItems: InventoryItem[]
@@ -312,11 +334,20 @@ export interface WmsState {
   // Admin — Warehouses
   createWarehouse: (data: Omit<Warehouse, 'id'>) => Warehouse
   updateWarehouse: (id: string, data: Partial<Omit<Warehouse, 'id'>>) => Warehouse
-  // Admin — Locations
+  // Admin — Locations & warehouse structure (#4)
   createLocation: (data: Omit<StorageLocation, 'id'>) => StorageLocation
   updateLocation: (id: string, data: Partial<Omit<StorageLocation, 'id'>>) => StorageLocation
-  blockLocation: (id: string) => StorageLocation
+  deleteLocation: (id: string) => void
+  blockLocation: (id: string, reasonId?: string) => StorageLocation
   unblockLocation: (id: string) => StorageLocation
+  // Bulk layout generator — creates every position for a zone/aisle/rack/level grid.
+  generateLocations: (spec: LayoutGenerationSpec) => StorageLocation[]
+  // Re-derives the golden flag on every pick location from the configured thresholds.
+  reclassifyGoldenZones: () => { updated: number; goldenCount: number }
+  // Rack / estiba types (tipo de estiba según rack y producto)
+  createRackType: (data: Omit<RackType, 'id'>) => RackType
+  updateRackType: (id: string, data: Partial<Omit<RackType, 'id'>>) => RackType
+  toggleRackType: (id: string) => RackType
   // Admin — Products
   createProduct: (data: Omit<Product, 'id'>) => Product
   updateProduct: (id: string, data: Partial<Omit<Product, 'id'>>) => Product
@@ -343,6 +374,7 @@ const recordMovement = (partial: Omit<StockMovement, 'id' | 'createdAt'>): Stock
 const buildSeedState = () => ({
   warehouses: seed.warehouses,
   locations: seed.locations,
+  rackTypes: seed.rackTypes,
   products: seed.products,
   demandStats: seed.demandStats,
   inventoryItems: seed.inventoryItems,
@@ -384,11 +416,11 @@ const buildSeedState = () => ({
 })
 
 // Exported so the Admin page can trigger a full demo reset.
-export const resetStore = () => {
-  if (typeof window !== 'undefined') {
-    localStorage.removeItem('wms-store-v2')
-    window.location.reload()
-  }
+// Awaits the async IndexedDB clear before reloading so the fresh seed loads clean.
+export const resetStore = async () => {
+  if (typeof window === 'undefined') return
+  await useWmsStore.persist.clearStorage()
+  window.location.reload()
 }
 
 export const useWmsStore = create<WmsState>()(
@@ -1997,6 +2029,65 @@ export const useWmsStore = create<WmsState>()(
     }
 
     const now = new Date().toISOString()
+
+    // ── Inventario: saca el stock del origen y lo pone "en tránsito" ────────────
+    // Cada línea despachada descuenta stock disponible en la bodega origen del
+    // tramo (FIFO por id, sin dejar negativos) y materializa un InventoryItem con
+    // status 'in_transit' ligado a este tramo. Esto es lo que hace que /inventory
+    // muestre la mercancía como "En tránsito" de forma automática — sin sembrar
+    // fotos estáticas. Al recepcionar el tramo (receiveLeg) se consume de nuevo.
+    let updatedItems = [...state.inventoryItems]
+    const movements: StockMovement[] = []
+
+    for (const line of transfer.items) {
+      let remaining = line.requestedQuantity
+      updatedItems = updatedItems.map((i) => {
+        if (remaining <= 0) return i
+        if (i.warehouseId !== leg.originId || i.productId !== line.productId) return i
+        const take = Math.min(availableStock(i), remaining)
+        if (take <= 0) return i
+        remaining -= take
+        return { ...i, onHandQuantity: i.onHandQuantity - take }
+      })
+
+      const transitId = `inv-transit-${legId}-${line.productId}`
+      const transitIdx = updatedItems.findIndex((i) => i.id === transitId)
+      if (transitIdx >= 0) {
+        updatedItems[transitIdx] = {
+          ...updatedItems[transitIdx],
+          onHandQuantity: updatedItems[transitIdx].onHandQuantity + line.requestedQuantity,
+        }
+      } else {
+        updatedItems = [
+          ...updatedItems,
+          {
+            id: transitId,
+            productId: line.productId,
+            warehouseId: leg.destinationId,
+            locationId: 'loc-transit',
+            onHandQuantity: line.requestedQuantity,
+            reservedQuantity: 0,
+            holdQuantity: 0,
+            status: 'in_transit' as const,
+          },
+        ]
+      }
+
+      movements.push(
+        recordMovement({
+          productId: line.productId,
+          warehouseId: leg.originId,
+          fromLocationId: 'loc-stageout',
+          toLocationId: 'loc-transit',
+          type: 'transfer',
+          quantity: line.requestedQuantity,
+          referenceType: 'transfer',
+          referenceId: transferId,
+          operatorName,
+        })
+      )
+    }
+
     const updatedLeg: TransferLeg = {
       ...leg,
       status: 'in_transit',
@@ -2018,6 +2109,8 @@ export const useWmsStore = create<WmsState>()(
 
     set({
       transfers: state.transfers.map((t) => (t.id === transferId ? updatedTransfer : t)),
+      inventoryItems: updatedItems,
+      stockMovements: [...state.stockMovements, ...movements],
     })
 
     return updatedTransfer
@@ -2050,17 +2143,65 @@ export const useWmsStore = create<WmsState>()(
     const newCurrentLegIndex = isLastLeg ? transfer.currentLegIndex : legIdx + 1
     const newOrderStatus: OperationalStatus = isLastLeg ? 'completed' : 'partial_received'
 
-    const movements = transfer.items.map((item) =>
-      recordMovement({
-        productId: item.productId,
-        warehouseId: leg.destinationId,
-        type: 'transfer',
-        quantity: item.requestedQuantity,
-        referenceType: 'transfer',
-        referenceId: transferId,
-        operatorName,
-      })
-    )
+    // ── Inventario: aterriza el stock "en tránsito" como disponible en el destino ─
+    // Consume los registros in_transit creados al despachar (inv-transit-<tramo>-*)
+    // y deja la mercancía disponible en la bodega destino, en el muelle de recibo.
+    // En un tramo intermedio esto deja el stock en la bodega transitoria, listo para
+    // re-despacharse; en el tramo final completa el traslado.
+    let updatedItems = [...state.inventoryItems]
+    const movements: StockMovement[] = []
+
+    for (const line of transfer.items) {
+      const transitId = `inv-transit-${legId}-${line.productId}`
+      const transitIdx = updatedItems.findIndex((i) => i.id === transitId)
+      const arrivedQty =
+        transitIdx >= 0 ? updatedItems[transitIdx].onHandQuantity : line.requestedQuantity
+
+      if (transitIdx >= 0) updatedItems = updatedItems.filter((i) => i.id !== transitId)
+
+      const destIdx = updatedItems.findIndex(
+        (i) =>
+          i.warehouseId === leg.destinationId &&
+          i.productId === line.productId &&
+          i.locationId === 'loc-recibo' &&
+          i.status === 'available'
+      )
+      if (destIdx >= 0) {
+        updatedItems[destIdx] = {
+          ...updatedItems[destIdx],
+          onHandQuantity: updatedItems[destIdx].onHandQuantity + arrivedQty,
+        }
+      } else {
+        updatedItems = [
+          ...updatedItems,
+          {
+            id: `inv-arr-${legId}-${line.productId}`,
+            productId: line.productId,
+            warehouseId: leg.destinationId,
+            locationId: 'loc-recibo',
+            onHandQuantity: arrivedQty,
+            reservedQuantity: 0,
+            holdQuantity: 0,
+            status: 'available' as const,
+            receivedDate: now,
+          },
+        ]
+      }
+
+      movements.push(
+        recordMovement({
+          productId: line.productId,
+          warehouseId: leg.destinationId,
+          fromLocationId: 'loc-transit',
+          toLocationId: 'loc-recibo',
+          type: 'transfer',
+          quantity: arrivedQty,
+          referenceType: 'transfer',
+          referenceId: transferId,
+          operatorName,
+        })
+      )
+    }
 
     const updatedTransfer: TransferOrder = {
       ...transfer,
@@ -2071,6 +2212,7 @@ export const useWmsStore = create<WmsState>()(
 
     set({
       transfers: state.transfers.map((t) => (t.id === transferId ? updatedTransfer : t)),
+      inventoryItems: updatedItems,
       stockMovements: [...state.stockMovements, ...movements],
     })
 
@@ -3001,6 +3143,9 @@ export const useWmsStore = create<WmsState>()(
 
   createLocation: (data) => {
     const state = get()
+    if (state.locations.some((l) => l.code.toLowerCase() === data.code.trim().toLowerCase())) {
+      throw new Error(`Ya existe una ubicación con el código ${data.code}`)
+    }
     const created: StorageLocation = { ...data, id: `loc-${Date.now()}` }
     set({ locations: [...state.locations, created] })
     return created
@@ -3010,16 +3155,41 @@ export const useWmsStore = create<WmsState>()(
     const state = get()
     const loc = state.locations.find((l) => l.id === id)
     if (!loc) throw new Error('location not found')
+    if (
+      data.code &&
+      state.locations.some(
+        (l) => l.id !== id && l.code.toLowerCase() === data.code!.trim().toLowerCase()
+      )
+    ) {
+      throw new Error(`Ya existe una ubicación con el código ${data.code}`)
+    }
     const updated: StorageLocation = { ...loc, ...data }
     set({ locations: state.locations.map((l) => (l.id === id ? updated : l)) })
     return updated
   },
 
-  blockLocation: (id) => {
+  deleteLocation: (id) => {
     const state = get()
     const loc = state.locations.find((l) => l.id === id)
     if (!loc) throw new Error('location not found')
-    const updated: StorageLocation = { ...loc, isBlocked: true }
+    const stock = state.inventoryItems.some((i) => i.locationId === id && i.onHandQuantity > 0)
+    if (stock) throw new Error('No se puede eliminar una ubicación con stock. Vacíala primero.')
+    set({ locations: state.locations.filter((l) => l.id !== id) })
+  },
+
+  blockLocation: (id, reasonId) => {
+    const state = get()
+    const loc = state.locations.find((l) => l.id === id)
+    if (!loc) throw new Error('location not found')
+    if (state.settings.blockRequiresEmptyLocation) {
+      const stock = state.inventoryItems.some((i) => i.locationId === id && i.onHandQuantity > 0)
+      if (stock) {
+        throw new Error(
+          'La configuración exige que la ubicación esté vacía antes de bloquearla. Reubica el stock primero.'
+        )
+      }
+    }
+    const updated: StorageLocation = { ...loc, isBlocked: true, blockReasonId: reasonId }
     set({ locations: state.locations.map((l) => (l.id === id ? updated : l)) })
     return updated
   },
@@ -3028,8 +3198,104 @@ export const useWmsStore = create<WmsState>()(
     const state = get()
     const loc = state.locations.find((l) => l.id === id)
     if (!loc) throw new Error('location not found')
-    const updated: StorageLocation = { ...loc, isBlocked: false }
+    const updated: StorageLocation = { ...loc, isBlocked: false, blockReasonId: undefined }
     set({ locations: state.locations.map((l) => (l.id === id ? updated : l)) })
+    return updated
+  },
+
+  generateLocations: (spec) => {
+    const state = get()
+    const existingCodes = new Set(state.locations.map((l) => l.code.toLowerCase()))
+    const created: StorageLocation[] = []
+    const pad = (n: number) => String(n).padStart(2, '0')
+    let seq = 0
+
+    for (let a = 1; a <= spec.aisles; a++) {
+      for (let r = 1; r <= spec.racksPerAisle; r++) {
+        for (let lvl = 1; lvl <= spec.levelsPerRack; lvl++) {
+          for (let p = 1; p <= spec.positionsPerLevel; p++) {
+            const aisle = pad(a)
+            const rack = String.fromCharCode(64 + r) // 1→A, 2→B…
+            const level = String(lvl)
+            const position = pad(p)
+            const code = `${spec.zone}-${aisle}-${rack}-${level}-${position}`
+            if (existingCodes.has(code.toLowerCase())) continue
+            existingCodes.add(code.toLowerCase())
+            seq++
+            // Higher levels and deeper aisles are less accessible / farther away.
+            const accessibilityScore = Math.max(
+              0,
+              Math.min(100, spec.baseAccessibilityScore - (lvl - 1) * 12 - (a - 1) * 4)
+            )
+            const distanceToDispatchM = spec.baseDistanceToDispatchM + (a - 1) * 6 + (r - 1) * 2
+            created.push({
+              id: `loc-gen-${Date.now()}-${seq}`,
+              code,
+              barcode: `LOC-${spec.zone}-${aisle}${rack}${level}${position}`,
+              warehouseId: spec.warehouseId,
+              zone: spec.zone,
+              aisle,
+              rack,
+              level,
+              position,
+              rackTypeId: spec.rackTypeId,
+              type: spec.type,
+              isPickFace: spec.isPickFace,
+              golden: false,
+              isBlocked: false,
+              accessibilityScore,
+              maxWeightKg: spec.maxWeightKg,
+              volumeCapacityM3: spec.maxVolumeM3,
+              maxVolumeM3: spec.maxVolumeM3,
+              distanceToDispatchM,
+            })
+          }
+        }
+      }
+    }
+
+    if (created.length === 0) return []
+    set({ locations: [...state.locations, ...created] })
+    return created
+  },
+
+  reclassifyGoldenZones: () => {
+    const state = get()
+    let updated = 0
+    const locations = state.locations.map((l) => {
+      const eligible = isGoldenEligible(l, state.settings)
+      if (eligible !== l.golden) {
+        updated++
+        return { ...l, golden: eligible }
+      }
+      return l
+    })
+    set({ locations })
+    return { updated, goldenCount: locations.filter((l) => l.golden).length }
+  },
+
+  createRackType: (data) => {
+    const state = get()
+    const created: RackType = { ...data, id: `rack-${Date.now()}` }
+    set({ rackTypes: [...state.rackTypes, created] })
+    return created
+  },
+
+  updateRackType: (id, data) => {
+    const state = get()
+    const rack = state.rackTypes.find((r) => r.id === id)
+    if (!rack) throw new Error('rack type not found')
+    const updated: RackType = { ...rack, ...data }
+    set({ rackTypes: state.rackTypes.map((r) => (r.id === id ? updated : r)) })
+    return updated
+  },
+
+  toggleRackType: (id) => {
+    const state = get()
+    const rack = state.rackTypes.find((r) => r.id === id)
+    if (!rack) throw new Error('rack type not found')
+    const updated: RackType = { ...rack, active: !rack.active }
+    set({ rackTypes: state.rackTypes.map((r) => (r.id === id ? updated : r)) })
     return updated
   },
 
@@ -3160,8 +3426,21 @@ export const useWmsStore = create<WmsState>()(
 
   }),
   {
-    name: 'wms-store-v2',
-    storage: createJSONStorage(() => localStorage),
-    partialize: (state) => ({ currentOperatorId: state.currentOperatorId }),
+    name: 'wms-store-v3',
+    storage: createJSONStorage(() => idbStorage),
+    // Persist the full domain state (every non-function slice) so a reload
+    // preserves demo progress. Functions (the 75+ actions) are dropped — they
+    // always come fresh from create().
+    partialize: (state) =>
+      Object.fromEntries(
+        Object.entries(state).filter(([, value]) => typeof value !== 'function'),
+      ) as Partial<WmsState>,
+    // Bump `version` whenever the seed changes materially: a mismatch discards
+    // the old persisted data and reseeds clean. Within the same version, demo
+    // progress survives reloads.
+    // v2: warehouse-structure module (#4) — rackTypes slice, location hierarchy
+    // fields and golden-zone/layout settings added to the seed.
+    version: 2,
+    migrate: () => buildSeedState() as Partial<WmsState>,
   }
 ))

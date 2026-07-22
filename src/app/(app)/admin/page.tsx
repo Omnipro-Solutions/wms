@@ -323,9 +323,9 @@ const AdminPage = () => {
         <CardHeader className="pb-3">
           <CardTitle className="flex items-center gap-2 text-sm font-semibold">
             <Database className="size-4 text-blue-500" />
-            Estado del almacén local (localStorage)
+            Estado del almacén local (IndexedDB)
           </CardTitle>
-          <CardDescription>Datos actualmente persistidos en esta sesión del navegador.</CardDescription>
+          <CardDescription>Datos persistidos en el navegador; se conservan al recargar.</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -1013,7 +1013,7 @@ const AdminPage = () => {
               <RotateCcw className="size-5 text-red-500" /> Resetear datos de demostración
             </DialogTitle>
             <DialogDescription>
-              Esta acción borrará todo el estado guardado en localStorage y recargará el sistema con los datos de demo originales. Todos los cambios realizados en esta sesión se perderán.
+              Esta acción borrará todo el estado guardado en IndexedDB y recargará el sistema con los datos de demo originales. Todos los cambios realizados en esta sesión se perderán.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>

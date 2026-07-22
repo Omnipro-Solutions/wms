@@ -184,6 +184,18 @@ export const TransferDetailSheet = ({
                     </Button>
                   )}
                 </div>
+                {canDispatch && (
+                  <p className="text-muted-foreground text-[11px]">
+                    Al despachar, el stock se descuenta de {getWarehouseName(currentLeg.originId)} y
+                    pasa a estado <span className="font-medium">«En tránsito»</span> en Inventario.
+                  </p>
+                )}
+                {canReceive && (
+                  <p className="text-muted-foreground text-[11px]">
+                    Al recepcionar, el stock «En tránsito» se vuelve disponible en{' '}
+                    {getWarehouseName(currentLeg.destinationId)} (muelle de recibo).
+                  </p>
+                )}
               </div>
             ) : (
               <p className="text-muted-foreground text-xs">

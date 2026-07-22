@@ -66,6 +66,34 @@ export interface Store {
   city: string
 }
 
+export type LocationType = 'pick' | 'reserve' | 'quality_control' | 'staging' | 'returns'
+
+// Physical rack / storage style a location belongs to. Drives which products
+// can be slotted there ("tipo de estiba según rack y producto", módulo #4 estándar).
+export type RackStorageStyle =
+  | 'selective' // Rack selectivo (1 pallet de fondo, acceso directo)
+  | 'drive_in' // Drive-in / compacto (alta densidad, LIFO)
+  | 'push_back' // Push-back (varios pallets de fondo, LIFO)
+  | 'cantilever' // Cantilever (cargas largas: perfiles, tubos)
+  | 'floor' // Piso / bulk (apilado directo en suelo)
+  | 'mezzanine' // Entrepiso / estantería de picking manual
+
+export interface RackType {
+  id: string
+  code: string // ej. "SEL-STD"
+  name: string
+  storageStyle: RackStorageStyle
+  levels: number // niveles verticales del rack
+  maxWeightKgPerLevel: number
+  maxPalletsPerLevel: number
+  // Categorías de producto admitidas. Vacío = compatible con todas.
+  compatibleCategories: string[]
+  // Tipos de ubicación donde aplica este rack (pick/reserve/…).
+  compatibleLocationTypes: LocationType[]
+  active: boolean
+  description?: string
+}
+
 // Locations carry slotting attributes. `golden` marks the ergonomic
 // "golden zone" (waist-to-shoulder height, close to dispatch/packing).
 export interface StorageLocation {
@@ -74,10 +102,18 @@ export interface StorageLocation {
   barcode: string // ej. "LOC-A-A0101" — escaneado por lector bluetooth en picking
   warehouseId: string
   zone: string
-  type: 'pick' | 'reserve' | 'quality_control' | 'staging' | 'returns'
+  // Hierarchical layout model: almacén → zona → pasillo → rack → nivel → posición.
+  // Optional so legacy/virtual slots (tránsito, recibo) can omit them.
+  aisle?: string // pasillo, ej. "01"
+  rack?: string // rack / módulo, ej. "A"
+  level?: string // nivel / altura, ej. "1"
+  position?: string // posición dentro del nivel, ej. "01"
+  rackTypeId?: string // tipo de estiba (referencia RackType)
+  type: LocationType
   isPickFace: boolean
   golden: boolean
   isBlocked: boolean // blocked locations reject new putaway/pick operations
+  blockReasonId?: string // motivo tipificado del bloqueo (Reason context 'hold')
   accessibilityScore: number // 0-100; higher = easier/faster to pick
   maxWeightKg: number
   volumeCapacityM3: number
@@ -855,6 +891,17 @@ export interface WmsSettings {
   // Inventory module — Estándar tier: reservations with TTL + aging/low-rotation alerts
   reservationTtlHours: number // hours a commerce-order reservation holds stock before it's eligible for release
   agingLowRotationDays: number // days on hand without movement before an item is flagged low-rotation
+  // Inventory alerts (stock crítico + vencimiento) — notification channel, config only (no real send in MVP)
+  inventoryAlertNotificationType: 'none' | 'email'
+  inventoryAlertNotificationEmail?: string
+  // Locations module (#4) — golden-zone definition + layout governance.
+  // A location is golden-eligible when dist ≤ goldenMaxDistanceM AND accesibilidad ≥ goldenMinAccessibility.
+  goldenMaxDistanceM: number
+  goldenMinAccessibility: number
+  // Ocupación ≥ este % dispara la alerta de sobreocupación en /locations.
+  locationHighUtilizationPct: number
+  // Si está activo, bloquear una ubicación exige que esté vacía (gobierno del layout).
+  blockRequiresEmptyLocation: boolean
 }
 
 // --- Inventory adjustment requests (Sprint 2 — #56) ---

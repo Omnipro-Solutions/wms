@@ -1,11 +1,12 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useMemo, useState, type ReactNode } from 'react'
 import Image from 'next/image'
 import {
   CheckCircle2,
   ClipboardCheck,
   Hourglass,
+  Mail,
   MoreHorizontal,
   Package,
   PackageSearch,
@@ -18,7 +19,6 @@ import { useWmsStore } from '@/store/wms-store'
 import { selectInventoryAccuracy } from '@/store/selectors'
 import { useStoreHelpers } from '@/hooks/use-store-helpers'
 import { PageHeader } from '@/components/shared/page-header'
-import { SettingField } from '@/components/shared/setting-field'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -51,6 +51,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { formatDateTime } from '@/lib/formatters'
 import { cn } from '@/lib/utils'
 import type { InventoryAdjustmentRequest } from '@/types/wms'
+
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 const STATUS_META: Record<
   InventoryAdjustmentRequest['status'],
@@ -88,10 +90,68 @@ const ProductCell = ({ name, sku, imageUrl }: { name: string; sku: string; image
   </div>
 )
 
-const SectionLabel = ({ icon: Icon, children }: { icon: typeof PackageSearch; children: string }) => (
-  <div className="mb-3 flex items-center gap-1.5 text-xs font-semibold tracking-wide text-zinc-500 uppercase dark:text-zinc-400">
-    <Icon className="size-3.5" />
-    {children}
+const SectionHeading = ({
+  icon: Icon,
+  title,
+  description,
+}: {
+  icon: typeof Mail
+  title: string
+  description: string
+}) => (
+  <div>
+    <h3 className="flex items-center gap-2 text-sm font-semibold">
+      <Icon className="size-4 text-muted-foreground" />
+      {title}
+    </h3>
+    <p className="mt-0.5 text-xs text-muted-foreground">{description}</p>
+  </div>
+)
+
+const SettingRow = ({
+  label,
+  description,
+  children,
+}: {
+  label: string
+  description: string
+  children: ReactNode
+}) => (
+  <div className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between">
+    <div className="sm:max-w-[60%]">
+      <p className="text-sm font-medium">{label}</p>
+      <p className="mt-0.5 text-xs text-muted-foreground">{description}</p>
+    </div>
+    <div className="shrink-0">{children}</div>
+  </div>
+)
+
+const InlineSlider = ({
+  value,
+  min,
+  max,
+  step,
+  onChange,
+}: {
+  value: number
+  min: number
+  max: number
+  step: number
+  onChange: (value: number) => void
+}) => (
+  <div className="flex items-center gap-3">
+    <input
+      type="range"
+      min={min}
+      max={max}
+      step={step}
+      value={value}
+      onChange={(e) => onChange(parseFloat(e.target.value))}
+      className="h-1.5 w-40 cursor-pointer accent-zinc-800 sm:w-48 dark:accent-zinc-300"
+    />
+    <span className="w-14 shrink-0 rounded-md bg-zinc-100 px-2 py-1 text-right text-sm font-semibold tabular-nums dark:bg-zinc-800">
+      {value % 1 === 0 ? value : value.toFixed(2)}
+    </span>
   </div>
 )
 
@@ -112,10 +172,14 @@ export default function InventorySettingsPage() {
   const [productFilter, setProductFilter] = useState('')
   const [statusFilter, setStatusFilter] = useState<'all' | InventoryAdjustmentRequest['status']>('all')
 
-  const handleSettingChange = (key: keyof typeof settings, value: number | boolean) => {
+  const handleSettingChange = (key: keyof typeof settings, value: number | boolean | string) => {
     setLocalSettings((prev) => ({ ...prev, [key]: value }))
     setSettingsChanged(true)
   }
+
+  const notificationEmailInvalid =
+    localSettings.inventoryAlertNotificationType === 'email' &&
+    !EMAIL_REGEX.test(localSettings.inventoryAlertNotificationEmail ?? '')
 
   const handleSaveSettings = () => {
     updateSettings(localSettings)
@@ -239,78 +303,152 @@ export default function InventorySettingsPage() {
               <CardTitle className="text-sm">Parámetros del módulo</CardTitle>
               <CardDescription>Umbrales que gobiernan alertas, aprobaciones y reservas de inventario.</CardDescription>
             </div>
-            <Button size="sm" disabled={!settingsChanged} onClick={handleSaveSettings}>
-              Guardar cambios
-            </Button>
+            <div className="flex items-center gap-3">
+              {settingsChanged && (
+                <span className="flex items-center gap-1.5 text-xs font-medium text-amber-600 dark:text-amber-400">
+                  <span className="size-1.5 rounded-full bg-amber-500" />
+                  Cambios sin guardar
+                </span>
+              )}
+              <Button size="sm" disabled={!settingsChanged || notificationEmailInvalid} onClick={handleSaveSettings}>
+                Guardar cambios
+              </Button>
+            </div>
           </div>
         </CardHeader>
-        <CardContent className="flex flex-col gap-6">
-          <div>
-            <SectionLabel icon={PackageSearch}>Alertas de stock</SectionLabel>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <SettingField
+        <CardContent className="divide-y divide-zinc-200 dark:divide-zinc-800">
+          <section className="pb-5">
+            <SectionHeading
+              icon={PackageSearch}
+              title="Alertas de stock"
+              description="Umbrales que disparan las alertas visibles en /inventory."
+            />
+            <div className="mt-2 divide-y divide-zinc-100 dark:divide-zinc-800/60">
+              <SettingRow
                 label="Umbral stock crítico (uds)"
                 description="Disponible ≤ este valor dispara la alerta de stock crítico."
-                value={localSettings.stockAlertThreshold}
-                min={1}
-                max={200}
-                step={1}
-                onChange={(v) => handleSettingChange('stockAlertThreshold', v)}
-              />
-              <SettingField
+              >
+                <InlineSlider
+                  value={localSettings.stockAlertThreshold}
+                  min={1}
+                  max={200}
+                  step={1}
+                  onChange={(v) => handleSettingChange('stockAlertThreshold', v)}
+                />
+              </SettingRow>
+              <SettingRow
                 label="Alerta de vencimiento (días)"
                 description="Lotes que vencen dentro de N días disparan la alerta de vencimiento."
-                value={localSettings.expirationAlertDays}
-                min={1}
-                max={180}
-                step={1}
-                onChange={(v) => handleSettingChange('expirationAlertDays', v)}
-              />
+              >
+                <InlineSlider
+                  value={localSettings.expirationAlertDays}
+                  min={1}
+                  max={180}
+                  step={1}
+                  onChange={(v) => handleSettingChange('expirationAlertDays', v)}
+                />
+              </SettingRow>
             </div>
-          </div>
+          </section>
 
-          <Separator />
+          <section className="py-5">
+            <SectionHeading
+              icon={Mail}
+              title="Notificaciones"
+              description="Canal de aviso cuando se dispare una alerta de esta sección. El envío real requiere backend (fuera de alcance del MVP) — por ahora solo se guarda la configuración."
+            />
+            <div className="mt-2 divide-y divide-zinc-100 dark:divide-zinc-800/60">
+              <SettingRow label="Tipo de notificación" description="Ninguna o correo electrónico.">
+                <Select
+                  value={localSettings.inventoryAlertNotificationType}
+                  onValueChange={(v) => handleSettingChange('inventoryAlertNotificationType', v)}
+                >
+                  <SelectTrigger className="h-9 w-48">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Ninguna</SelectItem>
+                    <SelectItem value="email">Correo electrónico</SelectItem>
+                  </SelectContent>
+                </Select>
+              </SettingRow>
+              {localSettings.inventoryAlertNotificationType === 'email' && (
+                <SettingRow
+                  label="Correo para notificar"
+                  description="A este correo llegaría la alerta (simulado, sin backend)."
+                >
+                  <div className="flex flex-col items-end gap-1">
+                    <Input
+                      type="email"
+                      placeholder="alertas@empresa.com"
+                      value={localSettings.inventoryAlertNotificationEmail ?? ''}
+                      onChange={(e) => handleSettingChange('inventoryAlertNotificationEmail', e.target.value)}
+                      className={cn('w-56', notificationEmailInvalid && 'border-red-300 focus-visible:ring-red-300')}
+                    />
+                    {notificationEmailInvalid && (
+                      <p className="text-xs text-red-600">Ingresa un correo válido.</p>
+                    )}
+                  </div>
+                </SettingRow>
+              )}
+            </div>
+          </section>
 
-          <div>
-            <SectionLabel icon={ShieldCheck}>Aprobación de ajustes</SectionLabel>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <SettingField
+          <section className="py-5">
+            <SectionHeading
+              icon={ShieldCheck}
+              title="Aprobación de ajustes"
+              description="Nivel de aprobación requerido para ajustes de conteo cíclico."
+            />
+            <div className="mt-2 divide-y divide-zinc-100 dark:divide-zinc-800/60">
+              <SettingRow
                 label="Umbral aprobación ajuste (uds)"
                 description="Delta absoluto en unidades por encima del cual el ajuste requiere aprobación de supervisor."
-                value={localSettings.adjustmentApprovalThreshold}
-                min={1}
-                max={500}
-                step={1}
-                onChange={(v) => handleSettingChange('adjustmentApprovalThreshold', v)}
-              />
+              >
+                <InlineSlider
+                  value={localSettings.adjustmentApprovalThreshold}
+                  min={1}
+                  max={500}
+                  step={1}
+                  onChange={(v) => handleSettingChange('adjustmentApprovalThreshold', v)}
+                />
+              </SettingRow>
             </div>
-          </div>
+          </section>
 
-          <Separator />
-
-          <div>
-            <SectionLabel icon={Hourglass}>Reservas y rotación</SectionLabel>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <SettingField
+          <section className="pt-5">
+            <SectionHeading
+              icon={Hourglass}
+              title="Reservas y rotación"
+              description="TTL de reservas y umbral de baja rotación aplicados en /inventory."
+            />
+            <div className="mt-2 divide-y divide-zinc-100 dark:divide-zinc-800/60">
+              <SettingRow
                 label="TTL de reservas (horas)"
                 description="Horas que una reserva de pedido retiene stock antes de poder liberarse por vencimiento."
-                value={localSettings.reservationTtlHours}
-                min={1}
-                max={168}
-                step={1}
-                onChange={(v) => handleSettingChange('reservationTtlHours', v)}
-              />
-              <SettingField
+              >
+                <InlineSlider
+                  value={localSettings.reservationTtlHours}
+                  min={1}
+                  max={168}
+                  step={1}
+                  onChange={(v) => handleSettingChange('reservationTtlHours', v)}
+                />
+              </SettingRow>
+              <SettingRow
                 label="Baja rotación (días)"
                 description="Días en bodega sin salida por encima de los cuales una posición se marca de baja rotación."
-                value={localSettings.agingLowRotationDays}
-                min={7}
-                max={365}
-                step={1}
-                onChange={(v) => handleSettingChange('agingLowRotationDays', v)}
-              />
+              >
+                <InlineSlider
+                  value={localSettings.agingLowRotationDays}
+                  min={7}
+                  max={365}
+                  step={1}
+                  onChange={(v) => handleSettingChange('agingLowRotationDays', v)}
+                />
+              </SettingRow>
             </div>
-          </div>
+          </section>
         </CardContent>
       </Card>
 
