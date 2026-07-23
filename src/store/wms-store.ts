@@ -292,7 +292,7 @@ export interface WmsState {
   ) => void
   relocateInventory: (itemId: string, toLocationId: string, operatorName: string) => void
   // Picking
-  startPicking: (taskId: string, operatorName: string) => PickingTask
+  startPicking: (taskId: string, operatorName: string, operatorId?: string) => PickingTask
   completePick: (
     taskId: string,
     pickedQty: number,
@@ -1644,7 +1644,7 @@ export const useWmsStore = create<WmsState>()(
 
       // ─── Picking ──────────────────────────────────────────────────────────────
 
-      startPicking: (taskId, operatorName) => {
+      startPicking: (taskId, operatorName, operatorId) => {
         const state = get()
         if (state.settings.pickingFreezeActive) throw new Error(PICKING_FROZEN_MSG)
         const task = state.pickingTasks.find((t) => t.id === taskId)
@@ -1655,7 +1655,12 @@ export const useWmsStore = create<WmsState>()(
           throw new Error(`No se puede iniciar tarea desde el estado ${task.status}`)
         }
         const nextStatus = task.status === 'assigned' ? 'in_progress' : 'assigned'
-        const updated: PickingTask = { ...task, status: nextStatus, operatorName }
+        const updated: PickingTask = {
+          ...task,
+          status: nextStatus,
+          operatorName,
+          assignedOperatorId: operatorId ?? task.assignedOperatorId,
+        }
         set({ pickingTasks: state.pickingTasks.map((t) => (t.id === taskId ? updated : t)) })
         return updated
       },
