@@ -93,11 +93,22 @@ export const buildQueueColumns = (
     id: 'actions',
     enableSorting: false,
     enableHiding: false,
-    cell: ({ row }) => (
-      <Button size="sm" variant="outline" onClick={() => onAssign(row.original)}>
-        <Play className="mr-1 size-3" />
-        {row.original.operatorName ? 'Reasignar' : 'Asignar'}
-      </Button>
-    ),
+    cell: ({ row }) => {
+      const item = row.original
+      // Picking only accepts a fresh assignment from pending/assigned (its FSM
+      // rejects in_progress and partial states); replenishment only from
+      // pending; putaway has no FSM gate so it's always reassignable.
+      const canAssign =
+        item.sourceType === 'putaway' ||
+        (item.sourceType === 'picking' && ['pending', 'assigned'].includes(item.status)) ||
+        (item.sourceType === 'replenishment' && item.status === 'pending')
+
+      return (
+        <Button size="sm" variant="outline" disabled={!canAssign} onClick={() => onAssign(item)}>
+          <Play className="mr-1 size-3" />
+          {item.operatorName ? 'Reasignar' : 'Asignar'}
+        </Button>
+      )
+    },
   },
 ]
