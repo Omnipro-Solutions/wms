@@ -1,8 +1,9 @@
 'use client'
 
-import { ClipboardList, Route, UserX, Users } from 'lucide-react'
+import { ClipboardList, Route, Shuffle, UserX, Users } from 'lucide-react'
 import { KpiCard } from '@/components/shared/kpi-card'
 import { DataTable } from '@/components/data-table'
+import { Button } from '@/components/ui/button'
 import {
   Select,
   SelectContent,
@@ -22,6 +23,7 @@ interface Props {
   onSourceTypeFilterChange: (value: string) => void
   activeOperatorCount: number
   queueCols: ColumnDef<LaborQueueItem>[]
+  onAutoDistribute: () => void
 }
 
 export const QueueTab = ({
@@ -31,8 +33,10 @@ export const QueueTab = ({
   onSourceTypeFilterChange,
   activeOperatorCount,
   queueCols,
+  onAutoDistribute,
 }: Props) => {
   const unassignedCount = allItems.filter((i) => !i.operatorName).length
+  const unassignedFilteredCount = filteredItems.filter((i) => !i.operatorName).length
   const withRouteCount = allItems.filter((i) => i.suggestedRouteId).length
 
   return (
@@ -73,6 +77,11 @@ export const QueueTab = ({
                 <SelectItem value="replenishment">Reposición</SelectItem>
               </SelectContent>
             </Select>
+          }
+          actions={
+            <Button onClick={onAutoDistribute} disabled={unassignedFilteredCount === 0}>
+              <Shuffle className="mr-1 size-4" /> Distribuir automáticamente
+            </Button>
           }
         />
       )}

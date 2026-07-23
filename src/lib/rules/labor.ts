@@ -1,5 +1,13 @@
-import type { Asn, LaborQueueItem, PickingTask, ReplenishmentTask } from '@/types/wms'
+import type { Asn, LaborQueueItem, LaborSourceType, Operator, PickingTask, ReplenishmentTask } from '@/types/wms'
 import type { ProductivityRow } from '@/types/wms'
+
+// Which operator role can work each labor queue source — shared by the manual
+// assignment dialog (/labor) and the Fase 2 auto-distribution algorithm below.
+export const SOURCE_ROLE: Record<LaborSourceType, Operator['role']> = {
+  picking: 'picker',
+  putaway: 'receiver',
+  replenishment: 'picker',
+}
 
 const PICKING_ACTIVE_STATUSES: PickingTask['status'][] = [
   'pending',
@@ -143,4 +151,52 @@ export function productivityByAllSources(
   }
 
   return Array.from(byOperator.values())
+}
+
+export interface QueueAssignment {
+  id: string
+  sourceType: LaborSourceType
+  operatorId: string
+  operatorName: string
+}
+
+// Fase 2 — reparto automático: para cada item sin operario en targetItems, asigna
+// al operario activo del rol requerido con menor carga actual. La carga se calcula
+// sobre allItems (la cola completa), no solo targetItems, para que un operario ya
+// cargado en una fuente no reciba más trabajo de otra fuente que comparte su rol.
+export const distributeQueueByLoad = (
+  allItems: LaborQueueItem[],
+  targetItems: LaborQueueItem[],
+  operators: Operator[]
+): { assignments: QueueAssignment[]; skippedCount: number } => {
+  const loadByOperatorId = new Map<string, number>()
+  for (const op of operators) {
+    loadByOperatorId.set(op.id, allItems.filter((i) => i.operatorName === op.name).length)
+  }
+
+  const assignments: QueueAssignment[] = []
+  let skippedCount = 0
+
+  for (const item of targetItems) {
+    if (item.operatorName) continue
+
+    const role = SOURCE_ROLE[item.sourceType]
+    const candidates = operators.filter((o) => o.active && o.role === role)
+    if (candidates.length === 0) {
+      skippedCount += 1
+      continue
+    }
+
+    let chosen = candidates[0]
+    for (const candidate of candidates) {
+      if ((loadByOperatorId.get(candidate.id) ?? 0) < (loadByOperatorId.get(chosen.id) ?? 0)) {
+        chosen = candidate
+      }
+    }
+
+    assignments.push({ id: item.id, sourceType: item.sourceType, operatorId: chosen.id, operatorName: chosen.name })
+    loadByOperatorId.set(chosen.id, (loadByOperatorId.get(chosen.id) ?? 0) + 1)
+  }
+
+  return { assignments, skippedCount }
 }

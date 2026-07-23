@@ -3,29 +3,30 @@
 import { useMemo, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { ClipboardList, BarChart3, Users } from 'lucide-react'
+import { toast } from 'sonner'
 
 import { useWmsStore } from '@/store/wms-store'
 import { useStoreHelpers } from '@/hooks/use-store-helpers'
 import { PageHeader } from '@/components/shared/page-header'
 import { SubNav, type SubNavItem } from '@/components/shared/sub-nav'
 import { AssignOperatorDialog } from '@/components/shared/assign-operator-dialog'
-import { buildLaborQueue, suggestInterleavedRoutes, productivityByAllSources } from '@/lib/rules/labor'
+import { SOURCE_ROLE, buildLaborQueue, suggestInterleavedRoutes, productivityByAllSources } from '@/lib/rules/labor'
 import { buildQueueColumns, buildProductivityColumns, buildOperatorColumns } from './columns'
 import { QueueTab } from './_components/QueueTab'
 import { ProductivityTab } from './_components/ProductivityTab'
 import { OperatorsTab } from './_components/OperatorsTab'
-import type { LaborQueueItem, Operator } from '@/types/wms'
+import type { LaborQueueItem, LaborSourceType, Operator } from '@/types/wms'
 
-const ASSIGNABLE_ROLES: Record<LaborQueueItem['sourceType'], Operator['role'][]> = {
-  picking: ['picker'],
-  putaway: ['receiver'],
-  replenishment: ['picker'],
+const ASSIGNABLE_ROLES: Record<LaborSourceType, Operator['role'][]> = {
+  picking: [SOURCE_ROLE.picking],
+  putaway: [SOURCE_ROLE.putaway],
+  replenishment: [SOURCE_ROLE.replenishment],
 }
 
 const LaborPage = () => {
   const state = useWmsStore()
   const { productName, locationCode } = useStoreHelpers()
-  const { startPicking, startReplenishment, assignPutaway, locations, operators } = state
+  const { startPicking, startReplenishment, assignPutaway, autoDistributeLaborQueue, locations, operators } = state
 
   const searchParams = useSearchParams()
   const activeTab = searchParams.get('tab') ?? 'queue'
@@ -81,6 +82,23 @@ const LaborPage = () => {
     setAssignItem(null)
   }
 
+  const handleAutoDistribute = () => {
+    const sourceTypes = sourceTypeFilter === 'all' ? undefined : [sourceTypeFilter as LaborSourceType]
+    const { assigned, skipped } = autoDistributeLaborQueue(sourceTypes)
+
+    if (assigned === 0 && skipped === 0) {
+      toast.info('No hay tareas sin asignar')
+    } else if (assigned > 0 && skipped === 0) {
+      toast.success(`${assigned} tarea(s) asignada(s) automáticamente`)
+    } else if (assigned > 0 && skipped > 0) {
+      toast.success(`${assigned} tarea(s) asignada(s) automáticamente`, {
+        description: `${skipped} sin operario activo disponible del rol requerido`,
+      })
+    } else {
+      toast.error('No hay operarios activos disponibles para las tareas pendientes')
+    }
+  }
+
   const queueCols = useMemo(
     () => buildQueueColumns(productName, locationCode, handleOpenAssign),
     [productName, locationCode]
@@ -133,6 +151,7 @@ const LaborPage = () => {
           onSourceTypeFilterChange={setSourceTypeFilter}
           activeOperatorCount={activeOperatorCount}
           queueCols={queueCols}
+          onAutoDistribute={handleAutoDistribute}
         />
       )}
 

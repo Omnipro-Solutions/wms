@@ -67,6 +67,7 @@ import type {
   InternalMoveType,
   InventoryAdjustmentRequest,
   InventoryItem,
+  LaborSourceType,
   LoadManifest,
   OrderLine,
   SapRoute,
@@ -110,6 +111,7 @@ import type {
   WmsSettings,
   WavelessOrder,
 } from '@/types/wms'
+import { buildLaborQueue, distributeQueueByLoad } from '@/lib/rules/labor'
 import { deriveOtifStatus } from '@/lib/rules/shipping'
 import { canCrossDock } from '@/lib/rules/crossdock'
 import { isGoldenEligible } from '@/lib/rules/locations'
@@ -281,6 +283,8 @@ export interface WmsState {
   putawayItem: (asnId: string, locationId: string, operatorName: string) => void
   // Labor module (#9) — stamps the operator assigned to a putaway before putawayItem() executes it.
   assignPutaway: (asnId: string, operatorName: string, operatorId?: string) => void
+  // Labor module (#9) — Fase 2: reparto automático por balanceo de carga sobre la cola de /labor.
+  autoDistributeLaborQueue: (sourceTypes?: LaborSourceType[]) => { assigned: number; skipped: number }
   approveQc: (asnId: string, operatorName: string) => void
   rejectQc: (asnId: string, operatorName: string) => void
   // Inventory
@@ -1439,6 +1443,28 @@ export const useWmsStore = create<WmsState>()(
               : a
           ),
         }))
+      },
+
+      autoDistributeLaborQueue: (sourceTypes) => {
+        const state = get()
+        const allItems = buildLaborQueue(state.pickingTasks, state.replenishmentTasks, state.asnRecords)
+        const targetItems = sourceTypes ? allItems.filter((i) => sourceTypes.includes(i.sourceType)) : allItems
+        const { assignments, skippedCount } = distributeQueueByLoad(allItems, targetItems, state.operators)
+
+        let assigned = 0
+        let skipped = skippedCount
+        for (const a of assignments) {
+          try {
+            if (a.sourceType === 'picking') get().startPicking(a.id, a.operatorName, a.operatorId)
+            if (a.sourceType === 'replenishment') get().startReplenishment(a.id, a.operatorName, a.operatorId)
+            if (a.sourceType === 'putaway') get().assignPutaway(a.id, a.operatorName, a.operatorId)
+            assigned += 1
+          } catch {
+            skipped += 1
+          }
+        }
+
+        return { assigned, skipped }
       },
 
       approveQc: (asnId, operatorName) => {
