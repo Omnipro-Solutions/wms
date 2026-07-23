@@ -258,6 +258,9 @@ export interface Asn {
   productId: string
   // Directed putaway suggestion comes from slotting (ABC class of product).
   suggestedPutawayLocationId?: string
+  // Labor module (#9) — operator assigned to putaway before it's executed via putawayItem().
+  // Display-only until putawayItem() runs; does not gate the action.
+  assignedOperatorName?: string
   // Populated when ASN is closed with short_received — reason for the discrepancy.
   closeReason?: string
   // Number of individual GR (Goods Receipt) deliveries registered against this ASN.
@@ -541,6 +544,7 @@ export interface PickingTask {
   orderId: string
   productId: string
   locationId: string
+  zone?: string // picking zone or wave zone
   requestedQuantity: number
   pickedQuantity: number
   // Pending balance kept for missing items so picking can be retried later.
@@ -1173,6 +1177,12 @@ export interface WmsSettings {
   // Si está activo, permite agendar/asignar más de una cita activa sobre el mismo muelle
   // en horarios que se solapan (excepción a la validación de conflicto de agenda).
   yardAllowOverbooking: boolean
+  // Labor module (#9) — task queue, productivity, interleaving. Configured in /labor-settings.
+  // Si está activo, la cola agrupa tareas de distinto tipo del mismo operario dentro de laborInterleavingMaxDistanceM.
+  laborInterleavingEnabled: boolean
+  laborInterleavingMaxDistanceM: number
+  // Meta usada solo para colorear KPIs en /labor (Productividad) — sin lógica de incentivos.
+  laborTargetUnitsPerHour: number
 }
 
 // --- Inventory adjustment requests (Sprint 2 — #56) ---
@@ -1244,6 +1254,23 @@ export interface CyclicCountLine {
   countedBy?: string
   // Set when completeCyclicCount() creates an InventoryAdjustmentRequest for this line.
   adjustmentRequestId?: string
+}
+
+// --- Labor Management domain (#9) — read-only projection, never persisted ---
+
+export type LaborSourceType = 'picking' | 'putaway' | 'replenishment'
+
+export interface LaborQueueItem {
+  id: string // id of the source task/ASN
+  sourceType: LaborSourceType
+  code: string // human-visible reference: PickingTask.code, Asn.code, or ReplenishmentTask.id
+  productId?: string
+  locationId: string
+  zone?: string
+  priority: 'low' | 'medium' | 'high'
+  status: string // raw status from the source record (renders fine via existing StatusBadge)
+  operatorName?: string
+  suggestedRouteId?: string // set when suggestInterleavedRoutes() groups this item with others
 }
 
 // --- Reports domain (derived aggregations, NOT stored entities) ---

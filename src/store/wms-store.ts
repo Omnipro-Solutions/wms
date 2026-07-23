@@ -258,6 +258,8 @@ export interface WmsState {
   printReceiptLabel: (labelId: string) => WmsLabel
   closeAsnWithDiscrepancy: (asnId: string, closeReason: string, operatorName: string) => Asn
   putawayItem: (asnId: string, locationId: string, operatorName: string) => void
+  // Labor module (#9) — stamps the operator assigned to a putaway before putawayItem() executes it.
+  assignPutaway: (asnId: string, operatorName: string) => void
   approveQc: (asnId: string, operatorName: string) => void
   rejectQc: (asnId: string, operatorName: string) => void
   // Inventory
@@ -1322,6 +1324,12 @@ export const useWmsStore = create<WmsState>()(
       stockMovements: [...state.stockMovements, ...movements],
       asnRecords: state.asnRecords.map((a) => (a.id === asnId ? updatedAsn : a)),
     })
+  },
+
+  assignPutaway: (asnId, operatorName) => {
+    set((state) => ({
+      asnRecords: state.asnRecords.map((a) => (a.id === asnId ? { ...a, assignedOperatorName: operatorName } : a)),
+    }))
   },
 
   approveQc: (asnId, operatorName) => {
