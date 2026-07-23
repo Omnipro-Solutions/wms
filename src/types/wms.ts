@@ -551,6 +551,10 @@ export interface PickingTask {
   priority: 'low' | 'medium' | 'high'
   partialReasonId?: string // references a Reason (context: "partial_picking")
   issueReason?: string
+  // Exception handling (module #5 — Estándar tier).
+  issueReasonId?: string // references a Reason (context: "picking_issue")
+  issuePhotoUrl?: string // dataURL captured via <input type="file" capture="environment">
+  substituteProductId?: string // product suggested as replacement when out of stock
 }
 
 export interface PickingWave {
@@ -1050,6 +1054,7 @@ export interface Reason {
     | 'hold'
     | 'internal_move' // movimientos internos ad-hoc (bin-to-bin, consolidación, cuarentena…)
     | 'transfer_discrepancy' // short / over / damaged al recepcionar un traslado
+    | 'picking_issue' // incidencia reportada durante picking (sin stock, dañado, ubicación vacía…)
   active: boolean
 }
 
@@ -1173,6 +1178,33 @@ export interface WmsSettings {
   // Si está activo, permite agendar/asignar más de una cita activa sobre el mismo muelle
   // en horarios que se solapan (excepción a la validación de conflicto de agenda).
   yardAllowOverbooking: boolean
+  // Picking module (#5) — configured in /picking-settings.
+  // Congela iniciar/completar/aprobar/rechazar picks, waves, batch, cluster,
+  // put-to-store, waveless y reporte/resolución de incidencias.
+  pickingFreezeActive: boolean
+  // SLA de despacho → prioridad sugerida al crear tarea/oleada/orden waveless.
+  // horas restantes < Urgent → 'high'; < Warning → 'medium'; resto → 'low'.
+  pickingSlaUrgentHours: number
+  pickingSlaWarningHours: number
+  // Umbral sugerido (no forzado) para agrupar órdenes en wave vs. dejarlas waveless.
+  pickingWaveMinOrders: number
+  // Mínimo de órdenes del mismo producto+ubicación para considerar candidato de batch.
+  pickingBatchMinOrders: number
+  // Techo operativo de un cluster (número de contenedores simultáneos).
+  pickingClusterMaxContainers: number
+  // Gobierna el dialog de reporte de incidencia.
+  pickingRequireIssuePhoto: boolean
+  pickingAllowSubstitution: boolean
+  // Catálogo independiente de zonas de picking (pick-and-pass), desacoplado de
+  // StorageLocation.zone para permitir renombrar/reordenar sin tocar ubicaciones.
+  pickingZones: PickingZoneConfig[]
+}
+
+export interface PickingZoneConfig {
+  id: string
+  name: string
+  sequenceOrder: number // orden de paso en pick-and-pass, ascendente
+  active: boolean
 }
 
 // --- Inventory adjustment requests (Sprint 2 — #56) ---
