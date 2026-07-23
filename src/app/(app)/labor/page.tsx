@@ -24,9 +24,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { buildLaborQueue, suggestInterleavedRoutes } from '@/lib/rules/labor'
-import { buildQueueColumns } from './columns'
+import { buildLaborQueue, suggestInterleavedRoutes, productivityByAllSources } from '@/lib/rules/labor'
+import { buildQueueColumns, buildProductivityColumns } from './columns'
 import { QueueTab } from './_components/QueueTab'
+import { ProductivityTab } from './_components/ProductivityTab'
 import type { LaborQueueItem } from '@/types/wms'
 
 const ASSIGNABLE_ROLES: Record<LaborQueueItem['sourceType'], string[]> = {
@@ -97,6 +98,16 @@ const LaborPage = () => {
     [productName, locationCode]
   )
 
+  const productivityRows = useMemo(
+    () => productivityByAllSources(state.pickingTasks, state.replenishmentTasks, state.asnRecords),
+    [state.pickingTasks, state.replenishmentTasks, state.asnRecords]
+  )
+
+  const productivityCols = useMemo(
+    () => buildProductivityColumns(state.settings.laborTargetUnitsPerHour),
+    [state.settings.laborTargetUnitsPerHour]
+  )
+
   const laborTabs: SubNavItem[] = [
     { value: 'queue', label: 'Cola de tareas', icon: ClipboardList, count: queue.length || undefined },
     { value: 'productivity', label: 'Productividad', icon: BarChart3 },
@@ -121,6 +132,10 @@ const LaborPage = () => {
           activeOperatorCount={activeOperatorCount}
           queueCols={queueCols}
         />
+      )}
+
+      {activeTab === 'productivity' && (
+        <ProductivityTab rows={productivityRows} productivityCols={productivityCols} />
       )}
 
       <Dialog open={!!assignItem} onOpenChange={(o) => { if (!o) setAssignItem(null) }}>
