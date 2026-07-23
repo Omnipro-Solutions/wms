@@ -33,7 +33,7 @@ export default function WorkerPickingTaskPage() {
   const { taskId } = useParams<{ taskId: string }>()
   const router = useRouter()
   const { operator } = useCurrentOperator()
-  const { pickingTasks, products, locations, startPicking, completePick, approvePart } =
+  const { pickingTasks, products, locations, settings, reasons, startPicking, completePick, approvePart, reportIssue } =
     useWmsStore()
 
   const task = pickingTasks.find((t) => t.id === taskId)
@@ -46,6 +46,10 @@ export default function WorkerPickingTaskPage() {
   const [showPartialDialog, setShowPartialDialog] = useState(false)
   const [pickError, setPickError] = useState<string | null>(null)
   const [confirmed, setConfirmed] = useState(false)
+  const [showIssueDialog, setShowIssueDialog] = useState(false)
+  const [issueReasonId, setIssueReasonId] = useState('')
+  const [issuePhotoUrl, setIssuePhotoUrl] = useState<string | undefined>(undefined)
+  const [issueError, setIssueError] = useState<string | null>(null)
 
   if (!task || !location || !product) {
     return (
@@ -111,6 +115,37 @@ export default function WorkerPickingTaskPage() {
     }
   }
 
+  const issueReasons = reasons.filter((r) => r.context === 'picking_issue' && r.active)
+
+  const handleIssuePhoto = (file: File | undefined) => {
+    if (!file) {
+      setIssuePhotoUrl(undefined)
+      return
+    }
+    const reader = new FileReader()
+    reader.onload = () => setIssuePhotoUrl(reader.result as string)
+    reader.readAsDataURL(file)
+  }
+
+  const handleSubmitIssue = () => {
+    setIssueError(null)
+    if (!issueReasonId) {
+      setIssueError('Selecciona un motivo.')
+      return
+    }
+    if (settings.pickingRequireIssuePhoto && !issuePhotoUrl) {
+      setIssueError('Se requiere una foto para reportar la incidencia.')
+      return
+    }
+    try {
+      reportIssue(task.id, issueReasonId, '', issuePhotoUrl)
+      setShowIssueDialog(false)
+      router.push('/worker/picking')
+    } catch (e: unknown) {
+      setIssueError(e instanceof Error ? e.message : 'Error al reportar incidencia')
+    }
+  }
+
   if (step === 'done') {
     return (
       <div className="flex min-h-[60vh] flex-col items-center justify-center gap-6 text-center">
@@ -158,6 +193,9 @@ export default function WorkerPickingTaskPage() {
             expectedValue={location.barcode ?? location.code}
             onMatch={handleLocationMatch}
           />
+          <Button variant="outline" className="h-11 w-full text-amber-700" onClick={() => setShowIssueDialog(true)}>
+            ⚠️ Reportar incidencia
+          </Button>
         </div>
       )}
 
@@ -180,6 +218,9 @@ export default function WorkerPickingTaskPage() {
             expectedValue={product.barcode ?? product.sku}
             onMatch={handleProductMatch}
           />
+          <Button variant="outline" className="h-11 w-full text-amber-700" onClick={() => setShowIssueDialog(true)}>
+            ⚠️ Reportar incidencia
+          </Button>
         </div>
       )}
 
@@ -252,6 +293,55 @@ export default function WorkerPickingTaskPage() {
             </Button>
             <Button variant="outline" className="h-12 w-full" onClick={() => setShowPartialDialog(false)}>
               Cancelar — seguir picando
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showIssueDialog} onOpenChange={setShowIssueDialog}>
+        <DialogContent showCloseButton={false}>
+          <DialogHeader>
+            <DialogTitle className="text-center">Reportar incidencia</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="worker-issue-reason">Motivo</Label>
+              <select
+                id="worker-issue-reason"
+                value={issueReasonId}
+                onChange={(e) => setIssueReasonId(e.target.value)}
+                className="h-12 w-full rounded-md border bg-background px-3 text-base"
+              >
+                <option value="">Seleccionar…</option>
+                {issueReasons.map((r) => (
+                  <option key={r.id} value={r.id}>{r.label}</option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="worker-issue-photo">
+                Foto {settings.pickingRequireIssuePhoto && <span className="text-destructive">*</span>}
+              </Label>
+              <input
+                id="worker-issue-photo"
+                type="file"
+                accept="image/*"
+                capture="environment"
+                onChange={(e) => handleIssuePhoto(e.target.files?.[0])}
+                className="block w-full text-sm"
+              />
+              {issuePhotoUrl && (
+                <img src={issuePhotoUrl} alt="Foto de incidencia" className="mt-2 h-20 w-20 rounded-lg object-cover" />
+              )}
+            </div>
+            {issueError && <ErrorBanner message={issueError} />}
+          </div>
+          <DialogFooter className="flex-col gap-2 sm:flex-col">
+            <Button className="h-14 w-full text-base font-bold" onClick={handleSubmitIssue}>
+              Enviar incidencia
+            </Button>
+            <Button variant="outline" className="h-12 w-full" onClick={() => setShowIssueDialog(false)}>
+              Cancelar
             </Button>
           </DialogFooter>
         </DialogContent>
