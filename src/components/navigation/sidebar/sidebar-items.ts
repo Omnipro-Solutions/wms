@@ -22,6 +22,7 @@ import {
   Tags,
   Truck,
   Undo2,
+  Users,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -204,6 +205,13 @@ export const sidebarItems: NavGroup[] = [
         icon: Tags,
         allowedRoles: ['supervisor'],
       },
+      {
+        id: 'labor',
+        title: 'Mano de obra',
+        url: '/labor',
+        icon: Users,
+        allowedRoles: ['supervisor'],
+      },
     ],
   },
   {
@@ -264,6 +272,7 @@ export const sidebarItems: NavGroup[] = [
             url: '/replenishment-settings',
             icon: Repeat,
           },
+          { id: 'config-labor', title: 'Mano de obra (LMS)', url: '/labor-settings', icon: Users },
           { id: 'config-returns', title: 'Devoluciones', url: '/returns-settings', icon: Undo2 },
           { id: 'config-yard', title: 'Patio y muelles', url: '/yard-settings', icon: DoorOpen },
         ],
