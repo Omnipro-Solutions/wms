@@ -24,6 +24,7 @@ import { useStoreHelpers } from '@/hooks/use-store-helpers'
 import { useDialogState } from '@/hooks/use-dialog-state'
 import { clusterProgress } from '@/lib/rules/picking'
 import { PageHeader } from '@/components/shared/page-header'
+import { AssignOperatorDialog } from '@/components/shared/assign-operator-dialog'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -55,6 +56,7 @@ import type { TaskAction, ZoneTask } from './columns'
 import type {
   BatchTask,
   ClusterTask,
+  Operator,
   PickingTask,
   PickingWave,
   PutToStoreTask,
@@ -163,6 +165,14 @@ const PickingPage = () => {
   const [issuePhotoUrl, setIssuePhotoUrl] = useState<string | undefined>(undefined)
   const [issueSubstituteId, setIssueSubstituteId] = useState('')
 
+  type AssignTarget = {
+    kind: 'picking' | 'waveless' | 'batch' | 'cluster' | 'putToStore'
+    id: string
+    currentOperatorId?: string
+  }
+
+  const [assignTarget, setAssignTarget] = useState<AssignTarget | null>(null)
+
   const partialReasons = state.reasons.filter((r) => r.context === 'partial_picking' && r.active)
   const issueReasons = state.reasons.filter((r) => r.context === 'picking_issue' && r.active)
 
@@ -189,6 +199,10 @@ const PickingPage = () => {
       if (action.type === 'start') {
         const task = state.pickingTasks.find((t) => t.id === action.taskId)
         if (!task) return
+        if (task.status === 'pending') {
+          setAssignTarget({ kind: 'picking', id: action.taskId, currentOperatorId: task.assignedOperatorId })
+          return
+        }
         try {
           startPicking(action.taskId, task.operatorName ?? 'Operador')
         } catch (e) {
@@ -227,6 +241,23 @@ const PickingPage = () => {
       }
     },
     [state.pickingTasks, startPicking, openPickDialog, approvePart, rejectPart, issueDialog, helpers, resolveIssue]
+  )
+
+  const handleConfirmAssign = useCallback(
+    (operator: Operator) => {
+      if (!assignTarget) return
+      try {
+        if (assignTarget.kind === 'picking') startPicking(assignTarget.id, operator.name, operator.id)
+        if (assignTarget.kind === 'waveless') startWavelessOrder(assignTarget.id, operator.name)
+        if (assignTarget.kind === 'batch') startBatchTask(assignTarget.id, operator.name)
+        if (assignTarget.kind === 'cluster') startClusterTask(assignTarget.id, operator.name)
+        if (assignTarget.kind === 'putToStore') startPutToStore(assignTarget.id, operator.name)
+      } catch (e) {
+        console.error(e)
+      }
+      setAssignTarget(null)
+    },
+    [assignTarget, startPicking, startWavelessOrder, startBatchTask, startClusterTask, startPutToStore]
   )
 
   const handlePhotoSelected = useCallback((file: File | undefined) => {
@@ -463,15 +494,8 @@ const PickingPage = () => {
   }, [selectedOrderId, wlPriority, createWlDialog, createWavelessOrder])
 
   const wavelessCols = useMemo(
-    () =>
-      buildWavelessColumns((wl) => {
-        try {
-          startWavelessOrder(wl.id, 'Operador')
-        } catch (e) {
-          console.error(e)
-        }
-      }),
-    [startWavelessOrder]
+    () => buildWavelessColumns((wl) => setAssignTarget({ kind: 'waveless', id: wl.id })),
+    []
   )
 
   // ── Batch ──────────────────────────────────────────────────────────────────
@@ -535,16 +559,10 @@ const PickingPage = () => {
       buildBatchColumns(
         helpers.productName,
         helpers.locationCode,
-        (b) => {
-          try {
-            startBatchTask(b.id, 'Operador')
-          } catch (e) {
-            console.error(e)
-          }
-        },
+        (b) => setAssignTarget({ kind: 'batch', id: b.id }),
         openBatchPickDialog
       ),
-    [helpers.productName, helpers.locationCode, startBatchTask, openBatchPickDialog]
+    [helpers.productName, helpers.locationCode, openBatchPickDialog]
   )
 
   // ── Zone ───────────────────────────────────────────────────────────────────
@@ -681,15 +699,8 @@ const PickingPage = () => {
   )
 
   const clusterCols = useMemo(
-    () =>
-      buildClusterColumns((c) => {
-        try {
-          startClusterTask(c.id, 'Operador')
-        } catch (e) {
-          console.error(e)
-        }
-      }, openDepositDialog),
-    [startClusterTask, openDepositDialog]
+    () => buildClusterColumns((c) => setAssignTarget({ kind: 'cluster', id: c.id }), openDepositDialog),
+    [openDepositDialog]
   )
 
   // ── Put-to-store ───────────────────────────────────────────────────────────
@@ -767,16 +778,10 @@ const PickingPage = () => {
     () =>
       buildPutToStoreColumns(
         helpers.productName,
-        (t) => {
-          try {
-            startPutToStore(t.id, 'Operador')
-          } catch (e) {
-            console.error(e)
-          }
-        },
+        (t) => setAssignTarget({ kind: 'putToStore', id: t.id }),
         openDistributeDialog
       ),
-    [helpers.productName, startPutToStore, openDistributeDialog]
+    [helpers.productName, openDistributeDialog]
   )
 
   // ─── Nav items ────────────────────────────────────────────────────────────
@@ -1620,6 +1625,14 @@ const PickingPage = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <AssignOperatorDialog
+        open={!!assignTarget}
+        onOpenChange={(o) => { if (!o) setAssignTarget(null) }}
+        roles={['picker']}
+        currentOperatorId={assignTarget?.currentOperatorId}
+        entityLabel="Selecciona quién ejecuta esta tarea"
+        onConfirm={handleConfirmAssign}
+      />
     </div>
   )
 }
