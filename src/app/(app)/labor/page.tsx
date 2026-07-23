@@ -70,10 +70,14 @@ const LaborPage = () => {
 
   const handleConfirmAssign = (operator: Operator) => {
     if (!assignItem) return
-    if (assignItem.sourceType === 'picking') startPicking(assignItem.id, operator.name, operator.id)
-    if (assignItem.sourceType === 'replenishment')
-      startReplenishment(assignItem.id, operator.name, operator.id)
-    if (assignItem.sourceType === 'putaway') assignPutaway(assignItem.id, operator.name, operator.id)
+    try {
+      if (assignItem.sourceType === 'picking') startPicking(assignItem.id, operator.name, operator.id)
+      if (assignItem.sourceType === 'replenishment')
+        startReplenishment(assignItem.id, operator.name, operator.id)
+      if (assignItem.sourceType === 'putaway') assignPutaway(assignItem.id, operator.name, operator.id)
+    } catch (e) {
+      console.error(e)
+    }
     setAssignItem(null)
   }
 
