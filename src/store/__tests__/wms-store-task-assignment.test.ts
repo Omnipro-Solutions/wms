@@ -62,3 +62,50 @@ describe('assignPutaway — operator id wiring', () => {
     expect(asn?.assignedOperatorId).toBeUndefined()
   })
 })
+
+describe('assignManifestDriver', () => {
+  it('assigns a valid active driver', () => {
+    // lm-ruta3 seed fixture: status 'pending', no assignedDriverId yet
+    useWmsStore.getState().assignManifestDriver('lm-ruta3', 'op-driver-1')
+    const manifest = useWmsStore.getState().loadManifests.find((m) => m.id === 'lm-ruta3')
+    expect(manifest?.assignedDriverId).toBe('op-driver-1')
+    expect(manifest?.driverName).toBe('Carlos Driver')
+  })
+
+  it('throws when the manifest does not exist', () => {
+    expect(() => useWmsStore.getState().assignManifestDriver('lm-missing', 'op-driver-1')).toThrow(
+      'Manifiesto no encontrado'
+    )
+  })
+
+  it('throws when the operator does not exist', () => {
+    expect(() => useWmsStore.getState().assignManifestDriver('lm-ruta3', 'op-missing')).toThrow(
+      'Operario no encontrado'
+    )
+  })
+
+  it('throws when the operator is not a driver', () => {
+    // op-0 seed fixture: role 'supervisor'
+    expect(() => useWmsStore.getState().assignManifestDriver('lm-ruta3', 'op-0')).toThrow(
+      'El operario no tiene rol de conductor'
+    )
+  })
+
+  it('throws when the operator is inactive', () => {
+    useWmsStore.setState((state) => ({
+      operators: state.operators.map((o) => (o.id === 'op-driver-1' ? { ...o, active: false } : o)),
+    }))
+    expect(() => useWmsStore.getState().assignManifestDriver('lm-ruta3', 'op-driver-1')).toThrow(
+      'El operario está inactivo'
+    )
+  })
+
+  it('throws when shipping is frozen', () => {
+    useWmsStore.setState((state) => ({
+      settings: { ...state.settings, shippingFreezeActive: true },
+    }))
+    expect(() => useWmsStore.getState().assignManifestDriver('lm-ruta3', 'op-driver-1')).toThrow(
+      'Despacho en modo congelado. No se permiten operaciones.'
+    )
+  })
+})

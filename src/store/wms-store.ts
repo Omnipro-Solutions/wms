@@ -378,6 +378,7 @@ export interface WmsState {
   ) => LoadManifest
   closeManifest: (manifestId: string) => LoadManifest
   dispatchManifest: (manifestId: string) => LoadManifest
+  assignManifestDriver: (manifestId: string, driverId: string) => void
   // Transfers
   advanceTransfer: (transferId: string, operatorName: string) => TransferOrder
   dispatchLeg: (transferId: string, legId: string, operatorName: string) => TransferOrder
@@ -2562,6 +2563,19 @@ export const useWmsStore = create<WmsState>()(
         const updated: LoadManifest = { ...manifest, status: 'in_progress' }
         set({ loadManifests: state.loadManifests.map((m) => (m.id === manifestId ? updated : m)) })
         return updated
+      },
+
+      assignManifestDriver: (manifestId, driverId) => {
+        const state = get()
+        if (state.settings.shippingFreezeActive) throw new Error(SHIPPING_FROZEN_MSG)
+        const manifest = state.loadManifests.find((m) => m.id === manifestId)
+        if (!manifest) throw new Error('Manifiesto no encontrado')
+        const driver = state.operators.find((o) => o.id === driverId)
+        if (!driver) throw new Error('Operario no encontrado')
+        if (!driver.active) throw new Error('El operario está inactivo')
+        if (driver.role !== 'driver') throw new Error('El operario no tiene rol de conductor')
+        const updated: LoadManifest = { ...manifest, assignedDriverId: driver.id, driverName: driver.name }
+        set({ loadManifests: state.loadManifests.map((m) => (m.id === manifestId ? updated : m)) })
       },
 
       // ─── Transfers ────────────────────────────────────────────────────────────
