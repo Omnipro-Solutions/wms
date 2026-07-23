@@ -222,7 +222,7 @@ export default function PickingSettingsPage() {
           <CardContent className="flex items-start gap-4 pt-5">
             <Snowflake className={cn('mt-0.5 size-8 shrink-0', settings.pickingFreezeActive ? 'text-blue-500' : 'text-zinc-300')} />
             <div className="flex-1">
-              <p className="sm font-medium">Modo congelado</p>
+              <p className="text-sm font-medium">Modo congelado</p>
               <p className="mt-0.5 text-xs text-muted-foreground">Bloquea iniciar, completar, aprobar/rechazar y reportar incidencias.</p>
               <div className="mt-3 flex items-center gap-2">
                 <Switch checked={settings.pickingFreezeActive} onCheckedChange={handleToggleFreeze} />
