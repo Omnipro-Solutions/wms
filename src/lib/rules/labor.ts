@@ -139,7 +139,6 @@ export function productivityByAllSources(
   for (const a of asns) {
     if (a.status !== 'putaway_done' || !a.assignedOperatorName) continue
     const row = getRow(a.assignedOperatorName)
-    row.picksCompleted += 1
     row.unitsPicked += a.receivedQuantity
   }
 

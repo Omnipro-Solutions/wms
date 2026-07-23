@@ -218,7 +218,7 @@ describe('productivityByAllSources', () => {
     const asnsCompleted = [asn({ id: 'a1', status: 'putaway_done', assignedOperatorName: 'Juan', receivedQuantity: 30 })]
     const result = productivityByAllSources(tasks, repl, asnsCompleted)
     expect(result).toEqual([
-      { operatorName: 'Juan', picksCompleted: 2, unitsPicked: 60, partialCount: 0, issueCount: 0 },
+      { operatorName: 'Juan', picksCompleted: 1, unitsPicked: 60, partialCount: 0, issueCount: 0 },
     ])
   })
 })
