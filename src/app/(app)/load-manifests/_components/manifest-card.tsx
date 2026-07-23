@@ -1,6 +1,6 @@
 'use client'
 
-import { CheckCircle2, MapPin, MapPinned, Package, Truck } from 'lucide-react'
+import { CheckCircle2, MapPin, MapPinned, Package, Truck, UserPlus } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
@@ -16,6 +16,7 @@ interface Props {
   returns: ReturnOrder[]
   onDispatch: (manifestId: string) => void
   onClose: (manifestId: string) => void
+  onAssignDriver: (manifestId: string) => void
 }
 
 export const ManifestCard = ({
@@ -26,6 +27,7 @@ export const ManifestCard = ({
   returns,
   onDispatch,
   onClose,
+  onAssignDriver,
 }: Props) => {
   const warehouseName = (id: string) => warehouses.find((w) => w.id === id)?.name ?? id
 
@@ -49,11 +51,18 @@ export const ManifestCard = ({
         <div className="mt-2 flex flex-wrap items-center gap-2">
           <Badge variant="outline" className="text-xs">{manifest.carrierName}</Badge>
           <Badge variant="outline" className="font-mono text-xs">{manifest.truckPlate}</Badge>
-          {manifest.driverName && (
+          {manifest.driverName ? (
             <span className="text-muted-foreground flex items-center gap-1 text-xs">
               <Truck className="size-3" /> {manifest.driverName}
             </span>
+          ) : (
+            <span className="text-amber-600 flex items-center gap-1 text-xs">
+              <Truck className="size-3" /> Sin conductor
+            </span>
           )}
+          <Button size="sm" variant="outline" onClick={() => onAssignDriver(manifest.id)}>
+            <UserPlus className="mr-1 size-3" /> Asignar conductor
+          </Button>
           <span className="text-muted-foreground text-xs">
             {manifest.stops.length} parada{manifest.stops.length !== 1 ? 's' : ''} ·{' '}
             {formatNumber(manifest.totalPackages)} paq. ·{' '}

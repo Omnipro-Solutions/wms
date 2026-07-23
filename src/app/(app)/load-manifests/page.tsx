@@ -27,6 +27,7 @@ import {
 } from '@/components/ui/select'
 import { Input } from '@/components/ui/input'
 import { formatNumber, formatWeight } from '@/lib/formatters'
+import { AssignOperatorDialog } from '@/components/shared/assign-operator-dialog'
 import { CreateManifestDialog } from './_components/create-manifest-dialog'
 import { ManifestCard } from './_components/manifest-card'
 
@@ -37,12 +38,13 @@ interface CloseDialogData {
 
 export default function LoadManifestsPage() {
   const state = useWmsStore()
-  const { createManifest, dispatchManifest, closeManifest } = state
+  const { createManifest, dispatchManifest, closeManifest, assignManifestDriver } = state
 
   const [createOpen, setCreateOpen] = useState(false)
   const [createError, setCreateError] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const [searchQuery, setSearchQuery] = useState('')
+  const [assignDriverManifestId, setAssignDriverManifestId] = useState<string | null>(null)
 
   const closeDialog = useDialogState<CloseDialogData>()
 
@@ -257,6 +259,7 @@ export default function LoadManifestsPage() {
                     const manifest = state.loadManifests.find((x) => x.id === id)
                     if (manifest) closeDialog.open({ manifestId: id, code: manifest.code })
                   }}
+                  onAssignDriver={setAssignDriverManifestId}
                 />
               ))}
             </div>
@@ -306,6 +309,32 @@ export default function LoadManifestsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Assign driver */}
+      <AssignOperatorDialog
+        open={!!assignDriverManifestId}
+        onOpenChange={(o) => { if (!o) setAssignDriverManifestId(null) }}
+        roles={['driver']}
+        currentOperatorId={
+          assignDriverManifestId
+            ? state.loadManifests.find((m) => m.id === assignDriverManifestId)?.assignedDriverId
+            : undefined
+        }
+        entityLabel={
+          assignDriverManifestId
+            ? `Manifiesto ${state.loadManifests.find((m) => m.id === assignDriverManifestId)?.code ?? ''}`
+            : ''
+        }
+        onConfirm={(operator) => {
+          if (!assignDriverManifestId) return
+          try {
+            assignManifestDriver(assignDriverManifestId, operator.id)
+          } catch (e) {
+            console.error(e)
+          }
+          setAssignDriverManifestId(null)
+        }}
+      />
     </div>
   )
 }
