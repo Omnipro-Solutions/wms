@@ -110,6 +110,7 @@ import type {
   WmsSettings,
   WavelessOrder,
 } from '@/types/wms'
+import { deriveOtifStatus } from '@/lib/rules/shipping'
 import { canCrossDock } from '@/lib/rules/crossdock'
 import { isGoldenEligible } from '@/lib/rules/locations'
 import { toBaseQty } from '@/lib/rules/uom'
@@ -128,6 +129,12 @@ const CYCLE_COUNT_FROZEN_MSG = 'Conteo cíclico en modo congelado. No se permite
 
 // Shared error shown by every yard/dock action when the module is frozen (see /yard-settings).
 const YARD_FROZEN_MSG = 'Patio y muelles en modo congelado. No se permiten operaciones.'
+
+// Shared error shown by every packing action when the module is frozen (see /packing-settings).
+const PACKING_FROZEN_MSG = 'Packing en modo congelado. No se permiten operaciones.'
+
+// Shipping module (#7) — guarda de gobierno, ver /shipping-settings.
+const SHIPPING_FROZEN_MSG = 'Despacho en modo congelado. No se permiten operaciones.'
 
 const nextMovementId = (): string => {
   movementCounter += 1
@@ -304,6 +311,11 @@ export interface WmsState {
   createPackingRule: (data: Omit<PackingRule, 'id'>) => PackingRule
   updatePackingRule: (id: string, data: Partial<Omit<PackingRule, 'id'>>) => PackingRule
   togglePackingRule: (ruleId: string) => PackingRule
+  deletePackingRule: (ruleId: string) => void
+  // Packing box types admin
+  createPackingBox: (data: Omit<PackingBoxType, 'id'>) => PackingBoxType
+  updatePackingBox: (id: string, data: Partial<Omit<PackingBoxType, 'id'>>) => PackingBoxType
+  deletePackingBox: (id: string) => void
   // Shipping
   shipOrder: (shipmentId: string, operatorName: string, ownFleet?: { driverName: string; vehiclePlate: string }) => Shipment
   createShipment: (
@@ -311,6 +323,8 @@ export interface WmsState {
     quote: CarrierRateQuote
   ) => Shipment
   deliverShipment: (shipmentId: string) => Shipment
+  verifyShipmentLoad: (shipmentId: string, verifiedPackages: number, operatorName: string) => Shipment
+  applyRateQuote: (shipmentId: string, quote: CarrierRateQuote) => Shipment
   // Manifests
   createManifest: (data: {
     sapRouteId: string
@@ -1905,6 +1919,7 @@ export const useWmsStore = create<WmsState>()(
 
   startPacking: (packingOrderId, packerName) => {
     const state = get()
+    if (state.settings.packingFreezeActive) throw new Error(PACKING_FROZEN_MSG)
     const order = state.packingOrders.find((p) => p.id === packingOrderId)
     if (!order) throw new Error('packing order not found')
     if (order.status !== 'pending')
@@ -1916,6 +1931,7 @@ export const useWmsStore = create<WmsState>()(
 
   scanItem: (packingOrderId, productId, qty) => {
     const state = get()
+    if (state.settings.packingFreezeActive) throw new Error(PACKING_FROZEN_MSG)
     const order = state.packingOrders.find((p) => p.id === packingOrderId)
     if (!order) throw new Error('packing order not found')
     if (order.status !== 'in_progress') throw new Error('El packing no está en progreso')
@@ -1942,9 +1958,16 @@ export const useWmsStore = create<WmsState>()(
 
   completePacking: (packingOrderId, scannedItems) => {
     const state = get()
+    if (state.settings.packingFreezeActive) throw new Error(PACKING_FROZEN_MSG)
     const order = state.packingOrders.find((p) => p.id === packingOrderId)
     if (!order) throw new Error('packing order not found')
     const vStatus = scannedItems === order.expectedItems ? 'verified' : 'mismatch'
+    // Verification policy (see /packing-settings): a mismatch may be blocked outright.
+    if (vStatus === 'mismatch' && (state.settings.packingRequireFullScan || !state.settings.packingAllowMismatch)) {
+      throw new Error(
+        'Verificación incompleta: faltan ítems por escanear y la configuración no permite cerrar con discrepancia.'
+      )
+    }
     const nextStatus: PackingOrder['status'] = vStatus === 'verified' ? 'verified' : 'mismatch'
     const updated: PackingOrder = {
       ...order,
@@ -1976,11 +1999,17 @@ export const useWmsStore = create<WmsState>()(
         ? { stockMovements: [...state.stockMovements, ...serialMovements] }
         : {}),
     })
+    // Verification policy (see /packing-settings): optionally auto-generate the
+    // shipping label the moment the packing verifies, skipping the manual step.
+    if (vStatus === 'verified' && state.settings.packingAutoGenerateLabel) {
+      return get().generateLabel(packingOrderId)
+    }
     return updated
   },
 
   applyPackingRule: (packingOrderId, ruleId) => {
     const state = get()
+    if (state.settings.packingFreezeActive) throw new Error(PACKING_FROZEN_MSG)
     const order = state.packingOrders.find((p) => p.id === packingOrderId)
     if (!order) throw new Error('packing order not found')
     const rule = state.packingRules.find((r) => r.id === ruleId)
@@ -1996,6 +2025,7 @@ export const useWmsStore = create<WmsState>()(
 
   removePackingRule: (packingOrderId, ruleId) => {
     const state = get()
+    if (state.settings.packingFreezeActive) throw new Error(PACKING_FROZEN_MSG)
     const order = state.packingOrders.find((p) => p.id === packingOrderId)
     if (!order) throw new Error('packing order not found')
     const updated: PackingOrder = {
@@ -2008,6 +2038,7 @@ export const useWmsStore = create<WmsState>()(
 
   selectBox: (packingOrderId, boxTypeId) => {
     const state = get()
+    if (state.settings.packingFreezeActive) throw new Error(PACKING_FROZEN_MSG)
     const order = state.packingOrders.find((p) => p.id === packingOrderId)
     if (!order) throw new Error('packing order not found')
     const box = state.packingBoxTypes.find((b) => b.id === boxTypeId)
@@ -2019,6 +2050,7 @@ export const useWmsStore = create<WmsState>()(
 
   generateLabel: (packingOrderId) => {
     const state = get()
+    if (state.settings.packingFreezeActive) throw new Error(PACKING_FROZEN_MSG)
     const order = state.packingOrders.find((p) => p.id === packingOrderId)
     if (!order) throw new Error('packing order not found')
     if (order.verificationStatus !== 'verified')
@@ -2049,6 +2081,7 @@ export const useWmsStore = create<WmsState>()(
 
   sendToShipping: (packingOrderId) => {
     const state = get()
+    if (state.settings.packingFreezeActive) throw new Error(PACKING_FROZEN_MSG)
     const order = state.packingOrders.find((p) => p.id === packingOrderId)
     if (!order) throw new Error('packing order not found')
     if (!order.labelGenerated) throw new Error('Genera la etiqueta antes de enviar a despacho')
@@ -2091,21 +2124,138 @@ export const useWmsStore = create<WmsState>()(
     return updated
   },
 
+  deletePackingRule: (ruleId) => {
+    const state = get()
+    set({ packingRules: state.packingRules.filter((r) => r.id !== ruleId) })
+  },
+
+  createPackingBox: (data) => {
+    const state = get()
+    const code = data.code.trim().toUpperCase()
+    if (state.packingBoxTypes.some((b) => b.code === code))
+      throw new Error(`Ya existe una caja con el código "${code}"`)
+    const created: PackingBoxType = { ...data, code, id: `box-${Date.now()}` }
+    set({ packingBoxTypes: [...state.packingBoxTypes, created] })
+    return created
+  },
+
+  updatePackingBox: (id, data) => {
+    const state = get()
+    const box = state.packingBoxTypes.find((b) => b.id === id)
+    if (!box) throw new Error('box type not found')
+    if (data.code) {
+      const code = data.code.trim().toUpperCase()
+      if (state.packingBoxTypes.some((b) => b.code === code && b.id !== id))
+        throw new Error(`Ya existe una caja con el código "${code}"`)
+      data = { ...data, code }
+    }
+    const updated: PackingBoxType = { ...box, ...data }
+    set({ packingBoxTypes: state.packingBoxTypes.map((b) => (b.id === id ? updated : b)) })
+    return updated
+  },
+
+  deletePackingBox: (id) => {
+    const state = get()
+    set({ packingBoxTypes: state.packingBoxTypes.filter((b) => b.id !== id) })
+  },
+
   // ─── Shipping ─────────────────────────────────────────────────────────────
 
   shipOrder: (shipmentId, _operatorName, ownFleet) => {
     const state = get()
+    if (state.settings.shippingFreezeActive) throw new Error(SHIPPING_FROZEN_MSG)
     const shipment = state.shipments.find((s) => s.id === shipmentId)
     if (!shipment) throw new Error('shipment not found')
     if (shipment.status !== 'pending') {
       throw new Error(`No se puede despachar envío desde el estado ${shipment.status}`)
     }
+
+    // Modalidad deshabilitada en configuración → no se puede despachar por ese medio.
+    const carrier = state.carriers.find((c) => c.id === shipment.carrierId)
+    const enabled = state.settings.shippingEnabledModalities
+    if (carrier?.modalityType && enabled?.length && !enabled.includes(carrier.modalityType)) {
+      throw new Error(
+        `La modalidad "${carrier.modalityType}" está deshabilitada en la configuración de despacho.`
+      )
+    }
+
+    // Verificación de carga (#7 Estándar): sin bultos confirmados no sale el envío.
+    const verified = shipment.verifiedPackages ?? 0
+    if (state.settings.shippingRequireLoadVerification && verified <= 0) {
+      throw new Error(
+        'Verificación de carga pendiente: confirma los bultos antes de despachar.'
+      )
+    }
+
+    // Despacho parcial: faltan bultos → sólo pasa si la política lo permite.
+    const missing = state.settings.shippingRequireLoadVerification
+      ? Math.max(0, shipment.packageCount - verified)
+      : 0
+    if (missing > 0 && !state.settings.shippingAllowPartialDispatch) {
+      throw new Error(
+        `Carga incompleta: faltan ${missing} bulto(s) y la configuración no permite despacho parcial.`
+      )
+    }
+
     const updated: Shipment = {
       ...shipment,
       status: 'in_transit',
       shippedAt: seed.seedTimestamp,
       trackingNumber: shipment.trackingNumber ?? `TRK-${shipmentId.toUpperCase()}`,
+      ...(missing > 0 ? { partialDispatch: true, pendingPackages: missing } : {}),
       ...(ownFleet ? { driverName: ownFleet.driverName, vehiclePlate: ownFleet.vehiclePlate } : {}),
+    }
+    set({ shipments: state.shipments.map((s) => (s.id === shipmentId ? updated : s)) })
+    return updated
+  },
+
+  // Confirma físicamente los bultos cargados antes del despacho.
+  verifyShipmentLoad: (shipmentId, verifiedPackages, operatorName) => {
+    const state = get()
+    if (state.settings.shippingFreezeActive) throw new Error(SHIPPING_FROZEN_MSG)
+    const shipment = state.shipments.find((s) => s.id === shipmentId)
+    if (!shipment) throw new Error('shipment not found')
+    if (shipment.status !== 'pending')
+      throw new Error('Sólo se puede verificar la carga de envíos pendientes')
+    if (verifiedPackages < 0) throw new Error('La cantidad verificada no puede ser negativa')
+    if (verifiedPackages > shipment.packageCount)
+      throw new Error(
+        `No se pueden verificar ${verifiedPackages} bultos: el envío sólo tiene ${shipment.packageCount}.`
+      )
+
+    const updated: Shipment = {
+      ...shipment,
+      verifiedPackages,
+      loadVerifiedAt: seed.seedTimestamp,
+      loadVerifiedBy: operatorName,
+    }
+    set({ shipments: state.shipments.map((s) => (s.id === shipmentId ? updated : s)) })
+    return updated
+  },
+
+  // Aplica una cotización de rate shopping al envío (transportadora, servicio, costo, ETA).
+  applyRateQuote: (shipmentId, quote) => {
+    const state = get()
+    if (state.settings.shippingFreezeActive) throw new Error(SHIPPING_FROZEN_MSG)
+    const shipment = state.shipments.find((s) => s.id === shipmentId)
+    if (!shipment) throw new Error('shipment not found')
+    if (shipment.status !== 'pending')
+      throw new Error('Sólo se puede recotizar un envío pendiente de despacho')
+
+    const updated: Shipment = {
+      ...shipment,
+      carrierId: quote.carrierId,
+      carrierName: quote.carrierName,
+      serviceLevel: quote.serviceLevel,
+      quotedCostUsd: quote.quotedCostUsd,
+      estimatedDeliveryDate: quote.estimatedDeliveryDate,
+      otifStatus: shipment.promisedDate
+        ? deriveOtifStatus(
+            shipment.promisedDate,
+            quote.estimatedDeliveryDate,
+            state.settings.shippingOtifAtRiskDays
+          )
+        : shipment.otifStatus,
     }
     set({ shipments: state.shipments.map((s) => (s.id === shipmentId ? updated : s)) })
     return updated
@@ -2129,6 +2279,7 @@ export const useWmsStore = create<WmsState>()(
 
   deliverShipment: (shipmentId) => {
     const state = get()
+    if (state.settings.shippingFreezeActive) throw new Error(SHIPPING_FROZEN_MSG)
     const shipment = state.shipments.find((s) => s.id === shipmentId)
     if (!shipment) throw new Error('shipment not found')
     if (shipment.status !== 'in_transit')
@@ -2146,6 +2297,7 @@ export const useWmsStore = create<WmsState>()(
 
   createManifest: (data) => {
     const state = get()
+    if (state.settings.shippingFreezeActive) throw new Error(SHIPPING_FROZEN_MSG)
 
     const id = `mf-${Date.now()}`
     const code = `MAN-${new Date().toISOString().slice(2, 7).replace('-', '')}-${String(state.loadManifests.length + 1).padStart(3, '0')}`
@@ -2214,6 +2366,7 @@ export const useWmsStore = create<WmsState>()(
 
   dispatchManifest: (manifestId) => {
     const state = get()
+    if (state.settings.shippingFreezeActive) throw new Error(SHIPPING_FROZEN_MSG)
     const manifest = state.loadManifests.find((m) => m.id === manifestId)
     if (!manifest) throw new Error('Manifiesto no encontrado')
     if (manifest.status !== 'pending' && manifest.status !== 'in_progress')

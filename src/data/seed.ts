@@ -3595,6 +3595,24 @@ export const settings: WmsSettings = {
   yardDefaultSlotMinutes: 60,
   yardLateThresholdMinutes: 30,
   yardAllowOverbooking: false,
+  // Packing module (#6)
+  packingFreezeActive: false,
+  packingBoxSafetyMargin: 0.1,
+  packingAutoBoxSuggestion: true,
+  packingRequireFullScan: false,
+  packingAllowMismatch: true,
+  packingAutoGenerateLabel: false,
+  // Shipping module (#7)
+  shippingFreezeActive: false,
+  shippingAutoRateShop: true,
+  shippingRateStrategy: 'cheapest',
+  shippingMaxCostOverBestPct: 0.15,
+  shippingRequireLoadVerification: true,
+  shippingAllowPartialDispatch: false,
+  shippingEnabledModalities: ['own', 'third_party', 'courier', 'last_mile'],
+  shippingOtifAtRiskDays: 1,
+  shippingOtifTargetPct: 95,
+  shippingConsolidateByDestination: true,
   slaConfigs: [
     {
       id: 'sla-1',

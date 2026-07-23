@@ -1,5 +1,11 @@
 import { addDays } from 'date-fns'
-import type { Carrier, CarrierRateQuote, CarrierServiceLevel, Shipment } from '@/types/wms'
+import type {
+  Carrier,
+  CarrierModality,
+  CarrierRateQuote,
+  CarrierServiceLevel,
+  Shipment,
+} from '@/types/wms'
 
 export function routeOccupancy(currentLoadKg: number, capacityKg: number): number {
   if (capacityKg <= 0) return 0
@@ -55,16 +61,33 @@ export function calculateQuotedCost(
 // Rate shop: returns all available quotes for the given weight + destination zone,
 // sorted by cost ascending. Filters out services that don't cover the zone or
 // exceed the weight limit.
+export interface RateShopOptions {
+  // Modalidades habilitadas (/shipping-settings). Vacío o ausente = todas.
+  enabledModalities?: CarrierModality[]
+  // 'cheapest' ordena por costo, 'fastest' por días de tránsito.
+  strategy?: 'cheapest' | 'fastest'
+}
+
 export function rateShop(
   carriers: Carrier[],
   weightKg: number,
   destinationZone: string,
-  dispatchDate: string // ISO date string, e.g. "2026-06-16"
+  dispatchDate: string, // ISO date string, e.g. "2026-06-16"
+  options: RateShopOptions = {}
 ): CarrierRateQuote[] {
   const quotes: CarrierRateQuote[] = []
+  const { enabledModalities, strategy = 'cheapest' } = options
 
   for (const carrier of carriers) {
     if (!carrier.active) continue
+    // A carrier with no declared modality is always eligible — only filter the ones
+    // that declare a modality the configuration has switched off.
+    if (
+      enabledModalities?.length &&
+      carrier.modalityType &&
+      !enabledModalities.includes(carrier.modalityType)
+    )
+      continue
 
     for (const service of carrier.services) {
       if (!service.availableZones.includes(destinationZone)) continue
@@ -85,7 +108,90 @@ export function rateShop(
     }
   }
 
-  return quotes.sort((a, b) => a.quotedCostUsd - b.quotedCostUsd)
+  return quotes.sort((a, b) =>
+    strategy === 'fastest'
+      ? a.estimatedTransitDays - b.estimatedTransitDays || a.quotedCostUsd - b.quotedCostUsd
+      : a.quotedCostUsd - b.quotedCostUsd || a.estimatedTransitDays - b.estimatedTransitDays
+  )
+}
+
+// Quote recommended by the configured strategy — the first of an already-sorted list.
+// Under 'fastest', a quote is only accepted if its premium over the cheapest option
+// stays within maxCostOverBestPct; otherwise the cheapest wins.
+export const recommendedQuote = (
+  quotes: CarrierRateQuote[],
+  maxCostOverBestPct: number
+): CarrierRateQuote | null => {
+  if (quotes.length === 0) return null
+  const cheapest = quotes.reduce((min, q) => (q.quotedCostUsd < min.quotedCostUsd ? q : min))
+  const preferred = quotes[0]
+  if (preferred.carrierId === cheapest.carrierId && preferred.serviceLevel === cheapest.serviceLevel)
+    return preferred
+  if (cheapest.quotedCostUsd <= 0) return preferred
+  const premium = (preferred.quotedCostUsd - cheapest.quotedCostUsd) / cheapest.quotedCostUsd
+  return premium <= maxCostOverBestPct ? preferred : cheapest
+}
+
+// Load verification (#7 Estándar) — bultos confirmados vs. bultos esperados.
+export type LoadVerificationStatus = 'pending' | 'verified' | 'partial' | 'over'
+
+export const loadVerificationStatus = (
+  verifiedPackages: number,
+  expectedPackages: number
+): LoadVerificationStatus => {
+  if (verifiedPackages <= 0) return 'pending'
+  if (verifiedPackages > expectedPackages) return 'over'
+  if (verifiedPackages < expectedPackages) return 'partial'
+  return 'verified'
+}
+
+export interface ConsolidationGroup {
+  destinationCity: string
+  shipmentIds: string[]
+  totalPackages: number
+  totalWeightKg: number
+  carrierNames: string[]
+}
+
+// Groups pending shipments that share a destination city, so they can travel on one
+// route instead of one truck per order. Only groups of 2+ are worth consolidating.
+export const consolidationGroups = (
+  shipments: Pick<
+    Shipment,
+    'id' | 'status' | 'destinationCity' | 'packageCount' | 'weightKg' | 'carrierName'
+  >[]
+): ConsolidationGroup[] => {
+  const map = new Map<string, ConsolidationGroup>()
+
+  for (const s of shipments) {
+    if (s.status !== 'pending') continue
+    const city = s.destinationCity?.trim()
+    if (!city) continue
+    const key = city.toLowerCase()
+    const group = map.get(key) ?? {
+      destinationCity: city,
+      shipmentIds: [],
+      totalPackages: 0,
+      totalWeightKg: 0,
+      carrierNames: [],
+    }
+    group.shipmentIds.push(s.id)
+    group.totalPackages += s.packageCount
+    group.totalWeightKg += s.weightKg
+    if (!group.carrierNames.includes(s.carrierName)) group.carrierNames.push(s.carrierName)
+    map.set(key, group)
+  }
+
+  return Array.from(map.values())
+    .filter((g) => g.shipmentIds.length > 1)
+    .sort((a, b) => b.shipmentIds.length - a.shipmentIds.length)
+}
+
+export const MODALITY_LABELS: Record<CarrierModality, string> = {
+  own: 'Flota propia',
+  third_party: 'Tercero',
+  courier: 'Courier',
+  last_mile: 'Última milla',
 }
 
 // Resolve the carrier zone code for a given city
@@ -101,14 +207,15 @@ export function resolveCarrierZone(carrier: Carrier, city: string): string | nul
 // Returns an OTIF status based on promised date vs. estimated delivery date
 export function deriveOtifStatus(
   promisedDate: string,
-  estimatedDeliveryDate: string
+  estimatedDeliveryDate: string,
+  atRiskDays = 1 // holgura configurable — settings.shippingOtifAtRiskDays
 ): Shipment['otifStatus'] {
   const promised = new Date(promisedDate).getTime()
   const estimated = new Date(estimatedDeliveryDate).getTime()
   const diffDays = (estimated - promised) / (1000 * 60 * 60 * 24)
 
   if (diffDays <= 0) return 'on_time'
-  if (diffDays <= 1) return 'at_risk'
+  if (diffDays <= atRiskDays) return 'at_risk'
   return 'late'
 }
 

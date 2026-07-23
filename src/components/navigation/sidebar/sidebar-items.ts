@@ -258,6 +258,7 @@ export const sidebarItems: NavGroup[] = [
             icon: MapPinned,
           },
           { id: 'config-slotting', title: 'Slotting', url: '/slotting-settings', icon: Grid3x3 },
+          { id: 'config-picking', title: 'Picking', url: '/picking-settings', icon: ClipboardList },
           {
             id: 'config-replenishment',
             title: 'Reabastecimiento',
@@ -266,6 +267,8 @@ export const sidebarItems: NavGroup[] = [
           },
           { id: 'config-returns', title: 'Devoluciones', url: '/returns-settings', icon: Undo2 },
           { id: 'config-yard', title: 'Patio y muelles', url: '/yard-settings', icon: DoorOpen },
+          { id: 'config-packing', title: 'Packing', url: '/packing-settings', icon: PackageCheck },
+          { id: 'config-shipping', title: 'Despacho', url: '/shipping-settings', icon: Truck },
         ],
       },
       {
