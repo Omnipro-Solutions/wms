@@ -3296,6 +3296,28 @@ export const reasons: Reason[] = [
     context: 'transfer_discrepancy',
     active: true,
   },
+  // ─── Incidencias de picking (context: 'picking_issue') ──────────────────────────
+  {
+    id: 'rs-23',
+    code: 'PICK_NO_STOCK',
+    label: 'Sin stock físico en la ubicación',
+    context: 'picking_issue',
+    active: true,
+  },
+  {
+    id: 'rs-24',
+    code: 'PICK_DAMAGED',
+    label: 'Producto dañado en ubicación',
+    context: 'picking_issue',
+    active: true,
+  },
+  {
+    id: 'rs-25',
+    code: 'PICK_LOCATION_EMPTY',
+    label: 'Ubicación vacía / mal etiquetada',
+    context: 'picking_issue',
+    active: true,
+  },
 ]
 
 export const carriers: Carrier[] = [
@@ -3595,6 +3617,20 @@ export const settings: WmsSettings = {
   yardDefaultSlotMinutes: 60,
   yardLateThresholdMinutes: 30,
   yardAllowOverbooking: false,
+  // Picking module (#5)
+  pickingFreezeActive: false,
+  pickingSlaUrgentHours: 4,
+  pickingSlaWarningHours: 12,
+  pickingWaveMinOrders: 5,
+  pickingBatchMinOrders: 2,
+  pickingClusterMaxContainers: 8,
+  pickingRequireIssuePhoto: false,
+  pickingAllowSubstitution: true,
+  pickingZones: [
+    { id: 'pz-1', name: 'Zona A — Picking rápido', sequenceOrder: 1, active: true },
+    { id: 'pz-2', name: 'Zona B — Reserva', sequenceOrder: 2, active: true },
+    { id: 'pz-3', name: 'Zona C — Voluminosos', sequenceOrder: 3, active: true },
+  ],
   slaConfigs: [
     {
       id: 'sla-1',
