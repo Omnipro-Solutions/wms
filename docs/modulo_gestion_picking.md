@@ -44,7 +44,7 @@ Página en **Sistema → Configuración → Picking**, visible solo para el rol 
 
 | Campo (`WmsSettings`) | Default | Qué gobierna |
 |---|---|---|
-| `pickingFreezeActive` | `false` | Congela las 16 acciones de picking (ver Gobierno). |
+| `pickingFreezeActive` | `false` | Congela las 18 acciones de picking (ver Gobierno). |
 | `pickingSlaUrgentHours` | `4` | Horas hasta despacho por debajo de las cuales se sugiere prioridad **alta**. |
 | `pickingSlaWarningHours` | `12` | Horas hasta despacho por debajo de las cuales se sugiere prioridad **media**. |
 | `pickingWaveMinOrders` | `5` | Umbral sugerido (no forzado) para agrupar en oleada vs. waveless. |
@@ -72,7 +72,7 @@ Antes de esta implementación, el estado `with_issue` de `PickingTaskStatus` exi
 
 ## Gobierno (freeze)
 
-`pickingFreezeActive` bloquea, con el mensaje `PICKING_FROZEN_MSG`, las siguientes 16 acciones del store — mismo patrón que `returnsFreezeActive`/`replenishmentFreezeActive`/`yardFreezeActive`:
+`pickingFreezeActive` bloquea, con el mensaje `PICKING_FROZEN_MSG`, las siguientes 18 acciones del store — mismo patrón que `returnsFreezeActive`/`replenishmentFreezeActive`/`yardFreezeActive`:
 
 `startPicking`, `completePick`, `approvePart`, `rejectPart`, `releaseWave`, `createWave`, `startBatchTask`, `completeBatchTask`, `startClusterTask`, `depositToSlot`, `completeClusterTask`, `startPutToStore`, `distributeToStore`, `completePutToStore`, `createWavelessOrder`, `startWavelessOrder` — más `reportIssue` y `resolveIssue`.
 
@@ -80,7 +80,9 @@ Antes de esta implementación, el estado `with_issue` de `PickingTaskStatus` exi
 
 ## Prioridad sugerida por SLA
 
-`derivePriorityFromSla(dispatchDeadline, now, settings)` en `src/lib/rules/picking.ts` — función pura, sin dependencia de store. Compara horas restantes hasta el despacho contra `pickingSlaUrgentHours`/`pickingSlaWarningHours` y devuelve `'low' | 'medium' | 'high'`. Es un **valor sugerido** en los formularios de creación (tarea/wave/waveless) — el usuario puede sobrescribirlo; no se reasigna automáticamente sobre tareas existentes.
+`derivePriorityFromSla(dispatchDeadline, now, settings)` en `src/lib/rules/picking.ts` — función pura, sin dependencia de store. Compara horas restantes hasta el despacho contra `pickingSlaUrgentHours`/`pickingSlaWarningHours` y devuelve `'low' | 'medium' | 'high'`.
+
+**Estado actual:** la función existe y tipa correctamente, pero **aún no está conectada** a ningún formulario de creación (tarea/wave/waveless) — hoy la prioridad se sigue asignando manualmente en esos formularios. Queda como utilidad lista para usarse como valor sugerido por defecto (el usuario podría sobrescribirlo, sin reasignación automática sobre tareas existentes) en una siguiente ronda de trabajo.
 
 ---
 
@@ -92,7 +94,7 @@ Antes de esta implementación, el estado `with_issue` de `PickingTaskStatus` exi
 | 🟢 Base | Validación por escaneo (ubicación, producto, serie/lote) | ✅ (ya existía) |
 | 🟢 Base | Picking parcial con manejo de faltantes | ✅ (ya existía) |
 | 🔵 Estándar | Wave / waveless / batch / cluster / zona / put-to-store | ✅ (ya existían, ahora con config compartida) |
-| 🔵 Estándar | Priorización por SLA | ✅ (nuevo — `derivePriorityFromSla`) |
+| 🔵 Estándar | Priorización por SLA | 🟡 Parcial — regla pura `derivePriorityFromSla` lista, aún no conectada a los formularios de creación |
 | 🔵 Estándar | Manejo de excepciones (sin stock, sustitución, incidencia con foto) | ✅ (nuevo — este trabajo) |
 | 🔵 Estándar | Optimización de ruta por accesibilidad | ✅ (ya existía — `orderTasksByAccessibility`) |
 | 🟣 Avanzado | Order streaming / orquestación dinámica de estrategia | ❌ Fuera de alcance — ver nota abajo |
