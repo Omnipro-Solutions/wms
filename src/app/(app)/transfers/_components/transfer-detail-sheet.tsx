@@ -1,11 +1,12 @@
 'use client'
 
 import { useState } from 'react'
-import { ArrowRight, PackageCheck, Truck, TriangleAlert } from 'lucide-react'
+import { ArrowRight, PackageCheck, Truck, TriangleAlert, UserPlus } from 'lucide-react'
 
 import { useWmsStore } from '@/store/wms-store'
 import { useDialogState } from '@/hooks/use-dialog-state'
 import { StatusBadge } from '@/components/shared/status-badge'
+import { AssignOperatorDialog } from '@/components/shared/assign-operator-dialog'
 import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import {
@@ -41,8 +42,9 @@ export const TransferDetailSheet = ({
   open,
   onClose,
 }: Props) => {
-  const { dispatchLeg } = useWmsStore()
+  const { dispatchLeg, assignTransferDriver, operators } = useWmsStore()
   const [error, setError] = useState('')
+  const [assignDriverOpen, setAssignDriverOpen] = useState(false)
   const receiveLegDialog = useDialogState<TransferLeg>()
 
   if (!transfer) return null
@@ -99,6 +101,19 @@ export const TransferDetailSheet = ({
                   ETA: {formatDate(transfer.estimatedArrivalDate)}
                   {isOverdue && ' · Atrasado'}
                 </span>
+              </div>
+              <div className="flex items-center gap-2 text-xs">
+                <span className="text-muted-foreground">Conductor:</span>
+                {transfer.assignedDriverId ? (
+                  <span className="font-medium">
+                    {operators.find((o) => o.id === transfer.assignedDriverId)?.name ?? transfer.assignedDriverId}
+                  </span>
+                ) : (
+                  <span className="text-amber-600">Sin asignar</span>
+                )}
+                <Button size="sm" variant="outline" className="h-6 px-2 text-xs" onClick={() => setAssignDriverOpen(true)}>
+                  <UserPlus className="mr-1 size-3" /> Asignar conductor
+                </Button>
               </div>
             </section>
 
@@ -215,6 +230,22 @@ export const TransferDetailSheet = ({
           onClose={receiveLegDialog.close}
         />
       )}
+
+      <AssignOperatorDialog
+        open={assignDriverOpen}
+        onOpenChange={setAssignDriverOpen}
+        roles={['driver']}
+        currentOperatorId={transfer.assignedDriverId}
+        entityLabel={`Traslado ${transfer.code}`}
+        onConfirm={(operator) => {
+          try {
+            assignTransferDriver(transfer.id, operator.id)
+          } catch (e) {
+            console.error(e)
+          }
+          setAssignDriverOpen(false)
+        }}
+      />
     </>
   )
 }
