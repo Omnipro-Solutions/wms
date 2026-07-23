@@ -1,6 +1,6 @@
 'use client'
 
-import { ChevronRight, AlertTriangle, RotateCcw } from 'lucide-react'
+import { ChevronRight, AlertTriangle, RotateCcw, type LucideIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { StatusBadge } from '@/components/shared/status-badge'
 
@@ -10,6 +10,7 @@ interface Props {
   badge?: string
   urgent?: boolean
   isReturn?: boolean
+  icon?: LucideIcon
   onClick: () => void
   className?: string
 }
@@ -20,6 +21,7 @@ export const WorkerCard = ({
   badge,
   urgent,
   isReturn,
+  icon: Icon,
   onClick,
   className,
 }: Props) => (
@@ -27,12 +29,17 @@ export const WorkerCard = ({
     type="button"
     onClick={onClick}
     className={cn(
-      'bg-card active:bg-muted flex w-full items-center gap-3 rounded-xl border p-4 text-left shadow-sm transition-colors dark:bg-transparent',
+      'bg-card active:bg-muted flex w-full items-center gap-3 rounded-2xl border p-4 text-left shadow-sm shadow-black/3 transition active:scale-[0.985] dark:bg-transparent',
       urgent && 'border-red-300 bg-red-50 dark:bg-red-950/20',
       isReturn && 'border-orange-300 bg-orange-50 dark:bg-orange-950/20',
       className
     )}
   >
+    {Icon && (
+      <span className="bg-primary/10 text-primary flex size-11 shrink-0 items-center justify-center rounded-full">
+        <Icon className="size-5" />
+      </span>
+    )}
     <div className="min-w-0 flex-1">
       <div className="flex items-center gap-2">
         <p className="truncate font-semibold">{title}</p>
@@ -54,6 +61,6 @@ export const WorkerCard = ({
         </div>
       )}
     </div>
-    <ChevronRight className="text-muted-foreground shrink-0" />
+    <ChevronRight className="text-primary/50 shrink-0" />
   </button>
 )

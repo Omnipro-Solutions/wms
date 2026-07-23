@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation'
 import { useWmsStore } from '@/store/wms-store'
 import { useCurrentOperator } from '@/hooks/use-current-operator'
 import { WorkerCard } from '@/components/worker/worker-card'
+import { WorkerPageHeader } from '@/components/worker/worker-page-header'
 import { Button } from '@/components/ui/button'
 import { Truck, ArrowRightLeft, CheckCircle2 } from 'lucide-react'
 
@@ -44,14 +45,21 @@ export default function WorkerDriverPage() {
 
   return (
     <div className="flex flex-col gap-6">
+      <WorkerPageHeader
+        title="Mis rutas"
+        subtitle={`${myManifests.length + myTransfers.length} asignaciones`}
+        icon={Truck}
+      />
+
       {myManifests.length > 0 && (
         <section className="flex flex-col gap-2">
-          <h2 className="text-muted-foreground flex items-center gap-2 text-sm font-semibold tracking-wide uppercase">
+          <h2 className="text-primary/70 flex items-center gap-2 text-[11px] font-bold tracking-wide uppercase">
             <Truck className="size-4" /> Manifiestos
           </h2>
           {myManifests.map((m) => (
             <WorkerCard
               key={m.id}
+              icon={Truck}
               title={m.code}
               subtitle={`${m.stops.length} paradas · ${m.carrierName}`}
               badge={m.status}
@@ -63,19 +71,20 @@ export default function WorkerDriverPage() {
 
       {myTransfers.length > 0 && (
         <section className="flex flex-col gap-2">
-          <h2 className="text-muted-foreground flex items-center gap-2 text-sm font-semibold tracking-wide uppercase">
+          <h2 className="text-primary/70 flex items-center gap-2 text-[11px] font-bold tracking-wide uppercase">
             <ArrowRightLeft className="size-4" /> Transferencias
           </h2>
           {myTransfers.map((t) => (
             <div key={t.id} className="flex flex-col gap-2">
               <WorkerCard
+                icon={ArrowRightLeft}
                 title={t.code}
                 subtitle={`${t.originId} → ${t.destinationId}`}
                 badge="in_transit"
                 onClick={() => {}}
               />
               <Button
-                className="h-12 w-full gap-2 bg-emerald-600 text-white hover:bg-emerald-700"
+                className="h-14 w-full gap-2 rounded-2xl bg-emerald-600 text-white hover:bg-emerald-700"
                 onClick={() => handleConfirmArrival(t.id)}
               >
                 <CheckCircle2 className="size-4" /> CONFIRMAR LLEGADA

@@ -12,23 +12,23 @@ interface Props {
 }
 
 export const QuantityStepper = ({ value, onChange, min = 0, max, className }: Props) => (
-  <div className={cn('flex items-center justify-center gap-4', className)}>
+  <div className={cn('flex items-center justify-center gap-5', className)}>
     <Button
       variant="outline"
       size="icon"
       aria-label="−"
-      className="h-12 w-12 text-xl"
+      className="h-14 w-14 rounded-full border-primary/30 text-xl active:bg-primary/10"
       disabled={value <= (min ?? 0)}
       onClick={() => onChange(value - 1)}
     >
       −
     </Button>
-    <span className="w-16 text-center text-3xl font-bold tabular-nums">{value}</span>
+    <span className="w-20 text-center text-4xl font-black tabular-nums">{value}</span>
     <Button
       variant="outline"
       size="icon"
       aria-label="+"
-      className="h-12 w-12 text-xl"
+      className="h-14 w-14 rounded-full border-primary/30 text-xl active:bg-primary/10"
       disabled={max !== undefined && value >= max}
       onClick={() => onChange(value + 1)}
     >

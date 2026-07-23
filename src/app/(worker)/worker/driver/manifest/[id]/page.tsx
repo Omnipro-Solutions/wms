@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation'
 import { CheckCircle2, Circle, ArrowLeft, TriangleAlert } from 'lucide-react'
 import { useWmsStore } from '@/store/wms-store'
 import { Button } from '@/components/ui/button'
+import { Progress } from '@/components/ui/progress'
 import {
   Dialog,
   DialogContent,
@@ -73,7 +74,7 @@ export default function WorkerManifestPage() {
         </div>
         <Button
           variant="outline"
-          className="h-12 w-full gap-2"
+          className="h-14 w-full gap-2 rounded-2xl"
           onClick={() => router.push('/worker/driver')}
         >
           <ArrowLeft className="size-4" /> Volver
@@ -82,17 +83,22 @@ export default function WorkerManifestPage() {
     )
   }
 
+  const progressPct = (delivered.size / sortedStops.length) * 100
+
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold">{manifest.code}</h1>
-        <span className="text-sm text-muted-foreground">
-          {delivered.size}/{sortedStops.length} paradas
-        </span>
+      <div className="rounded-3xl bg-linear-to-br from-(--worker-gradient-from) to-(--worker-gradient-to) p-5 text-(--worker-on-gradient)">
+        <div className="flex items-center justify-between">
+          <p className="text-xl font-bold">{manifest.code}</p>
+          <span className="text-sm opacity-90">
+            {delivered.size}/{sortedStops.length} paradas
+          </span>
+        </div>
+        <Progress value={progressPct} className="mt-3 bg-white/25" />
       </div>
 
       <div className="flex flex-col gap-2">
-        {sortedStops.map((stop) => {
+        {sortedStops.map((stop, i) => {
           const isDone = delivered.has(stop.id)
           const isCurrent = stop.id === currentStop?.id
           const destination = warehouses.find((w) => w.id === stop.destinationId)
@@ -101,7 +107,8 @@ export default function WorkerManifestPage() {
             <div
               key={stop.id}
               className={cn(
-                'rounded-xl border p-4 transition-opacity',
+                'relative rounded-2xl border p-4 transition-opacity',
+                i > 0 && "before:absolute before:-top-2 before:left-[1.65rem] before:h-2 before:w-0.5 before:bg-border before:content-['']",
                 isDone && 'border-emerald-200 bg-emerald-50 opacity-60 dark:bg-emerald-950/20',
                 isCurrent && 'border-primary bg-primary/5 shadow-sm',
                 !isDone && !isCurrent && 'opacity-40'
@@ -111,7 +118,7 @@ export default function WorkerManifestPage() {
                 {isDone ? (
                   <CheckCircle2 className="size-5 text-emerald-500" />
                 ) : (
-                  <Circle className="text-muted-foreground size-5" />
+                  <Circle className={cn('size-5', isCurrent ? 'text-primary' : 'text-muted-foreground')} />
                 )}
                 <p className="font-semibold">
                   Parada {stop.sequence} — {destination?.name ?? stop.destinationId}
@@ -121,14 +128,14 @@ export default function WorkerManifestPage() {
               {isCurrent && (
                 <div className="mt-3 flex gap-2">
                   <Button
-                    className="h-12 flex-1 gap-2 bg-emerald-600 text-white hover:bg-emerald-700"
+                    className="h-14 flex-1 gap-2 rounded-2xl bg-emerald-600 text-white hover:bg-emerald-700"
                     onClick={() => handleDeliver(stop.id)}
                   >
                     <CheckCircle2 className="size-4" /> CONFIRMAR ENTREGA
                   </Button>
                   <Button
                     variant="outline"
-                    className="h-12 flex-1 gap-2 border-amber-400 text-amber-700 dark:text-amber-400"
+                    className="h-14 flex-1 gap-2 rounded-2xl border-amber-400 text-amber-700 dark:text-amber-400"
                     onClick={() => setNovedadStop(stop.id)}
                   >
                     <TriangleAlert className="size-4" /> NOVEDAD

@@ -2,15 +2,19 @@
 
 import { useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { CheckCircle2, Hash } from 'lucide-react'
+import { CheckCircle2, Hash, EyeOff } from 'lucide-react'
 import { useWmsStore } from '@/store/wms-store'
 import { useCurrentOperator } from '@/hooks/use-current-operator'
+import { useLastPickMode } from '@/hooks/use-last-pick-mode'
 import { WorkerStepper } from '@/components/worker/worker-stepper'
 import { ScanInput } from '@/components/worker/scan-input'
 import { QuantityStepper } from '@/components/worker/quantity-stepper'
+import { PickModeSelect, type PickMode } from '@/components/worker/pick-mode-select'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Badge } from '@/components/ui/badge'
+import { cn } from '@/lib/utils'
 import {
   Dialog,
   DialogContent,
@@ -20,7 +24,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 
-type Step = 'location' | 'product' | 'quantity' | 'done'
+type Step = 'mode' | 'location' | 'product' | 'quantity' | 'done'
 
 const ErrorBanner = ({ message }: { message: string }) => (
   <div className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
@@ -40,7 +44,9 @@ export default function WorkerPickingTaskPage() {
   const location = locations.find((l) => l.id === task?.locationId)
   const product = products.find((p) => p.id === task?.productId)
 
-  const [step, setStep] = useState<Step>('location')
+  const { lastMode, remember } = useLastPickMode()
+  const [step, setStep] = useState<Step>('mode')
+  const [pickMode, setPickMode] = useState<PickMode | null>(null)
   const [qty, setQty] = useState(task?.requestedQuantity ?? 0)
   const [serial, setSerial] = useState('')
   const [showPartialDialog, setShowPartialDialog] = useState(false)
@@ -59,7 +65,15 @@ export default function WorkerPickingTaskPage() {
     )
   }
 
-  const stepIndex = { location: 1, product: 2, quantity: 3, done: 4 }
+  const stepIndex = { mode: 1, location: 2, product: 3, quantity: 4, done: 5 }
+  const effectiveMode: PickMode = pickMode ?? lastMode ?? 'visible'
+  const blind = effectiveMode === 'blind'
+
+  const handleContinueFromMode = () => {
+    remember(effectiveMode)
+    setPickMode(effectiveMode)
+    setStep('location')
+  }
 
   const handleLocationMatch = () => {
     setPickError(null)
@@ -73,7 +87,10 @@ export default function WorkerPickingTaskPage() {
     }
   }
 
-  const handleProductMatch = () => setStep('quantity')
+  const handleProductMatch = () => {
+    setQty(blind ? 0 : task.requestedQuantity)
+    setStep('quantity')
+  }
 
   const requiresSerial = product.trackBy === 'serial'
 
@@ -147,6 +164,7 @@ export default function WorkerPickingTaskPage() {
   }
 
   if (step === 'done') {
+    const variance = qty - task.requestedQuantity
     return (
       <div className="flex min-h-[60vh] flex-col items-center justify-center gap-6 text-center">
         <CheckCircle2 className="size-16 text-emerald-500" />
@@ -154,6 +172,25 @@ export default function WorkerPickingTaskPage() {
           <p className="text-2xl font-bold">¡Pick completado!</p>
           <p className="text-sm text-muted-foreground mt-1">{task.code}</p>
         </div>
+        {blind && (
+          <div
+            className={cn(
+              'w-full rounded-2xl border p-4 text-center',
+              variance === 0 && 'border-emerald-200 bg-emerald-50 text-emerald-700',
+              variance > 0 && 'border-blue-200 bg-blue-50 text-blue-700',
+              variance < 0 && 'border-red-200 bg-red-50 text-red-700'
+            )}
+          >
+            <p className="text-xs uppercase tracking-wide opacity-70">Diferencia vs. lo solicitado</p>
+            <p className="text-4xl font-black tabular-nums">
+              {variance > 0 ? '+' : ''}
+              {variance}
+            </p>
+            <p className="text-sm opacity-70">
+              Solicitado: {task.requestedQuantity} · Contado: {qty}
+            </p>
+          </div>
+        )}
         <div className="flex w-full flex-col gap-2">
           <Button variant="outline" className="h-12" onClick={() => router.push('/worker/picking')}>
             ← Ver mis tareas
@@ -165,11 +202,24 @@ export default function WorkerPickingTaskPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <WorkerStepper current={stepIndex[step]} total={3} />
+      <WorkerStepper current={stepIndex[step]} total={4} />
+
+      {step === 'mode' && (
+        <div className="flex flex-col gap-4">
+          <div>
+            <p className="text-lg font-bold">¿Cómo quieres contar esta tarea?</p>
+            <p className="text-sm text-muted-foreground">Tarea {task.code}</p>
+          </div>
+          <PickModeSelect value={pickMode ?? lastMode ?? 'visible'} onChange={setPickMode} />
+          <Button className="h-14 text-base" onClick={handleContinueFromMode}>
+            Continuar
+          </Button>
+        </div>
+      )}
 
       {step === 'location' && (
         <div className="flex flex-col gap-4">
-          <div className="rounded-xl bg-muted p-4 text-center">
+          <div className="rounded-2xl bg-linear-to-br from-(--worker-gradient-soft-from) to-(--worker-gradient-soft-to) p-4 text-center">
             <p className="text-xs uppercase tracking-wide text-muted-foreground">Zona</p>
             <p className="text-5xl font-black">{location.zone}</p>
             <p className="text-3xl font-bold text-muted-foreground">{location.code}</p>
@@ -232,14 +282,23 @@ export default function WorkerPickingTaskPage() {
               <p className="text-xl font-bold text-white">¡Confirmado!</p>
             </div>
           )}
-          <div className="w-full rounded-xl bg-muted p-4 text-center">
-            <p className="text-sm text-muted-foreground">Solicitado</p>
-            <p className="text-6xl font-black tabular-nums">{task.requestedQuantity}</p>
-            <p className="mt-1 text-sm text-muted-foreground">{product.name}</p>
-          </div>
+          {blind ? (
+            <div className="flex w-full flex-col items-center gap-2 rounded-2xl bg-muted p-4 text-center">
+              <Badge variant="outline" className="text-muted-foreground">
+                <EyeOff className="mr-1 size-3" /> Modo ciego — cuenta lo que encuentres
+              </Badge>
+              <p className="text-sm text-muted-foreground">{product.name}</p>
+            </div>
+          ) : (
+            <div className="w-full rounded-2xl bg-muted p-4 text-center">
+              <p className="text-sm text-muted-foreground">Solicitado</p>
+              <p className="text-6xl font-black tabular-nums">{task.requestedQuantity}</p>
+              <p className="mt-1 text-sm text-muted-foreground">{product.name}</p>
+            </div>
+          )}
           <div className="w-full">
             <p className="mb-2 text-center text-sm font-medium text-muted-foreground">Cantidad a picar</p>
-            <QuantityStepper value={qty} onChange={setQty} min={0} max={task.requestedQuantity} />
+            <QuantityStepper value={qty} onChange={setQty} min={0} max={blind ? undefined : task.requestedQuantity} />
           </div>
           {requiresSerial && (
             <div className="w-full space-y-1">
@@ -264,7 +323,7 @@ export default function WorkerPickingTaskPage() {
           >
             CONFIRMAR {qty} UDS
           </Button>
-          {qty < task.requestedQuantity && qty > 0 && (
+          {!blind && qty < task.requestedQuantity && qty > 0 && (
             <p className="text-sm text-amber-600">
               ⚠️ Registrarás {task.requestedQuantity - qty} unidades menos que lo solicitado
             </p>
@@ -277,14 +336,28 @@ export default function WorkerPickingTaskPage() {
           <DialogHeader>
             <DialogTitle className="text-center">¿Confirmar cantidad parcial?</DialogTitle>
             <DialogDescription className="text-center">
-              <span className="text-4xl font-black tabular-nums text-foreground">
-                {qty}
-              </span>
-              <span className="text-2xl font-medium text-muted-foreground">
-                {' '}/{' '}{task.requestedQuantity}
-              </span>
-              <br />
-              <span className="text-sm">unidades — se marcará como pick parcial</span>
+              {blind ? (
+                <>
+                  Vas a registrar <span className="text-4xl font-black tabular-nums text-foreground">{qty}</span>{' '}
+                  unidades para este ítem.
+                  <br />
+                  <span className="text-sm">
+                    Es menos de lo que se esperaba — se marcará como parcial y verás la diferencia después de
+                    confirmar.
+                  </span>
+                </>
+              ) : (
+                <>
+                  <span className="text-4xl font-black tabular-nums text-foreground">
+                    {qty}
+                  </span>
+                  <span className="text-2xl font-medium text-muted-foreground">
+                    {' '}/{' '}{task.requestedQuantity}
+                  </span>
+                  <br />
+                  <span className="text-sm">unidades — se marcará como pick parcial</span>
+                </>
+              )}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="flex-col gap-2 sm:flex-col">

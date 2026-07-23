@@ -3,8 +3,9 @@
 import { useRouter } from 'next/navigation'
 import { useWmsStore } from '@/store/wms-store'
 import { WorkerCard } from '@/components/worker/worker-card'
+import { WorkerPageHeader } from '@/components/worker/worker-page-header'
 import { Button } from '@/components/ui/button'
-import { Package } from 'lucide-react'
+import { Package, ArrowRight } from 'lucide-react'
 
 export default function WorkerPackingPage() {
   const router = useRouter()
@@ -27,18 +28,17 @@ export default function WorkerPackingPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold">Cola de empaque</h1>
-        <span className="text-sm text-muted-foreground">{queue.length} órdenes</span>
-      </div>
+      <WorkerPageHeader title="Cola de empaque" subtitle={`${queue.length} órdenes`} icon={Package} />
 
-      <Button className="h-12 text-base" onClick={() => router.push(`/worker/packing/${queue[0].id}`)}>
-        ▶ INICIAR SIGUIENTE
+      <Button className="h-14 gap-2 text-base" onClick={() => router.push(`/worker/packing/${queue[0].id}`)}>
+        Iniciar siguiente <ArrowRight className="size-4" />
       </Button>
 
       <div className="flex flex-col gap-2">
         {queue.map((order) => {
           const ruleIds = order.appliedRuleIds ?? []
+          // ruleLabels se pasa como `badge` — es una etiqueta de manejo (frágil, pesado…), no un
+          // estado de ciclo de vida; StatusBadge la muestra como pill neutro cuando no matchea STATUS_MAP.
           const ruleLabels = packingRules
             .filter((r) => ruleIds.includes(r.id))
             .map((r) => r.name)
@@ -47,6 +47,7 @@ export default function WorkerPackingPage() {
           return (
             <WorkerCard
               key={order.id}
+              icon={Package}
               title={order.orderNumber ?? order.id}
               subtitle={`${order.expectedItems} ítems · ${order.customerName}`}
               badge={ruleLabels || undefined}

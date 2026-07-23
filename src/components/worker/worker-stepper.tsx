@@ -14,7 +14,10 @@ export const WorkerStepper = ({ current, total }: Props) => (
       {Array.from({ length: total }).map((_, i) => (
         <div
           key={i}
-          className={cn('h-1.5 w-6 rounded-full', i < current ? 'bg-primary' : 'bg-muted')}
+          className={cn(
+            'h-1.5 rounded-full transition-all',
+            i < current ? 'w-8 bg-primary' : 'w-1.5 bg-muted'
+          )}
         />
       ))}
     </div>

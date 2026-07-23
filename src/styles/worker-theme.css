@@ -1,0 +1,37 @@
+/*
+label: Worker mobile brand accent
+scope: solo elementos bajo [data-worker-theme] — nunca toca :root/.dark globalmente
+*/
+[data-worker-theme] {
+  --primary: oklch(0.546 0.245 262.9); /* ≈ Tailwind blue-600 */
+  --primary-foreground: oklch(0.98 0.014 259);
+  --ring: oklch(0.546 0.245 262.9 / 55%);
+  --accent: oklch(0.93 0.03 262.9);
+  --accent-foreground: oklch(0.32 0.14 262.9);
+
+  --background: oklch(0.984 0.006 259);
+  --border: oklch(0.906 0.014 259);
+  --radius: 1.125rem;
+
+  --worker-gradient-from: oklch(0.546 0.245 262.9);
+  --worker-gradient-to: oklch(0.511 0.262 276.9);
+  --worker-gradient-soft-from: oklch(0.94 0.03 262.9);
+  --worker-gradient-soft-to: oklch(0.94 0.035 276.9);
+  --worker-on-gradient: oklch(0.98 0.01 262.9);
+}
+
+.dark [data-worker-theme] {
+  --primary: oklch(0.72 0.16 262.9);
+  --primary-foreground: oklch(0.18 0.04 262.9);
+  --ring: oklch(0.72 0.16 262.9 / 50%);
+  --accent: oklch(0.28 0.05 262.9);
+  --accent-foreground: oklch(0.92 0.03 262.9);
+  --background: oklch(0.16 0.01 262.9);
+  --border: oklch(1 0 0 / 12%);
+
+  --worker-gradient-from: oklch(0.42 0.17 262.9);
+  --worker-gradient-to: oklch(0.4 0.2 276.9);
+  --worker-gradient-soft-from: oklch(0.25 0.05 262.9);
+  --worker-gradient-soft-to: oklch(0.25 0.055 276.9);
+  --worker-on-gradient: oklch(0.98 0.01 262.9);
+}

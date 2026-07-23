@@ -73,6 +73,10 @@ export default function WorkerPackingOrderPage() {
     if (!pendingLine) return
     setScanError(null)
     if (order.status === 'pending') startPacking(order.id, operator?.name ?? 'Empacador')
+    // No hay captura de serial aquí — scanItem solo verifica código+cantidad. El modelo de datos
+    // sí tiene un campo `serial` por línea (completePacking lo usa si viene lleno), pero ninguna
+    // pantalla lo llena hoy. Ver el paso de cantidad de picking (/worker/picking/task/[taskId])
+    // como referencia si se prioriza capturarlo aquí más adelante.
     scanItem(order.id, pendingLine.productId, pendingLine.requestedQuantity)
     const remaining = (order.items?.length ?? 0) - completedLines - 1
     if (remaining <= 0) setStep('box')
@@ -143,13 +147,13 @@ export default function WorkerPackingOrderPage() {
           </h2>
           <div className="flex flex-col gap-2">
             {activeRules.map((rule) => (
-              <div key={rule.id} className="rounded-xl border border-amber-300 bg-amber-50 p-4">
+              <div key={rule.id} className="rounded-2xl border border-amber-300 bg-amber-50 p-4">
                 <p className="font-semibold">{rule.name}</p>
                 <p className="text-sm text-muted-foreground">{rule.description}</p>
               </div>
             ))}
           </div>
-          <Button className="h-12 text-base" onClick={handleStartItems}>
+          <Button className="h-14 text-base" onClick={handleStartItems}>
             ENTENDIDO, CONTINUAR
           </Button>
         </div>
@@ -162,7 +166,7 @@ export default function WorkerPackingOrderPage() {
               Producto {completedLines + 1} de {lineCount}
             </span>
           )}
-          <div className="bg-muted rounded-xl p-4">
+          <div className="bg-muted rounded-2xl p-4">
             {pendingProduct?.imageUrl && (
               <img
                 src={pendingProduct.imageUrl}
@@ -183,7 +187,7 @@ export default function WorkerPackingOrderPage() {
             onError={handleLineError}
           />
           {scanError && <ErrorBanner message={scanError} />}
-          <Button variant="outline" className="h-10 text-sm" onClick={handleSkipVerification}>
+          <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={handleSkipVerification}>
             Omitir verificación
           </Button>
         </div>
@@ -193,7 +197,7 @@ export default function WorkerPackingOrderPage() {
         <div className="flex flex-col gap-4">
           <h2 className="text-lg font-bold">Seleccionar caja</h2>
           {suggested && !showBoxList && (
-            <div className="rounded-xl border-2 border-primary bg-primary/5 p-4">
+            <div className="rounded-2xl border-2 border-primary bg-primary/5 p-4">
               <p className="text-xs text-muted-foreground uppercase tracking-wide">Sugerida</p>
               <p className="flex items-center gap-2 text-lg font-bold">
                 <Package className="size-5" /> {suggested.name}
@@ -201,7 +205,7 @@ export default function WorkerPackingOrderPage() {
               <p className="text-sm text-muted-foreground">
                 {suggested.dimensionsCm} · máx {suggested.maxWeightKg}kg
               </p>
-              <Button className="h-12 w-full mt-3 text-base gap-2" onClick={() => handleSelectBox(suggested.id)}>
+              <Button className="h-14 w-full mt-3 text-base gap-2" onClick={() => handleSelectBox(suggested.id)}>
                 <CheckCircle2 className="size-4" /> USAR ESTA CAJA
               </Button>
             </div>
@@ -216,7 +220,7 @@ export default function WorkerPackingOrderPage() {
                   key={box.id}
                   type="button"
                   onClick={() => handleSelectBox(box.id)}
-                  className="rounded-xl border p-4 text-left active:bg-muted"
+                  className="rounded-2xl border p-4 text-left active:bg-muted"
                 >
                   <p className="font-semibold">{box.name}</p>
                   <p className="text-sm text-muted-foreground">
@@ -232,13 +236,13 @@ export default function WorkerPackingOrderPage() {
       {step === 'label' && (
         <div className="flex flex-col gap-4">
           <h2 className="text-lg font-bold">Generar etiqueta</h2>
-          <div className="rounded-xl bg-muted p-4">
+          <div className="rounded-2xl bg-muted p-4">
             <p className="text-sm text-muted-foreground">Orden</p>
             <p className="font-bold">{order.orderNumber ?? order.id}</p>
             <p className="text-sm text-muted-foreground mt-2">Cliente</p>
             <p className="font-semibold">{order.customerName}</p>
           </div>
-          <Button className="h-12 text-base gap-2" onClick={handleGenerateLabel}>
+          <Button className="h-14 text-base gap-2" onClick={handleGenerateLabel}>
             <Printer className="size-4" /> GENERAR ETIQUETA
           </Button>
         </div>

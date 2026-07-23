@@ -4,8 +4,9 @@ import { useRouter } from 'next/navigation'
 import { useWmsStore } from '@/store/wms-store'
 import { useCurrentOperator } from '@/hooks/use-current-operator'
 import { WorkerCard } from '@/components/worker/worker-card'
+import { WorkerPageHeader } from '@/components/worker/worker-page-header'
 import { Button } from '@/components/ui/button'
-import { ClipboardList } from 'lucide-react'
+import { ClipboardList, Package, ArrowRight } from 'lucide-react'
 import { useStoreHelpers } from '@/hooks/use-store-helpers'
 
 export default function WorkerPickingPage() {
@@ -41,16 +42,17 @@ export default function WorkerPickingPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold">Mis tareas</h1>
-        <span className="text-sm text-muted-foreground">{myTasks.length} pendientes</span>
-      </div>
+      <WorkerPageHeader
+        title="Mis tareas"
+        subtitle={`${myTasks.length} pendientes`}
+        icon={ClipboardList}
+      />
 
       <Button
-        className="h-12 text-base"
+        className="h-14 gap-2 text-base"
         onClick={() => router.push(`/worker/picking/task/${next.id}`)}
       >
-        ▶ INICIAR SIGUIENTE TAREA
+        Iniciar siguiente tarea <ArrowRight className="size-4" />
       </Button>
 
       <div className="flex flex-col gap-2">
@@ -60,6 +62,7 @@ export default function WorkerPickingPage() {
           return (
             <WorkerCard
               key={task.id}
+              icon={Package}
               title={product?.name ?? task.productId}
               subtitle={`${location?.zone ?? '—'} · ${location?.code ?? '—'} · ×${task.requestedQuantity}`}
               badge={task.code}

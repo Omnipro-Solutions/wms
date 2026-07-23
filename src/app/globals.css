@@ -7,6 +7,7 @@
 @import '../styles/presets/soft-pop.css';
 @import '../styles/presets/tangerine.css';
 @import '../styles/presets/industrial.css';
+@import '../styles/worker-theme.css';
 
 @custom-variant dark (&:is(.dark *));
 

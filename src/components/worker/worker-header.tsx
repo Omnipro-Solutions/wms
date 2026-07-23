@@ -23,7 +23,7 @@ export const WorkerHeader = () => {
   }
 
   return (
-    <header className="bg-background flex h-14 items-center justify-between border-b px-4">
+    <header className="bg-background/95 supports-backdrop-filter:bg-background/80 sticky top-0 z-40 flex h-14 items-center justify-between border-b border-border/60 px-4 backdrop-blur-sm">
       <div className="flex items-center gap-2">
         <Logo className="text-primary size-7 shrink-0 dark:text-white" />
         <span className="text-sm font-semibold">{APP_CONFIG.name}</span>
