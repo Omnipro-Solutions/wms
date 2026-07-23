@@ -129,6 +129,9 @@ const CYCLE_COUNT_FROZEN_MSG = 'Conteo cíclico en modo congelado. No se permite
 // Shared error shown by every yard/dock action when the module is frozen (see /yard-settings).
 const YARD_FROZEN_MSG = 'Patio y muelles en modo congelado. No se permiten operaciones.'
 
+// Shared error shown by every picking action when the module is frozen (see /picking-settings).
+const PICKING_FROZEN_MSG = 'Picking en modo congelado. No se permiten operaciones.'
+
 const nextMovementId = (): string => {
   movementCounter += 1
   return `mv-${movementCounter}`
@@ -274,6 +277,14 @@ export interface WmsState {
   ) => PickingTask
   approvePart: (taskId: string) => PickingTask
   rejectPart: (taskId: string) => PickingTask
+  reportIssue: (
+    taskId: string,
+    reasonId: string,
+    note: string,
+    photoDataUrl?: string,
+    substituteProductId?: string
+  ) => PickingTask
+  resolveIssue: (taskId: string) => PickingTask
   // Waves
   releaseWave: (waveId: string) => PickingWave
   createWave: (data: Omit<PickingWave, 'id' | 'createdAt' | 'status'>) => PickingWave
@@ -1524,6 +1535,7 @@ export const useWmsStore = create<WmsState>()(
 
   startPicking: (taskId, operatorName) => {
     const state = get()
+    if (state.settings.pickingFreezeActive) throw new Error(PICKING_FROZEN_MSG)
     const task = state.pickingTasks.find((t) => t.id === taskId)
     if (!task) throw new Error('picking task not found')
     const canAssign = canTransition(pickingTaskTransitions, task.status, 'assigned')
@@ -1539,6 +1551,7 @@ export const useWmsStore = create<WmsState>()(
 
   completePick: (taskId, pickedQty, reasonId, capturedSerial, uomId) => {
     const state = get()
+    if (state.settings.pickingFreezeActive) throw new Error(PICKING_FROZEN_MSG)
     const task = state.pickingTasks.find((t) => t.id === taskId)
     if (!task) throw new Error('picking task not found')
     if (
@@ -1627,6 +1640,7 @@ export const useWmsStore = create<WmsState>()(
 
   approvePart: (taskId) => {
     const state = get()
+    if (state.settings.pickingFreezeActive) throw new Error(PICKING_FROZEN_MSG)
     const task = state.pickingTasks.find((t) => t.id === taskId)
     if (!task) throw new Error('picking task not found')
     if (!canTransition(pickingTaskTransitions, task.status, 'partial_approved')) {
@@ -1639,6 +1653,7 @@ export const useWmsStore = create<WmsState>()(
 
   rejectPart: (taskId) => {
     const state = get()
+    if (state.settings.pickingFreezeActive) throw new Error(PICKING_FROZEN_MSG)
     const task = state.pickingTasks.find((t) => t.id === taskId)
     if (!task) throw new Error('picking task not found')
     if (!canTransition(pickingTaskTransitions, task.status, 'partial_rejected')) {
@@ -1649,10 +1664,47 @@ export const useWmsStore = create<WmsState>()(
     return updated
   },
 
+  reportIssue: (taskId, reasonId, note, photoDataUrl, substituteProductId) => {
+    const state = get()
+    if (state.settings.pickingFreezeActive) throw new Error(PICKING_FROZEN_MSG)
+    const task = state.pickingTasks.find((t) => t.id === taskId)
+    if (!task) throw new Error('picking task not found')
+    if (!canTransition(pickingTaskTransitions, task.status, 'with_issue')) {
+      throw new Error(`No se puede reportar incidencia desde el estado ${task.status}`)
+    }
+    if (state.settings.pickingRequireIssuePhoto && !photoDataUrl) {
+      throw new Error('Este almacén exige foto para reportar una incidencia')
+    }
+    const updated: PickingTask = {
+      ...task,
+      status: 'with_issue',
+      issueReasonId: reasonId,
+      issueReason: note,
+      ...(photoDataUrl ? { issuePhotoUrl: photoDataUrl } : {}),
+      ...(substituteProductId ? { substituteProductId } : {}),
+    }
+    set({ pickingTasks: state.pickingTasks.map((t) => (t.id === taskId ? updated : t)) })
+    return updated
+  },
+
+  resolveIssue: (taskId) => {
+    const state = get()
+    if (state.settings.pickingFreezeActive) throw new Error(PICKING_FROZEN_MSG)
+    const task = state.pickingTasks.find((t) => t.id === taskId)
+    if (!task) throw new Error('picking task not found')
+    if (!canTransition(pickingTaskTransitions, task.status, 'in_progress')) {
+      throw new Error(`No se puede resolver incidencia desde el estado ${task.status}`)
+    }
+    const updated: PickingTask = { ...task, status: 'in_progress' }
+    set({ pickingTasks: state.pickingTasks.map((t) => (t.id === taskId ? updated : t)) })
+    return updated
+  },
+
   // ─── Waves ────────────────────────────────────────────────────────────────
 
   releaseWave: (waveId) => {
     const state = get()
+    if (state.settings.pickingFreezeActive) throw new Error(PICKING_FROZEN_MSG)
     const wave = state.pickingWaves.find((w) => w.id === waveId)
     if (!wave) throw new Error('picking wave not found')
     if (!canTransition(waveTransitions, wave.status, 'in_progress')) {
@@ -1665,6 +1717,7 @@ export const useWmsStore = create<WmsState>()(
 
   createWave: (data) => {
     const state = get()
+    if (state.settings.pickingFreezeActive) throw new Error(PICKING_FROZEN_MSG)
     const id = `wv-${state.pickingWaves.length + 1}-new`
     const created: PickingWave = {
       ...data,
@@ -1680,6 +1733,7 @@ export const useWmsStore = create<WmsState>()(
 
   startBatchTask: (batchId, operatorName) => {
     const state = get()
+    if (state.settings.pickingFreezeActive) throw new Error(PICKING_FROZEN_MSG)
     const batch = state.batchTasks.find((b) => b.id === batchId)
     if (!batch) throw new Error('batch task not found')
     if (batch.status !== 'pending')
@@ -1691,6 +1745,7 @@ export const useWmsStore = create<WmsState>()(
 
   completeBatchTask: (batchId, pickedQty) => {
     const state = get()
+    if (state.settings.pickingFreezeActive) throw new Error(PICKING_FROZEN_MSG)
     const batch = state.batchTasks.find((b) => b.id === batchId)
     if (!batch) throw new Error('batch task not found')
     if (batch.status !== 'in_progress')
@@ -1740,6 +1795,7 @@ export const useWmsStore = create<WmsState>()(
 
   startClusterTask: (clusterId, operatorName) => {
     const state = get()
+    if (state.settings.pickingFreezeActive) throw new Error(PICKING_FROZEN_MSG)
     const cluster = state.clusterTasks.find((c) => c.id === clusterId)
     if (!cluster) throw new Error('cluster task not found')
     if (cluster.status !== 'pending')
@@ -1751,6 +1807,7 @@ export const useWmsStore = create<WmsState>()(
 
   depositToSlot: (clusterId, orderId, productId, qty) => {
     const state = get()
+    if (state.settings.pickingFreezeActive) throw new Error(PICKING_FROZEN_MSG)
     const cluster = state.clusterTasks.find((c) => c.id === clusterId)
     if (!cluster) throw new Error('cluster task not found')
     if (cluster.status !== 'in_progress') throw new Error('El cluster no está en progreso')
@@ -1778,6 +1835,7 @@ export const useWmsStore = create<WmsState>()(
 
   completeClusterTask: (clusterId) => {
     const state = get()
+    if (state.settings.pickingFreezeActive) throw new Error(PICKING_FROZEN_MSG)
     const cluster = state.clusterTasks.find((c) => c.id === clusterId)
     if (!cluster) throw new Error('cluster task not found')
     const allComplete = cluster.slots.every((s) => s.completed)
@@ -1791,6 +1849,7 @@ export const useWmsStore = create<WmsState>()(
 
   startPutToStore: (taskId, operatorName) => {
     const state = get()
+    if (state.settings.pickingFreezeActive) throw new Error(PICKING_FROZEN_MSG)
     const task = state.putToStoreTasks.find((t) => t.id === taskId)
     if (!task) throw new Error('put-to-store task not found')
     if (task.status !== 'pending')
@@ -1802,6 +1861,7 @@ export const useWmsStore = create<WmsState>()(
 
   distributeToStore: (taskId, storeId, qty) => {
     const state = get()
+    if (state.settings.pickingFreezeActive) throw new Error(PICKING_FROZEN_MSG)
     const task = state.putToStoreTasks.find((t) => t.id === taskId)
     if (!task) throw new Error('put-to-store task not found')
     if (task.status !== 'in_progress') throw new Error('La tarea no está en progreso')
@@ -1826,6 +1886,7 @@ export const useWmsStore = create<WmsState>()(
 
   completePutToStore: (taskId) => {
     const state = get()
+    if (state.settings.pickingFreezeActive) throw new Error(PICKING_FROZEN_MSG)
     const task = state.putToStoreTasks.find((t) => t.id === taskId)
     if (!task) throw new Error('put-to-store task not found')
     const allDone = task.allocations.every((a) => a.distributedQuantity >= a.requestedQuantity)
@@ -1838,6 +1899,7 @@ export const useWmsStore = create<WmsState>()(
 
   createWavelessOrder: (orderId, priority) => {
     const state = get()
+    if (state.settings.pickingFreezeActive) throw new Error(PICKING_FROZEN_MSG)
     const order = state.commerceOrders.find((o) => o.id === orderId)
     if (!order) throw new Error('commerce order not found')
 
@@ -1884,6 +1946,7 @@ export const useWmsStore = create<WmsState>()(
 
   startWavelessOrder: (wavelessId, operatorName) => {
     const state = get()
+    if (state.settings.pickingFreezeActive) throw new Error(PICKING_FROZEN_MSG)
     const wl = state.wavelessOrders.find((w) => w.id === wavelessId)
     if (!wl) throw new Error('waveless order not found')
     if (wl.status !== 'pending') throw new Error(`No se puede iniciar desde el estado ${wl.status}`)
