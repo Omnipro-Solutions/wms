@@ -437,7 +437,7 @@ export interface WmsState {
     targetLocationId?: string
   ) => RepairTicket
   // Replenishment (intra-warehouse: reserve → pick face)
-  startReplenishment: (taskId: string, operatorName: string) => ReplenishmentTask
+  startReplenishment: (taskId: string, operatorName: string, operatorId?: string) => ReplenishmentTask
   completeReplenishment: (taskId: string) => ReplenishmentTask
   generateReplenishmentTasks: () => ReplenishmentTask[]
   // Store (retail) replenishment: DC → store
@@ -3372,14 +3372,19 @@ export const useWmsStore = create<WmsState>()(
 
       // ─── Replenishment (intra-warehouse: reserve → pick face) ───────────────────
 
-      startReplenishment: (taskId, operatorName) => {
+      startReplenishment: (taskId, operatorName, operatorId) => {
         const state = get()
         if (state.settings.replenishmentFreezeActive) throw new Error(REPLENISHMENT_FROZEN_MSG)
         const task = state.replenishmentTasks.find((t) => t.id === taskId)
         if (!task) throw new Error('replenishment task not found')
         if (task.status !== 'pending')
           throw new Error(`No se puede iniciar desde el estado ${task.status}`)
-        const updated: ReplenishmentTask = { ...task, status: 'assigned', operatorName }
+        const updated: ReplenishmentTask = {
+          ...task,
+          status: 'assigned',
+          operatorName,
+          assignedOperatorId: operatorId ?? task.assignedOperatorId,
+        }
         set({
           replenishmentTasks: state.replenishmentTasks.map((t) => (t.id === taskId ? updated : t)),
         })
