@@ -21,6 +21,7 @@ import {
   Tags,
   Truck,
   Undo2,
+  Users,
 } from 'lucide-react'
 import type { NavGroup } from '@/types/navigation'
 
@@ -50,6 +51,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { label: 'Picking', href: '/picking', icon: ClipboardList },
       { label: 'Packing', href: '/packing', icon: Package },
       { label: 'Etiquetas', href: '/labels', icon: Tags },
+      { label: 'Mano de obra', href: '/labor', icon: Users },
     ],
   },
   {
