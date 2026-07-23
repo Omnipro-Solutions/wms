@@ -3595,6 +3595,14 @@ export const settings: WmsSettings = {
   yardDefaultSlotMinutes: 60,
   yardLateThresholdMinutes: 30,
   yardAllowOverbooking: false,
+  // Labor module (#9)
+  laborFreezeActive: false,
+  laborSlaHighPriorityHours: 4,
+  laborSlaMediumPriorityHours: 12,
+  laborInterleavingEnabled: true,
+  laborInterleavingMaxDistanceM: 20,
+  laborTargetPicksPerHour: 40,
+  laborTargetUnitsPerHour: 60,
   slaConfigs: [
     {
       id: 'sla-1',
