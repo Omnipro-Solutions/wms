@@ -102,3 +102,17 @@ export function productivityByOperator(tasks: PickingTask[]): ProductivityRow[] 
   }
   return [...byOperator.values()].sort((a, b) => b.unitsPicked - a.unitsPicked)
 }
+
+// Suggests a priority level from hours remaining until dispatch deadline.
+// Pure default — callers may still let the user override it manually.
+export function derivePriorityFromSla(
+  dispatchDeadline: string,
+  now: Date,
+  settings: { pickingSlaUrgentHours: number; pickingSlaWarningHours: number }
+): 'low' | 'medium' | 'high' {
+  const deadline = new Date(dispatchDeadline)
+  const hoursRemaining = (deadline.getTime() - now.getTime()) / (1000 * 60 * 60)
+  if (hoursRemaining < settings.pickingSlaUrgentHours) return 'high'
+  if (hoursRemaining < settings.pickingSlaWarningHours) return 'medium'
+  return 'low'
+}
