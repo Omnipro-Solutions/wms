@@ -70,6 +70,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { label: 'Integraciones', href: '/integrations', icon: Cable },
       { label: 'Config. Inventario', href: '/inventory-settings', icon: SlidersHorizontal },
       { label: 'Config. Conteo cíclico', href: '/cycle-count-settings', icon: ClipboardCheck },
+      { label: 'Config. Mano de obra', href: '/labor-settings', icon: Users },
       { label: 'Administración', href: '/admin', icon: Settings2 },
     ],
   },
