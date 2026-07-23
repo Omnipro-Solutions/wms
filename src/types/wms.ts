@@ -544,6 +544,7 @@ export interface PickingTask {
   orderId: string
   productId: string
   locationId: string
+  zone?: string // picking zone or wave zone
   requestedQuantity: number
   pickedQuantity: number
   // Pending balance kept for missing items so picking can be retried later.
