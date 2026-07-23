@@ -23,7 +23,7 @@ export default function WorkerPackingOrderPage() {
   const { orderId } = useParams<{ orderId: string }>()
   const router = useRouter()
   const { operator } = useCurrentOperator()
-  const { packingOrders, packingBoxTypes, packingRules, products, startPacking, scanItem, applyPackingRule, selectBox, generateLabel, sendToShipping } =
+  const { packingOrders, packingBoxTypes, packingRules, products, settings, startPacking, scanItem, applyPackingRule, selectBox, generateLabel, sendToShipping } =
     useWmsStore()
 
   const order = packingOrders.find((o) => o.id === orderId)
@@ -60,7 +60,9 @@ export default function WorkerPackingOrderPage() {
   }
   const totalSteps = hasRules ? 5 : 4
 
-  const suggested = suggestBox(order.weightKg, order.volumeM3, packingBoxTypes)
+  const suggested = settings.packingAutoBoxSuggestion
+    ? suggestBox(order.weightKg, order.volumeM3, packingBoxTypes, settings.packingBoxSafetyMargin)
+    : undefined
 
   const handleStartItems = () => {
     startPacking(order.id, operator?.name ?? 'Empacador')

@@ -710,6 +710,13 @@ export interface Shipment {
   otifStatus: 'on_time' | 'at_risk' | 'late'
   driverName?: string // flota propia — conductor asignado
   vehiclePlate?: string // flota propia — placa del vehículo (formato colombiano ABC-123)
+  // Verificación de carga (#7 Estándar) — bultos confirmados físicamente antes del despacho.
+  verifiedPackages?: number
+  loadVerifiedAt?: string
+  loadVerifiedBy?: string
+  // Despacho parcial — bultos que quedaron pendientes por enviar en un despacho posterior.
+  pendingPackages?: number
+  partialDispatch?: boolean
 }
 
 export interface ManifestStop {
@@ -1068,6 +1075,9 @@ export type CarrierZone = {
   cities: string[] // cities belonging to this zone
 }
 
+// Modalidad de transporte — flota propia, tercero, courier o última milla.
+export type CarrierModality = 'own' | 'third_party' | 'courier' | 'last_mile'
+
 export interface Carrier {
   id: string
   code: string
@@ -1075,7 +1085,7 @@ export interface Carrier {
   logoUrl?: string
   active: boolean
   apiIntegration: boolean // true when carrier has live API rate lookup
-  modalityType?: 'own' | 'third_party' | 'courier' | 'last_mile'
+  modalityType?: CarrierModality
   services: CarrierService[]
   zones: CarrierZone[]
   contactEmail?: string
@@ -1215,6 +1225,46 @@ export interface PickingZoneConfig {
   name: string
   sequenceOrder: number // orden de paso en pick-and-pass, ascendente
   active: boolean
+  // Packing module (#6) — embalaje. Configured in /packing-settings.
+  // Congela iniciar/escanear/completar/aplicar reglas/seleccionar caja/generar etiqueta/enviar a despacho.
+  packingFreezeActive: boolean
+  // Cartonización: margen de seguridad (fracción) que se reserva sobre el peso/volumen
+  // de la caja al sugerirla — 0.1 = usar solo el 90% de la capacidad nominal.
+  packingBoxSafetyMargin: number
+  // Si está activo, /packing sugiere caja automáticamente por peso+volumen (suggestBox).
+  packingAutoBoxSuggestion: boolean
+  // Verificación de contenido: si está activo, exige escaneo 1:1 (esperado === escaneado)
+  // antes de poder completar el packing.
+  packingRequireFullScan: boolean
+  // Si está activo, se puede completar un packing con discrepancia (mismatch) registrando
+  // un motivo; si está inactivo, el mismatch bloquea el cierre.
+  packingAllowMismatch: boolean
+  // Si está activo, la etiqueta de envío se genera automáticamente al verificar el packing.
+  packingAutoGenerateLabel: boolean
+  // Shipping module (#7) — despacho y transporte. Configured in /shipping-settings.
+  // Congela despachar/entregar/cotizar/consolidar/crear y despachar manifiestos.
+  shippingFreezeActive: boolean
+  // Rate shopping: si está activo, /shipping preselecciona automáticamente la cotización
+  // más barata al abrir el comparador de tarifas.
+  shippingAutoRateShop: boolean
+  // Criterio de orden por defecto del rate shopping: menor costo o menor tiempo de tránsito.
+  shippingRateStrategy: 'cheapest' | 'fastest'
+  // Sobrecosto máximo (fracción) tolerado sobre la tarifa más barata al elegir por servicio.
+  // 0.15 = se acepta pagar hasta 15% más que la opción más económica.
+  shippingMaxCostOverBestPct: number
+  // Verificación de carga: exige confirmar bultos (y series) antes de despachar.
+  shippingRequireLoadVerification: boolean
+  // Si está activo, permite despachar un envío con menos bultos de los esperados,
+  // dejando el saldo pendiente (despacho parcial). Si está inactivo, bloquea.
+  shippingAllowPartialDispatch: boolean
+  // Modalidades de transporte habilitadas para cotizar y despachar.
+  shippingEnabledModalities: CarrierModality[]
+  // Días de holgura sobre la fecha prometida antes de marcar un envío "en riesgo" (OTIF).
+  shippingOtifAtRiskDays: number
+  // Meta de cumplimiento OTIF (%) — referencia para los KPIs del módulo.
+  shippingOtifTargetPct: number
+  // Si está activo, los envíos con el mismo destino se sugieren para consolidar en una ruta.
+  shippingConsolidateByDestination: boolean
 }
 
 // --- Inventory adjustment requests (Sprint 2 — #56) ---

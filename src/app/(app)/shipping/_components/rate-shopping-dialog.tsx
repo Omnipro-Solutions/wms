@@ -32,6 +32,9 @@ interface Props {
   packageCount: number
   customerName: string
   error: string
+  // Cotización recomendada por la política configurada (/shipping-settings).
+  // Cuando llega, se preselecciona al abrir el diálogo.
+  suggested?: CarrierRateQuote | null
   onConfirm: (quote: CarrierRateQuote) => void
   onClose: () => void
 }
@@ -70,10 +73,14 @@ export const RateShoppingDialog = ({
   packageCount,
   customerName,
   error,
+  suggested,
   onConfirm,
   onClose,
 }: Props) => {
   const [selected, setSelected] = useState<CarrierRateQuote | null>(null)
+  // La recomendación vale como preselección, no como elección forzada: el usuario
+  // puede sobreescribirla y su elección manda mientras el diálogo siga abierto.
+  const activeSelection = selected ?? suggested ?? null
 
   const handleClose = () => {
     setSelected(null)
@@ -81,14 +88,17 @@ export const RateShoppingDialog = ({
   }
 
   const handleConfirm = () => {
-    if (!selected) return
-    onConfirm(selected)
+    if (!activeSelection) return
+    onConfirm(activeSelection)
     setSelected(null)
   }
 
   if (!open) return null
 
-  const cheapest = quotes[0]
+  // Se calcula por costo real, no por posición: el orden de la lista depende de la
+  // estrategia configurada (menor costo o menor tiempo).
+  const cheapest =
+    quotes.length > 0 ? quotes.reduce((a, b) => (a.quotedCostUsd <= b.quotedCostUsd ? a : b)) : null
   const fastest =
     quotes.length > 0
       ? quotes.reduce((a, b) => (a.estimatedTransitDays <= b.estimatedTransitDays ? a : b))
@@ -161,21 +171,21 @@ export const RateShoppingDialog = ({
               </p>
             </div>
 
-            {selected && (
+            {activeSelection && (
               <div className="space-y-2 border-t pt-3">
                 <p className="text-foreground text-xs font-semibold tracking-wide uppercase">
                   Seleccionada
                 </p>
                 <div className="bg-primary/8 border-primary/20 space-y-1 rounded-lg border px-3 py-2.5">
-                  <p className="text-sm font-bold">{selected.carrierName}</p>
-                  <p className="text-muted-foreground text-xs">{selected.serviceLabel}</p>
+                  <p className="text-sm font-bold">{activeSelection.carrierName}</p>
+                  <p className="text-muted-foreground text-xs">{activeSelection.serviceLabel}</p>
                   <p className="text-primary text-lg font-bold tabular-nums">
-                    ${selected.quotedCostUsd.toFixed(2)}{' '}
+                    ${activeSelection.quotedCostUsd.toFixed(2)}{' '}
                     <span className="text-muted-foreground text-xs font-normal">USD</span>
                   </p>
                   <p className="text-muted-foreground flex items-center gap-1 text-xs">
                     <CalendarCheck className="size-3" />{' '}
-                    {formatDate(selected.estimatedDeliveryDate)}
+                    {formatDate(activeSelection.estimatedDeliveryDate)}
                   </p>
                 </div>
               </div>
@@ -193,7 +203,7 @@ export const RateShoppingDialog = ({
               quotes.map((q) => {
                 const isCheapest = q === cheapest
                 const isFastest = q === fastest && q !== cheapest
-                const isSelected = selected === q
+                const isSelected = activeSelection === q
                 const style = speedStyle(q.estimatedTransitDays)
                 const score = speedScore(q.estimatedTransitDays, maxDays)
 
@@ -298,7 +308,7 @@ export const RateShoppingDialog = ({
             <Button variant="outline" onClick={handleClose}>
               Cancelar
             </Button>
-            <Button onClick={handleConfirm} disabled={!selected}>
+            <Button onClick={handleConfirm} disabled={!activeSelection}>
               <CheckCircle2 className="mr-1 size-4" /> Confirmar tarifa
             </Button>
           </DialogFooter>

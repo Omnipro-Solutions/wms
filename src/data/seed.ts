@@ -3705,6 +3705,24 @@ export const settings: WmsSettings = {
     { id: 'pz-2', name: 'Zona B — Reserva', sequenceOrder: 2, active: true },
     { id: 'pz-3', name: 'Zona C — Voluminosos', sequenceOrder: 3, active: true },
   ],
+  // Packing module (#6)
+  packingFreezeActive: false,
+  packingBoxSafetyMargin: 0.1,
+  packingAutoBoxSuggestion: true,
+  packingRequireFullScan: false,
+  packingAllowMismatch: true,
+  packingAutoGenerateLabel: false,
+  // Shipping module (#7)
+  shippingFreezeActive: false,
+  shippingAutoRateShop: true,
+  shippingRateStrategy: 'cheapest',
+  shippingMaxCostOverBestPct: 0.15,
+  shippingRequireLoadVerification: true,
+  shippingAllowPartialDispatch: false,
+  shippingEnabledModalities: ['own', 'third_party', 'courier', 'last_mile'],
+  shippingOtifAtRiskDays: 1,
+  shippingOtifTargetPct: 95,
+  shippingConsolidateByDestination: true,
   slaConfigs: [
     {
       id: 'sla-1',

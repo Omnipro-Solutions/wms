@@ -1,13 +1,17 @@
 import type { PackingBoxType, PackingOrder, PackingRule, Product } from '@/types/wms'
 
-// Select the smallest box that fits weight and volume with a 10% safety margin.
+// Select the smallest box that fits weight and volume with a safety margin.
+// safetyMargin is a fraction (0.1 = reserve 10% of nominal capacity); configurable
+// via WmsSettings.packingBoxSafetyMargin, defaults to 0.1 for existing callers.
 export const suggestBox = (
   weightKg: number,
   volumeM3: number,
-  boxes: PackingBoxType[]
+  boxes: PackingBoxType[],
+  safetyMargin = 0.1
 ): PackingBoxType | undefined => {
+  const factor = 1 + safetyMargin
   const sorted = [...boxes].sort((a, b) => a.volumeM3 - b.volumeM3)
-  return sorted.find((b) => b.maxWeightKg >= weightKg * 1.1 && b.volumeM3 >= volumeM3 * 1.1)
+  return sorted.find((b) => b.maxWeightKg >= weightKg * factor && b.volumeM3 >= volumeM3 * factor)
 }
 
 // Determine which packing rules apply to a set of products.

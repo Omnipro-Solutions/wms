@@ -1,7 +1,7 @@
 'use client'
 
 import { type ColumnDef } from '@tanstack/react-table'
-import { Clock, DollarSign, Truck, HandHelping } from 'lucide-react'
+import { Clock, ClipboardCheck, DollarSign, Truck, HandHelping } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { StatusBadge } from '@/components/shared/status-badge'
@@ -9,7 +9,7 @@ import { DataTableColumnHeader } from '@/components/data-table'
 import { formatDate, formatNumber } from '@/lib/formatters'
 import { SERVICE_LEVEL_LABELS } from '@/lib/rules/shipping'
 import { cn } from '@/lib/utils'
-import type { CarrierServiceLevel, Shipment } from '@/types/wms'
+import type { CarrierModality, CarrierServiceLevel, Shipment } from '@/types/wms'
 
 export interface ShippingRow {
   id: string
@@ -17,7 +17,7 @@ export interface ShippingRow {
   customerName: string
   carrierId: string | undefined
   carrierName: string
-  modalityType: 'own' | 'third_party' | 'courier' | 'last_mile' | undefined
+  modalityType: CarrierModality | undefined
   serviceLevel: CarrierServiceLevel | undefined
   quotedCostUsd: number | undefined
   destinationCity: string | undefined
@@ -30,6 +30,9 @@ export interface ShippingRow {
   status: string
   shippedAt: string | null
   deliveredAt: string | null
+  verifiedPackages: number
+  partialDispatch: boolean
+  pendingPackages: number
 }
 
 const OTIF_COLORS: Record<Shipment['otifStatus'], string> = {
@@ -48,12 +51,18 @@ interface ColumnActions {
   onShip: (row: ShippingRow) => void
   onRateShop: (row: ShippingRow) => void
   onDeliver: (row: ShippingRow) => void
+  onVerifyLoad: (row: ShippingRow) => void
+  // Cuando la configuración exige verificación, "Despachar" queda bloqueado
+  // hasta confirmar los bultos cargados.
+  requireLoadVerification: boolean
 }
 
 export const buildShippingColumns = ({
   onShip,
   onRateShop,
   onDeliver,
+  onVerifyLoad,
+  requireLoadVerification,
 }: ColumnActions): ColumnDef<ShippingRow>[] => [
   {
     accessorKey: 'orderNumber',
@@ -196,6 +205,40 @@ export const buildShippingColumns = ({
     },
   },
   {
+    id: 'load',
+    header: 'Carga',
+    cell: ({ row }) => {
+      const item = row.original
+      if (item.partialDispatch) {
+        return (
+          <Badge variant="outline" className="border-amber-200 bg-amber-100 text-amber-700">
+            Parcial · {item.pendingPackages} pend.
+          </Badge>
+        )
+      }
+      if (item.status !== 'pending') {
+        return <span className="text-muted-foreground text-xs tabular-nums">{item.packageCount}</span>
+      }
+      const verified = item.verifiedPackages
+      if (verified <= 0) {
+        return <span className="text-muted-foreground text-xs">Sin verificar</span>
+      }
+      return (
+        <Badge
+          variant="outline"
+          className={cn(
+            'tabular-nums',
+            verified >= item.packageCount
+              ? 'border-green-200 bg-green-100 text-green-700'
+              : 'border-amber-200 bg-amber-100 text-amber-700'
+          )}
+        >
+          {verified}/{item.packageCount}
+        </Badge>
+      )
+    },
+  },
+  {
     accessorKey: 'status',
     header: ({ column }) => <DataTableColumnHeader column={column} title="Estado" />,
     cell: ({ row }) => <StatusBadge status={row.getValue('status')} />,
@@ -221,6 +264,7 @@ export const buildShippingColumns = ({
         )
       }
       if (item.status === 'pending' && item.quotedCostUsd) {
+        const blocked = requireLoadVerification && item.verifiedPackages <= 0
         return (
           <div className="flex gap-1">
             <Button
@@ -235,8 +279,20 @@ export const buildShippingColumns = ({
               <DollarSign className="size-3" />
             </Button>
             <Button
+              size="icon-sm"
+              variant="outline"
+              title="Verificar carga"
+              onClick={(e) => {
+                e.stopPropagation()
+                onVerifyLoad(item)
+              }}
+            >
+              <ClipboardCheck className="size-3" />
+            </Button>
+            <Button
               size="sm"
-              title="Despachar envío"
+              disabled={blocked}
+              title={blocked ? 'Verifica la carga antes de despachar' : 'Despachar envío'}
               onClick={(e) => {
                 e.stopPropagation()
                 onShip(item)

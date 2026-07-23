@@ -2,7 +2,17 @@
 
 import { useMemo, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
-import { CheckCircle2, Clock, DollarSign, Truck, TriangleAlert, TrendingUp } from 'lucide-react'
+import {
+  CheckCircle2,
+  ClipboardCheck,
+  Clock,
+  DollarSign,
+  Layers,
+  Snowflake,
+  Truck,
+  TriangleAlert,
+  TrendingUp,
+} from 'lucide-react'
 
 import { useWmsStore } from '@/store/wms-store'
 import { useDialogState } from '@/hooks/use-dialog-state'
@@ -28,7 +38,13 @@ import {
 } from '@/components/ui/select'
 import { SubNav, type SubNavItem } from '@/components/shared/sub-nav'
 import { formatNumber } from '@/lib/formatters'
-import { otifPercentage, otifAlerts, rateShop } from '@/lib/rules/shipping'
+import {
+  consolidationGroups,
+  otifPercentage,
+  otifAlerts,
+  rateShop,
+  recommendedQuote,
+} from '@/lib/rules/shipping'
 import { RateShoppingDialog } from './_components/rate-shopping-dialog'
 import { OtifDashboard } from './_components/otif-dashboard'
 import { buildShippingColumns, type ShippingRow } from './columns'
@@ -54,6 +70,7 @@ interface RateShopContext {
 
 const SHIPPING_TABS: SubNavItem[] = [
   { value: 'shipments', label: 'Envíos' },
+  { value: 'consolidation', label: 'Consolidación' },
   { value: 'otif', label: 'OTIF' },
 ]
 
@@ -61,7 +78,7 @@ export default function ShippingPage() {
   const today = new Date().toISOString().slice(0, 10)
 
   const state = useWmsStore()
-  const { shipOrder, deliverShipment } = state
+  const { shipOrder, deliverShipment, verifyShipmentLoad, applyRateQuote, settings } = state
   const { carriers } = state
 
   const searchParams = useSearchParams()
@@ -73,6 +90,12 @@ export default function ShippingPage() {
 
   const shipDialog = useDialogState<ShipDialogData>()
   const deliverDialog = useDialogState<{ shipmentId: string; customerName: string }>()
+  const verifyDialog = useDialogState<{
+    shipmentId: string
+    customerName: string
+    packageCount: number
+  }>()
+  const [verifiedInput, setVerifiedInput] = useState(0)
 
   const [rateShopCtx, setRateShopCtx] = useState<RateShopContext | null>(null)
   const [rateShopError, setRateShopError] = useState('')
@@ -105,6 +128,9 @@ export default function ShippingPage() {
           status: sh.status,
           shippedAt: sh.shippedAt ?? null,
           deliveredAt: sh.deliveredAt ?? null,
+          verifiedPackages: sh.verifiedPackages ?? 0,
+          partialDispatch: sh.partialDispatch ?? false,
+          pendingPackages: sh.pendingPackages ?? 0,
         }
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -150,12 +176,37 @@ export default function ShippingPage() {
     [state.shipments, orderNumberMap]
   )
 
+  // ── Consolidation by destination ──────────────────────────────────────────
+
+  const consolidation = useMemo(
+    () => (settings.shippingConsolidateByDestination ? consolidationGroups(state.shipments) : []),
+    [state.shipments, settings.shippingConsolidateByDestination]
+  )
+
   // ── Rate shop quotes ───────────────────────────────────────────────────────
 
   const rateQuotes = useMemo<CarrierRateQuote[]>(() => {
     if (!rateShopCtx) return []
-    return rateShop(state.carriers, rateShopCtx.weightKg, rateShopCtx.destinationZone, today)
-  }, [rateShopCtx, state.carriers])
+    return rateShop(state.carriers, rateShopCtx.weightKg, rateShopCtx.destinationZone, today, {
+      enabledModalities: settings.shippingEnabledModalities,
+      strategy: settings.shippingRateStrategy,
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    rateShopCtx,
+    state.carriers,
+    settings.shippingEnabledModalities,
+    settings.shippingRateStrategy,
+  ])
+
+  // Cotización recomendada por la política configurada — se preselecciona si así se configuró.
+  const suggestedQuote = useMemo(
+    () =>
+      settings.shippingAutoRateShop
+        ? recommendedQuote(rateQuotes, settings.shippingMaxCostOverBestPct)
+        : null,
+    [rateQuotes, settings.shippingAutoRateShop, settings.shippingMaxCostOverBestPct]
+  )
 
   // ── Handlers ──────────────────────────────────────────────────────────────
 
@@ -217,23 +268,29 @@ export default function ShippingPage() {
   const handleConfirmRate = (quote: CarrierRateQuote) => {
     if (!rateShopCtx) return
     try {
-      useWmsStore.setState((st) => ({
-        shipments: st.shipments.map((s) =>
-          s.id === rateShopCtx.shipmentId
-            ? {
-                ...s,
-                carrierId: quote.carrierId,
-                carrierName: quote.carrierName,
-                serviceLevel: quote.serviceLevel,
-                quotedCostUsd: quote.quotedCostUsd,
-                estimatedDeliveryDate: quote.estimatedDeliveryDate,
-              }
-            : s
-        ),
-      }))
+      applyRateQuote(rateShopCtx.shipmentId, quote)
       setRateShopCtx(null)
     } catch (e: unknown) {
       setRateShopError(e instanceof Error ? e.message : 'Error al aplicar tarifa')
+    }
+  }
+
+  const openVerifyDialog = (row: ShippingRow) => {
+    setVerifiedInput(row.verifiedPackages || row.packageCount)
+    verifyDialog.open({
+      shipmentId: row.id,
+      customerName: row.customerName,
+      packageCount: row.packageCount,
+    })
+  }
+
+  const handleVerifyLoad = () => {
+    if (!verifyDialog.data) return
+    try {
+      verifyShipmentLoad(verifyDialog.data.shipmentId, verifiedInput, 'Operador')
+      verifyDialog.close()
+    } catch (e: unknown) {
+      verifyDialog.setError(e instanceof Error ? e.message : 'Error al verificar la carga')
     }
   }
 
@@ -245,9 +302,11 @@ export default function ShippingPage() {
         onShip: openShipDialog,
         onRateShop: openRateShop,
         onDeliver: openDeliverDialog,
+        onVerifyLoad: openVerifyDialog,
+        requireLoadVerification: settings.shippingRequireLoadVerification,
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    []
+    [settings.shippingRequireLoadVerification]
   )
 
   // ── Filters node ──────────────────────────────────────────────────────────
@@ -309,8 +368,18 @@ export default function ShippingPage() {
     <div className="flex flex-col gap-6">
       <PageHeader
         title="Shipping — Despacho"
-        description="Gestiona el despacho de envíos. Cotiza tarifas, supervisa OTIF y registra entregas por transportadora."
+        description="Gestiona el despacho de envíos. Cotiza tarifas, verifica la carga, supervisa OTIF y registra entregas por transportadora."
       />
+
+      {settings.shippingFreezeActive && (
+        <div className="flex items-center gap-3 rounded-lg border border-blue-300 bg-blue-50 px-4 py-3 dark:border-blue-900/50 dark:bg-blue-950/40">
+          <Snowflake className="size-5 shrink-0 text-blue-600 dark:text-blue-300" />
+          <p className="flex-1 text-sm text-blue-800 dark:text-blue-300">
+            Despacho en <span className="font-semibold">modo congelado</span> — las operaciones
+            están bloqueadas. Desactívalo en Sistema → Configuración → Despacho.
+          </p>
+        </div>
+      )}
 
       {/* Global KPIs */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -356,6 +425,65 @@ export default function ShippingPage() {
         </Card>
       )}
 
+      {/* Consolidation by destination */}
+      {activeTab === 'consolidation' && (
+        <Card>
+          <CardContent className="pt-6">
+            {!settings.shippingConsolidateByDestination ? (
+              <div className="flex flex-col items-center gap-2 py-10 text-center">
+                <Layers className="size-8 text-zinc-300" />
+                <p className="text-muted-foreground text-sm">
+                  La consolidación por destino está desactivada en la configuración de despacho.
+                </p>
+              </div>
+            ) : consolidation.length === 0 ? (
+              <div className="flex flex-col items-center gap-2 py-10 text-center">
+                <Layers className="size-8 text-zinc-300" />
+                <p className="text-muted-foreground text-sm">
+                  No hay destinos con más de un envío pendiente por consolidar.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <p className="text-muted-foreground text-sm">
+                  {consolidation.length} destino(s) con envíos pendientes que pueden viajar en una
+                  sola ruta.
+                </p>
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  {consolidation.map((group) => (
+                    <Card key={group.destinationCity} className="border-2">
+                      <CardContent className="pt-5">
+                        <div className="flex items-start justify-between gap-2">
+                          <p className="text-sm font-semibold">{group.destinationCity}</p>
+                          <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700 dark:bg-blue-950/60 dark:text-blue-300">
+                            {group.shipmentIds.length} envíos
+                          </span>
+                        </div>
+                        <div className="text-muted-foreground mt-3 space-y-1 text-xs">
+                          <p>
+                            Bultos:{' '}
+                            <span className="text-foreground font-medium tabular-nums">
+                              {group.totalPackages}
+                            </span>
+                          </p>
+                          <p>
+                            Peso total:{' '}
+                            <span className="text-foreground font-medium tabular-nums">
+                              {group.totalWeightKg.toFixed(1)} kg
+                            </span>
+                          </p>
+                          <p>Transportadoras: {group.carrierNames.join(', ')}</p>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
       {/* OTIF dashboard */}
       {activeTab === 'otif' && (
         <OtifDashboard shipments={state.shipments} alerts={alerts} today={today} />
@@ -370,6 +498,7 @@ export default function ShippingPage() {
         packageCount={rateShopCtx?.packageCount ?? 0}
         customerName={rateShopCtx?.customerName ?? ''}
         error={rateShopError}
+        suggested={suggestedQuote}
         onConfirm={handleConfirmRate}
         onClose={() => setRateShopCtx(null)}
       />
@@ -496,6 +625,63 @@ export default function ShippingPage() {
             </Button>
             <Button onClick={handleDeliver}>
               <Clock className="mr-1 size-4" /> Registrar entrega
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Load verification */}
+      <Dialog
+        open={!!verifyDialog.data}
+        onOpenChange={(o) => {
+          if (!o) verifyDialog.close()
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Verificar carga</DialogTitle>
+          </DialogHeader>
+          {verifyDialog.data && (
+            <div className="space-y-4 py-2">
+              <p className="text-muted-foreground text-sm">
+                Confirma los bultos cargados físicamente para el envío de{' '}
+                <strong>{verifyDialog.data.customerName}</strong>. Esperados:{' '}
+                <strong>{verifyDialog.data.packageCount}</strong>.
+              </p>
+              <div className="space-y-1">
+                <label className="text-muted-foreground text-xs font-medium">
+                  Bultos verificados
+                </label>
+                <Input
+                  type="number"
+                  min={0}
+                  max={verifyDialog.data.packageCount}
+                  value={verifiedInput}
+                  onChange={(e) => setVerifiedInput(Number(e.target.value))}
+                  className="tabular-nums"
+                />
+              </div>
+              {verifiedInput < verifyDialog.data.packageCount && (
+                <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-300">
+                  Faltan {verifyDialog.data.packageCount - verifiedInput} bulto(s).{' '}
+                  {settings.shippingAllowPartialDispatch
+                    ? 'Se despachará como parcial con saldo pendiente.'
+                    : 'La configuración no permite despacho parcial — el despacho quedará bloqueado.'}
+                </p>
+              )}
+              {verifyDialog.error && (
+                <p className="text-destructive flex items-center gap-1 text-sm">
+                  <TriangleAlert className="size-3" /> {verifyDialog.error}
+                </p>
+              )}
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={verifyDialog.close}>
+              Cancelar
+            </Button>
+            <Button onClick={handleVerifyLoad}>
+              <ClipboardCheck className="mr-1 size-4" /> Confirmar carga
             </Button>
           </DialogFooter>
         </DialogContent>
