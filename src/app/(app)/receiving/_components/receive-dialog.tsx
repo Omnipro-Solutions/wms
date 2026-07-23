@@ -10,7 +10,9 @@ import {
   Zap,
   Minus,
   Plus,
+  Undo2,
 } from 'lucide-react'
+import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -182,7 +184,7 @@ export const ReceiveDialog = ({ state }: Props) => {
           </div>
 
           {data && (
-            <div className="mt-4 grid grid-cols-3 gap-x-8 gap-y-1 text-sm">
+            <div className="mt-4 grid grid-cols-1 gap-x-8 gap-y-3 text-sm sm:grid-cols-3 sm:gap-y-1">
               <div>
                 <p className="text-muted-foreground text-[10px] font-semibold tracking-widest uppercase">
                   N° Aviso
@@ -206,9 +208,9 @@ export const ReceiveDialog = ({ state }: Props) => {
         </div>
 
         {data && (
-          <div className="grid grid-cols-5 divide-x">
+          <div className="grid grid-cols-1 divide-y md:grid-cols-5 md:divide-x md:divide-y-0">
             {/* ── Left panel: resumen de la entrega ── */}
-            <div className="bg-muted/30 col-span-2 flex flex-col gap-5 px-6 py-6">
+            <div className="bg-muted/30 flex flex-col gap-5 px-6 py-6 md:col-span-2">
               <div>
                 <p className="text-muted-foreground mb-3 text-xs font-semibold tracking-widest uppercase">
                   Resumen de esta entrega
@@ -303,7 +305,7 @@ export const ReceiveDialog = ({ state }: Props) => {
             </div>
 
             {/* ── Right panel: formulario de conteo ── */}
-            <div className="col-span-3 flex flex-col gap-5 px-7 py-6">
+            <div className="flex flex-col gap-5 px-7 py-6 md:col-span-3">
               <p className="text-muted-foreground text-xs font-semibold tracking-widest uppercase">
                 Conteo físico
               </p>
@@ -411,8 +413,23 @@ export const ReceiveDialog = ({ state }: Props) => {
                   </Label>
                   <BarcodeScanner
                     onScan={(val) => setSerialsRaw(serialsRaw ? `${serialsRaw}\n${val}` : val)}
+                    onDuplicate={(val) => {
+                      const dup = parsedSerials.includes(val)
+                      if (dup) toast.error('Serial ya escaneado', { description: val })
+                      return dup
+                    }}
+                    paused={parsedSerials.length >= goodQtyNum}
                     placeholder="Escanear serial con cámara o RF..."
                   />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="h-11 w-full gap-1.5"
+                    disabled={parsedSerials.length === 0}
+                    onClick={() => setSerialsRaw(parsedSerials.slice(0, -1).join('\n'))}
+                  >
+                    <Undo2 className="size-4" /> Deshacer último
+                  </Button>
                   <Textarea
                     id="rcv-serials"
                     placeholder={`Ingresa ${goodQtyNum} número(s) de serie, uno por línea o separados por coma`}
@@ -474,7 +491,7 @@ export const ReceiveDialog = ({ state }: Props) => {
                   <p className="text-sm font-medium">
                     ¿Qué deseas hacer con las {missingInForm} unidades faltantes?
                   </p>
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                     <label
                       className={cn(
                         'flex cursor-pointer items-start gap-3 rounded-lg border-2 p-3.5 transition-all',

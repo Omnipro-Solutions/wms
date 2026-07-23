@@ -9,6 +9,11 @@ import { cn } from '@/lib/utils'
 
 interface BarcodeScannerProps {
   onScan: (value: string) => void
+  /**
+   * Called before onScan. Return true if the value is a duplicate/invalid read —
+   * the scan is rejected (error feedback, onScan not fired).
+   */
+  onDuplicate?: (value: string) => boolean
   /** Label shown above the manual input fallback */
   placeholder?: string
   /** Restrict accepted barcode formats */
@@ -16,6 +21,29 @@ interface BarcodeScannerProps {
   className?: string
   /** Auto-start camera on mount */
   autoStart?: boolean
+  /** Freeze the camera loop (e.g. goal reached) without unmounting */
+  paused?: boolean
+}
+
+// Short haptic + audio cue so the operator gets feedback without watching the screen.
+const scanFeedback = (ok: boolean) => {
+  if (typeof window === 'undefined') return
+  navigator.vibrate?.(ok ? 60 : [40, 40, 40])
+  try {
+    const Ctx = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
+    if (!Ctx) return
+    const ctx = new Ctx()
+    const osc = ctx.createOscillator()
+    const gain = ctx.createGain()
+    osc.frequency.value = ok ? 880 : 220
+    gain.gain.value = 0.08
+    osc.connect(gain).connect(ctx.destination)
+    osc.start()
+    osc.stop(ctx.currentTime + 0.12)
+    osc.onended = () => ctx.close()
+  } catch {
+    // audio is best-effort; vibration still fired
+  }
 }
 
 type ScanMode = 'idle' | 'camera' | 'manual'
@@ -42,10 +70,12 @@ const DEFAULT_FORMATS = [
 
 export const BarcodeScanner = ({
   onScan,
+  onDuplicate,
   placeholder = 'Escanear o ingresar código...',
   formats = DEFAULT_FORMATS,
   className,
   autoStart = false,
+  paused = false,
 }: BarcodeScannerProps) => {
   const videoRef = useRef<HTMLVideoElement>(null)
   const streamRef = useRef<MediaStream | null>(null)
@@ -90,10 +120,15 @@ export const BarcodeScanner = ({
       if (trimmed === lastScannedRef.current && now - lastScannedAtRef.current < 2000) return
       lastScannedRef.current = trimmed
       lastScannedAtRef.current = now
+      if (onDuplicate?.(trimmed)) {
+        scanFeedback(false)
+        return
+      }
+      scanFeedback(true)
       setLastResult(trimmed)
       onScan(trimmed)
     },
-    [onScan]
+    [onScan, onDuplicate]
   )
 
   const startCamera = useCallback(async () => {
@@ -142,13 +177,13 @@ export const BarcodeScanner = ({
   }, [formats, emitScan])
 
   useEffect(() => {
-    if (mode === 'camera') {
+    if (mode === 'camera' && !paused) {
       startCamera()
     } else {
       stopCamera()
     }
     return () => stopCamera()
-  }, [mode, startCamera, stopCamera])
+  }, [mode, paused, startCamera, stopCamera])
 
   const handleManualSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -204,8 +239,15 @@ export const BarcodeScanner = ({
         )}
       </div>
 
+      {/* Auto-stop notice when the parent reports the goal is reached */}
+      {mode === 'camera' && paused && (
+        <p className="flex items-center justify-center gap-1.5 rounded-lg border border-green-300 bg-green-50 px-3 py-3 text-sm font-medium text-green-700 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
+          <ScanBarcode className="size-4" /> Meta alcanzada — cámara detenida
+        </p>
+      )}
+
       {/* Camera view */}
-      {mode === 'camera' && (
+      {mode === 'camera' && !paused && (
         <div className="relative overflow-hidden rounded-lg border bg-black">
           <video
             ref={videoRef}
