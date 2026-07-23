@@ -1984,6 +1984,33 @@ export const transfers: TransferOrder[] = [
     currentLegIndex: 0,
     assignedDriverId: 'op-driver-1',
   },
+  // Segundo traslado en tránsito para Carlos Driver — tr-1 era el único 'in_transit'
+  // asignado a él hasta ahora; este da un segundo caso de "Confirmar llegada" en /worker/driver.
+  {
+    id: 'tr-demo-driver',
+    code: 'TR-2607-011',
+    type: 'dc_to_store',
+    originId: 'wh-bog',
+    destinationId: 'wh-santafe',
+    status: 'in_transit',
+    createdAt: '2026-07-22T09:00:00.000Z',
+    estimatedArrivalDate: '2026-07-24',
+    items: [{ id: 'trl-demo-drv-1', productId: 'p-sanduchera', requestedQuantity: 15 }],
+    legs: [
+      {
+        id: 'leg-trdemodrv-1',
+        sequence: 1,
+        originId: 'wh-bog',
+        destinationId: 'wh-santafe',
+        status: 'in_transit',
+        estimatedArrivalDate: '2026-07-24',
+        dispatchedAt: '2026-07-22T09:00:00.000Z',
+      },
+    ],
+    isMultiLeg: false,
+    currentLegIndex: 0,
+    assignedDriverId: 'op-driver-1',
+  },
 ]
 
 // ─── Movimientos internos (intra-almacén) ───────────────────────────────────
@@ -2839,6 +2866,54 @@ export const loadManifests: LoadManifest[] = [
         id: 'st-ruta3-2',
         sequence: 2,
         destinationId: 'wh-unicentro',
+        orderIds: [],
+        transferIds: [],
+        returnIds: [],
+      },
+    ],
+  },
+  // Manifiesto 'pending' asignado a Carlos Driver — los otros dos ya están 'in_progress',
+  // así que sin este no hay ningún manifiesto "por iniciar" para probar en /worker/driver.
+  // Reutiliza demo-co-4/demo-co-5 (las mismas órdenes que Ana está picando), mismo patrón
+  // narrativo cruzado que ya usa co-b2b-1 entre picking/packing/manifiesto.
+  {
+    id: 'lm-demo-1',
+    code: 'MAN-DEMO-001',
+    sapRouteId: 'sap-rt-demo-001',
+    truckPlate: 'DEM-001',
+    driverName: 'Carlos Driver',
+    carrierName: 'Flota Propia',
+    manifestDate: '2026-07-24',
+    status: 'pending',
+    orderIds: ['demo-co-4', 'demo-co-5'],
+    transferIds: [],
+    returnIds: [],
+    totalUnits: 9,
+    totalPackages: 2,
+    totalWeightKg: 12,
+    totalVolumeM3: 0.05,
+    assignedDriverId: 'op-driver-1',
+    stops: [
+      {
+        id: 'st-demo1-1',
+        sequence: 1,
+        destinationId: 'wh-andino',
+        orderIds: ['demo-co-4'],
+        transferIds: [],
+        returnIds: [],
+      },
+      {
+        id: 'st-demo1-2',
+        sequence: 2,
+        destinationId: 'wh-unicentro',
+        orderIds: ['demo-co-5'],
+        transferIds: [],
+        returnIds: [],
+      },
+      {
+        id: 'st-demo1-3',
+        sequence: 3,
+        destinationId: 'wh-santafe',
         orderIds: [],
         transferIds: [],
         returnIds: [],
@@ -4167,6 +4242,59 @@ export const demoCommerceOrders: CommerceOrder[] = [
       { id: 'demo-col-3a', productId: 'p-licuadora', requestedQuantity: 2, pickedQuantity: 0 },
     ],
   },
+  {
+    id: 'demo-co-4',
+    orderNumber: 'PED-DEMO-004',
+    channel: 'ecommerce',
+    customerName: 'Cliente Demo Ecommerce 3',
+    status: 'pending',
+    createdAt: '2026-07-23T06:30:00.000Z',
+    promisedDeliveryDate: '2026-07-25',
+    fulfillmentType: 'ship_from_dc',
+    items: [
+      { id: 'demo-col-4a', productId: 'p-plancha', requestedQuantity: 3, pickedQuantity: 0 },
+    ],
+  },
+  {
+    id: 'demo-co-5',
+    orderNumber: 'PED-DEMO-005',
+    channel: 'ecommerce',
+    customerName: 'Cliente Demo Ecommerce 4',
+    status: 'pending',
+    createdAt: '2026-07-23T06:45:00.000Z',
+    promisedDeliveryDate: '2026-07-26',
+    fulfillmentType: 'ship_from_dc',
+    items: [
+      { id: 'demo-col-5a', productId: 'p-batidora', requestedQuantity: 6, pickedQuantity: 0 },
+    ],
+  },
+  {
+    id: 'demo-co-6',
+    orderNumber: 'PED-DEMO-006',
+    channel: 'b2b',
+    customerName: 'Cliente Demo B2B 2',
+    status: 'pending',
+    createdAt: '2026-07-23T07:00:00.000Z',
+    promisedDeliveryDate: '2026-07-27',
+    fulfillmentType: 'ship_from_dc',
+    items: [
+      { id: 'demo-col-6a', productId: 'p-estufa', requestedQuantity: 2, pickedQuantity: 0 },
+    ],
+  },
+  {
+    id: 'demo-co-7',
+    orderNumber: 'PED-DEMO-007',
+    channel: 'b2b',
+    customerName: 'Cliente Demo B2B 3',
+    status: 'pending',
+    createdAt: '2026-07-23T08:00:00.000Z',
+    promisedDeliveryDate: '2026-07-28',
+    fulfillmentType: 'ship_from_dc',
+    items: [
+      { id: 'demo-col-7a', productId: 'p-nevera', requestedQuantity: 1, pickedQuantity: 0 },
+      { id: 'demo-col-7b', productId: 'p-estufa', requestedQuantity: 1, pickedQuantity: 0 },
+    ],
+  },
 ]
 
 // Flujo 2: Wave demo liberada — supervisor acaba de releasear
@@ -4230,6 +4358,53 @@ export const demoPickingTasks: PickingTask[] = [
     assignedOperatorId: 'op-picker-1',
     priority: 'medium',
   },
+  {
+    // Cierra el hueco trackBy:'lot' — p-plancha, lote LOT-PLA-2601, 32 unidades reales en loc-a0102 (inv-pla-1).
+    id: 'demo-pt-4',
+    code: 'PICK-DEMO-004',
+    orderId: 'demo-co-4',
+    productId: 'p-plancha',
+    locationId: 'loc-a0102',
+    requestedQuantity: 3,
+    pickedQuantity: 0,
+    pendingQuantity: 3,
+    status: 'pending',
+    operatorName: 'Ana Picker',
+    assignedOperatorId: 'op-picker-1',
+    priority: 'medium',
+  },
+  {
+    // Recomendada para demo de "Modo ciego" — trackBy:'none' (sin ruido de serial),
+    // 18 unidades reales en loc-pickfast2 (inv-bat-1).
+    id: 'demo-pt-5',
+    code: 'PICK-DEMO-005',
+    orderId: 'demo-co-5',
+    productId: 'p-batidora',
+    locationId: 'loc-pickfast2',
+    requestedQuantity: 6,
+    pickedQuantity: 0,
+    pendingQuantity: 6,
+    status: 'pending',
+    operatorName: 'Ana Picker',
+    assignedOperatorId: 'op-picker-1',
+    priority: 'medium',
+  },
+  {
+    // Recomendada para el diálogo de pick parcial — solo 1 unidad real (serial EST-2026-0003)
+    // en loc-b0204, se pide 2: escasez genuina, no hay que "elegir" contar menos.
+    id: 'demo-pt-6',
+    code: 'PICK-DEMO-006',
+    orderId: 'demo-co-6',
+    productId: 'p-estufa',
+    locationId: 'loc-b0204',
+    requestedQuantity: 2,
+    pickedQuantity: 0,
+    pendingQuantity: 2,
+    status: 'pending',
+    operatorName: 'Ana Picker',
+    assignedOperatorId: 'op-picker-1',
+    priority: 'high',
+  },
 ]
 
 // Flujo 2: Packing — orden lista para Pedro Packer (op-packer-1)
@@ -4290,6 +4465,42 @@ export const demoPackingOrderMulti: PackingOrder = {
     {
       productId: 'p-cafetera',
       productName: 'Cafetera Espresso Automática',
+      requestedQuantity: 1,
+      scannedQuantity: 0,
+    },
+  ],
+}
+
+// Orden grande/pesada para Pedro Packer — hoy ninguna orden pendiente dispara el paso
+// "Reglas de manejo" (la única con regla, pk-b2b-1, ya está labelled/terminal).
+export const demoPackingOrderHeavy: PackingOrder = {
+  id: 'demo-pk-3',
+  orderId: 'demo-co-7',
+  orderNumber: 'PED-DEMO-007',
+  customerName: 'Cliente Demo B2B 3',
+  channel: 'b2b',
+  status: 'pending',
+  expectedItems: 2,
+  scannedItems: 0,
+  verificationStatus: 'pending',
+  suggestedBox: 'Pallet',
+  boxTypeId: 'box-pallet',
+  weightKg: 103,
+  volumeM3: 0.83,
+  appliedRuleIds: ['pr-3'],
+  labelGenerated: false,
+  packerName: 'Pedro Packer',
+  createdAt: '2026-07-23T08:10:00.000Z',
+  items: [
+    {
+      productId: 'p-nevera',
+      productName: 'Nevera No Frost 320L',
+      requestedQuantity: 1,
+      scannedQuantity: 0,
+    },
+    {
+      productId: 'p-estufa',
+      productName: 'Estufa 4 Puestos Gas',
       requestedQuantity: 1,
       scannedQuantity: 0,
     },

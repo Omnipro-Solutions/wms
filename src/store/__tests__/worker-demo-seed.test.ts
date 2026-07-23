@@ -24,3 +24,32 @@ describe('demo seed data — worker views', () => {
     expect(pending.length).toBeGreaterThanOrEqual(1)
   })
 })
+
+describe('demo seed data — rediseño móvil (picking/packing/driver)', () => {
+  it('Ana Picker tiene una tarea con producto trackBy lot', () => {
+    const state = useWmsStore.getState()
+    const lotTask = state.pickingTasks.find(
+      (t) =>
+        t.assignedOperatorId === 'op-picker-1' &&
+        state.products.find((p) => p.id === t.productId)?.trackBy === 'lot'
+    )
+    expect(lotTask).toBeDefined()
+  })
+
+  it('Pedro Packer tiene al menos 3 órdenes pendientes de distinto tamaño', () => {
+    const state = useWmsStore.getState()
+    const pending = state.packingOrders.filter((o) => o.status === 'pending')
+    expect(pending.length).toBeGreaterThanOrEqual(3)
+  })
+
+  it('Carlos Driver tiene manifiestos y transferencias variadas', () => {
+    const state = useWmsStore.getState()
+    expect(
+      state.loadManifests.filter((m) => m.assignedDriverId === 'op-driver-1').length
+    ).toBeGreaterThanOrEqual(3)
+    expect(
+      state.transfers.filter((t) => t.assignedDriverId === 'op-driver-1' && t.status === 'in_transit')
+        .length
+    ).toBeGreaterThanOrEqual(2)
+  })
+})

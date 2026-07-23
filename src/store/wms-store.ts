@@ -664,7 +664,7 @@ const buildSeedState = () => ({
   clusterTasks: seed.clusterTasks,
   putToStoreTasks: seed.putToStoreTasks,
   wavelessOrders: seed.wavelessOrders,
-  packingOrders: [...seed.packingOrders, seed.demoPackingOrder, seed.demoPackingOrderMulti],
+  packingOrders: [...seed.packingOrders, seed.demoPackingOrder, seed.demoPackingOrderMulti, seed.demoPackingOrderHeavy],
   packingBoxTypes: seed.packingBoxTypes,
   packingRules: seed.packingRules,
   shipments: seed.shipments,
