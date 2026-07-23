@@ -258,6 +258,7 @@ export const sidebarItems: NavGroup[] = [
             icon: MapPinned,
           },
           { id: 'config-slotting', title: 'Slotting', url: '/slotting-settings', icon: Grid3x3 },
+          { id: 'config-picking', title: 'Picking', url: '/picking-settings', icon: ClipboardList },
           {
             id: 'config-replenishment',
             title: 'Reabastecimiento',
