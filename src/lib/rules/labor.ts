@@ -62,3 +62,47 @@ export function buildLaborQueue(
 
   return [...pickingItems, ...replenishmentItems, ...putawayItems]
 }
+
+export function suggestInterleavedRoutes(
+  items: LaborQueueItem[],
+  getLocation: (id: string) => { distanceToDispatchM: number } | undefined,
+  maxDistanceM: number
+): LaborQueueItem[] {
+  const byOperator = new Map<string, LaborQueueItem[]>()
+  for (const item of items) {
+    if (!item.operatorName) continue
+    const bucket = byOperator.get(item.operatorName) ?? []
+    bucket.push(item)
+    byOperator.set(item.operatorName, bucket)
+  }
+
+  const routeIdByItemId = new Map<string, string>()
+  let routeCounter = 0
+
+  for (const [operatorName, bucket] of byOperator) {
+    for (let i = 0; i < bucket.length; i++) {
+      for (let j = i + 1; j < bucket.length; j++) {
+        const a = bucket[i]
+        const b = bucket[j]
+        if (a.sourceType === b.sourceType) continue
+        if (routeIdByItemId.has(a.id) && routeIdByItemId.has(b.id)) continue
+
+        const locA = getLocation(a.locationId)
+        const locB = getLocation(b.locationId)
+        if (!locA || !locB) continue
+
+        const distance = Math.abs(locA.distanceToDispatchM - locB.distanceToDispatchM)
+        if (distance > maxDistanceM) continue
+
+        const existingRouteId = routeIdByItemId.get(a.id) ?? routeIdByItemId.get(b.id)
+        const routeId = existingRouteId ?? `route-${operatorName}-${routeCounter++}`
+        routeIdByItemId.set(a.id, routeId)
+        routeIdByItemId.set(b.id, routeId)
+      }
+    }
+  }
+
+  return items.map((item) =>
+    routeIdByItemId.has(item.id) ? { ...item, suggestedRouteId: routeIdByItemId.get(item.id) } : item
+  )
+}

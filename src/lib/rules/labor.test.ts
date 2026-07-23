@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { buildLaborQueue } from './labor'
+import { buildLaborQueue, suggestInterleavedRoutes } from './labor'
 import type { PickingTask, ReplenishmentTask, Asn } from '@/types/wms'
 
 const pickingTask = (overrides: Partial<PickingTask> = {}): PickingTask => ({
@@ -136,5 +136,60 @@ describe('buildLaborQueue', () => {
     const result = buildLaborQueue([pickingTask()], [replenishmentTask()], [asn()])
     expect(result).toHaveLength(3)
     expect(result.map((i) => i.sourceType).sort()).toEqual(['picking', 'putaway', 'replenishment'])
+  })
+})
+
+describe('suggestInterleavedRoutes', () => {
+  const locations: Record<string, { distanceToDispatchM: number }> = {
+    'loc-1': { distanceToDispatchM: 10 },
+    'loc-2': { distanceToDispatchM: 15 },
+    'loc-far': { distanceToDispatchM: 200 },
+  }
+  const getLocation = (id: string) => locations[id]
+
+  it('does not group items for different operators', () => {
+    const items = [
+      { ...pickingTask(), id: 'a', sourceType: 'picking' as const, code: 'a', locationId: 'loc-1', operatorName: 'Juan', priority: 'high' as const, status: 'pending' },
+      { ...pickingTask(), id: 'b', sourceType: 'replenishment' as const, code: 'b', locationId: 'loc-2', operatorName: 'Ana', priority: 'medium' as const, status: 'pending' },
+    ]
+    const result = suggestInterleavedRoutes(items, getLocation, 20)
+    expect(result.every((i) => i.suggestedRouteId === undefined)).toBe(true)
+  })
+
+  it('does not group items of the same operator if distance exceeds maxDistanceM', () => {
+    const items = [
+      { id: 'a', sourceType: 'picking' as const, code: 'a', locationId: 'loc-1', priority: 'high' as const, status: 'pending', operatorName: 'Juan' },
+      { id: 'b', sourceType: 'replenishment' as const, code: 'b', locationId: 'loc-far', priority: 'medium' as const, status: 'pending', operatorName: 'Juan' },
+    ]
+    const result = suggestInterleavedRoutes(items, getLocation, 20)
+    expect(result.every((i) => i.suggestedRouteId === undefined)).toBe(true)
+  })
+
+  it('groups two different-type items for the same operator within maxDistanceM', () => {
+    const items = [
+      { id: 'a', sourceType: 'picking' as const, code: 'a', locationId: 'loc-1', priority: 'high' as const, status: 'pending', operatorName: 'Juan' },
+      { id: 'b', sourceType: 'replenishment' as const, code: 'b', locationId: 'loc-2', priority: 'medium' as const, status: 'pending', operatorName: 'Juan' },
+    ]
+    const result = suggestInterleavedRoutes(items, getLocation, 20)
+    expect(result[0].suggestedRouteId).toBeDefined()
+    expect(result[0].suggestedRouteId).toBe(result[1].suggestedRouteId)
+  })
+
+  it('does not group two items of the same sourceType even for the same operator nearby', () => {
+    const items = [
+      { id: 'a', sourceType: 'picking' as const, code: 'a', locationId: 'loc-1', priority: 'high' as const, status: 'pending', operatorName: 'Juan' },
+      { id: 'b', sourceType: 'picking' as const, code: 'b', locationId: 'loc-2', priority: 'medium' as const, status: 'pending', operatorName: 'Juan' },
+    ]
+    const result = suggestInterleavedRoutes(items, getLocation, 20)
+    expect(result.every((i) => i.suggestedRouteId === undefined)).toBe(true)
+  })
+
+  it('does not group unassigned items (no operatorName)', () => {
+    const items = [
+      { id: 'a', sourceType: 'picking' as const, code: 'a', locationId: 'loc-1', priority: 'high' as const, status: 'pending' },
+      { id: 'b', sourceType: 'replenishment' as const, code: 'b', locationId: 'loc-2', priority: 'medium' as const, status: 'pending' },
+    ]
+    const result = suggestInterleavedRoutes(items, getLocation, 20)
+    expect(result.every((i) => i.suggestedRouteId === undefined)).toBe(true)
   })
 })
