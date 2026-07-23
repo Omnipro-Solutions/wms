@@ -35,7 +35,7 @@ const ScanPickingPage = () => {
   )
 
   const handleLocationMatch = () => {
-    if (task.status === 'assigned') startPicking(task.id, 'Operador')
+    if (task.status === 'assigned') startPicking(task.id, task.operatorName ?? 'Operador', task.assignedOperatorId)
     setScanError(null)
     setPhase('product')
   }
