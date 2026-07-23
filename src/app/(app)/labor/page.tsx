@@ -8,30 +8,15 @@ import { useWmsStore } from '@/store/wms-store'
 import { useStoreHelpers } from '@/hooks/use-store-helpers'
 import { PageHeader } from '@/components/shared/page-header'
 import { SubNav, type SubNavItem } from '@/components/shared/sub-nav'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
-import { Button } from '@/components/ui/button'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
+import { AssignOperatorDialog } from '@/components/shared/assign-operator-dialog'
 import { buildLaborQueue, suggestInterleavedRoutes, productivityByAllSources } from '@/lib/rules/labor'
 import { buildQueueColumns, buildProductivityColumns, buildOperatorColumns } from './columns'
 import { QueueTab } from './_components/QueueTab'
 import { ProductivityTab } from './_components/ProductivityTab'
 import { OperatorsTab } from './_components/OperatorsTab'
-import type { LaborQueueItem } from '@/types/wms'
+import type { LaborQueueItem, Operator } from '@/types/wms'
 
-const ASSIGNABLE_ROLES: Record<LaborQueueItem['sourceType'], string[]> = {
+const ASSIGNABLE_ROLES: Record<LaborQueueItem['sourceType'], Operator['role'][]> = {
   picking: ['picker'],
   putaway: ['receiver'],
   replenishment: ['picker'],
@@ -47,7 +32,6 @@ const LaborPage = () => {
 
   const [sourceTypeFilter, setSourceTypeFilter] = useState('all')
   const [assignItem, setAssignItem] = useState<LaborQueueItem | null>(null)
-  const [assignOperatorName, setAssignOperatorName] = useState('')
 
   const rawQueue = useMemo(
     () => buildLaborQueue(state.pickingTasks, state.replenishmentTasks, state.asnRecords),
@@ -75,22 +59,21 @@ const LaborPage = () => {
     [queue]
   )
 
-  const assignableOperators = useMemo(() => {
-    if (!assignItem) return []
-    const roles = ASSIGNABLE_ROLES[assignItem.sourceType]
-    return operators.filter((o) => o.active && roles.includes(o.role))
-  }, [assignItem, operators])
-
   const handleOpenAssign = (item: LaborQueueItem) => {
     setAssignItem(item)
-    setAssignOperatorName(item.operatorName ?? '')
   }
 
-  const handleConfirmAssign = () => {
-    if (!assignItem || !assignOperatorName) return
-    if (assignItem.sourceType === 'picking') startPicking(assignItem.id, assignOperatorName)
-    if (assignItem.sourceType === 'replenishment') startReplenishment(assignItem.id, assignOperatorName)
-    if (assignItem.sourceType === 'putaway') assignPutaway(assignItem.id, assignOperatorName)
+  const currentAssignOperatorId = useMemo(() => {
+    if (!assignItem?.operatorName) return undefined
+    return operators.find((o) => o.name === assignItem.operatorName)?.id
+  }, [assignItem, operators])
+
+  const handleConfirmAssign = (operator: Operator) => {
+    if (!assignItem) return
+    if (assignItem.sourceType === 'picking') startPicking(assignItem.id, operator.name, operator.id)
+    if (assignItem.sourceType === 'replenishment')
+      startReplenishment(assignItem.id, operator.name, operator.id)
+    if (assignItem.sourceType === 'putaway') assignPutaway(assignItem.id, operator.name, operator.id)
     setAssignItem(null)
   }
 
@@ -157,39 +140,14 @@ const LaborPage = () => {
         <OperatorsTab rows={operatorRows} operatorCols={operatorCols} />
       )}
 
-      <Dialog open={!!assignItem} onOpenChange={(o) => { if (!o) setAssignItem(null) }}>
-        <DialogContent className="sm:max-w-sm">
-          <DialogHeader>
-            <DialogTitle>Asignar operario</DialogTitle>
-            <DialogDescription>
-              {assignItem ? `Tarea ${assignItem.code} (${assignItem.sourceType})` : ''}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="py-2">
-            <Select value={assignOperatorName} onValueChange={setAssignOperatorName}>
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="Selecciona un operario" />
-              </SelectTrigger>
-              <SelectContent>
-                {assignableOperators.map((op) => (
-                  <SelectItem key={op.id} value={op.name}>
-                    {op.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {assignItem?.productId && (
-              <p className="text-muted-foreground mt-2 text-xs">
-                Producto: {productName(assignItem.productId)}
-              </p>
-            )}
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setAssignItem(null)}>Cancelar</Button>
-            <Button disabled={!assignOperatorName} onClick={handleConfirmAssign}>Confirmar</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <AssignOperatorDialog
+        open={!!assignItem}
+        onOpenChange={(o) => { if (!o) setAssignItem(null) }}
+        roles={assignItem ? ASSIGNABLE_ROLES[assignItem.sourceType] : []}
+        currentOperatorId={currentAssignOperatorId}
+        entityLabel={assignItem ? `Tarea ${assignItem.code} (${assignItem.sourceType})` : ''}
+        onConfirm={handleConfirmAssign}
+      />
     </div>
   )
 }
