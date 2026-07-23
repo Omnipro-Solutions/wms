@@ -109,3 +109,39 @@ describe('assignManifestDriver', () => {
     )
   })
 })
+
+describe('assignTransferDriver', () => {
+  it('assigns a valid active driver', () => {
+    // tr-4 seed fixture: status 'partial_received', no assignedDriverId yet
+    useWmsStore.getState().assignTransferDriver('tr-4', 'op-driver-1')
+    const transfer = useWmsStore.getState().transfers.find((t) => t.id === 'tr-4')
+    expect(transfer?.assignedDriverId).toBe('op-driver-1')
+  })
+
+  it('throws when the transfer does not exist', () => {
+    expect(() => useWmsStore.getState().assignTransferDriver('tr-missing', 'op-driver-1')).toThrow(
+      'Traslado no encontrado'
+    )
+  })
+
+  it('throws when the operator does not exist', () => {
+    expect(() => useWmsStore.getState().assignTransferDriver('tr-4', 'op-missing')).toThrow(
+      'Operario no encontrado'
+    )
+  })
+
+  it('throws when the operator is not a driver', () => {
+    expect(() => useWmsStore.getState().assignTransferDriver('tr-4', 'op-0')).toThrow(
+      'El operario no tiene rol de conductor'
+    )
+  })
+
+  it('throws when the operator is inactive', () => {
+    useWmsStore.setState((state) => ({
+      operators: state.operators.map((o) => (o.id === 'op-driver-1' ? { ...o, active: false } : o)),
+    }))
+    expect(() => useWmsStore.getState().assignTransferDriver('tr-4', 'op-driver-1')).toThrow(
+      'El operario está inactivo'
+    )
+  })
+})

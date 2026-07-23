@@ -381,6 +381,7 @@ export interface WmsState {
   assignManifestDriver: (manifestId: string, driverId: string) => void
   // Transfers
   advanceTransfer: (transferId: string, operatorName: string) => TransferOrder
+  assignTransferDriver: (transferId: string, driverId: string) => void
   dispatchLeg: (transferId: string, legId: string, operatorName: string) => TransferOrder
   receiveLeg: (
     transferId: string,
@@ -2598,6 +2599,18 @@ export const useWmsStore = create<WmsState>()(
         throw new Error(
           `No se puede avanzar traslado desde el estado del tramo ${currentLeg.status}`
         )
+      },
+
+      assignTransferDriver: (transferId, driverId) => {
+        const state = get()
+        const transfer = state.transfers.find((t) => t.id === transferId)
+        if (!transfer) throw new Error('Traslado no encontrado')
+        const driver = state.operators.find((o) => o.id === driverId)
+        if (!driver) throw new Error('Operario no encontrado')
+        if (!driver.active) throw new Error('El operario está inactivo')
+        if (driver.role !== 'driver') throw new Error('El operario no tiene rol de conductor')
+        const updated: TransferOrder = { ...transfer, assignedDriverId: driver.id }
+        set({ transfers: state.transfers.map((t) => (t.id === transferId ? updated : t)) })
       },
 
       dispatchLeg: (transferId, legId, operatorName) => {
