@@ -5,6 +5,7 @@ import { es } from 'date-fns/locale'
 import {
   ArrowRight,
   Calendar,
+  CalendarClock,
   CheckCircle2,
   ClipboardCheck,
   Hash,
@@ -25,12 +26,21 @@ import {
 } from '@/components/ui/sheet'
 import { StatusBadge } from '@/components/shared/status-badge'
 import { cn } from '@/lib/utils'
-import type { Product, ReentryBatch, RepairTicket, ReturnInspection, ReturnOrder, ScrapRecord } from '@/types/wms'
+import { seedTimestamp } from '@/data/seed'
 import {
+  CONDITION_COLORS,
+  CONDITION_LABELS,
   DISPOSITION_COLORS,
   DISPOSITION_LABELS,
-  TYPE_LABELS,
-} from '../columns'
+  REPAIR_STATUS_LABELS,
+  REPAIR_TYPE_LABELS,
+  RESULT_LABELS,
+  RESULT_STYLES,
+  RETURN_TYPE_LABELS,
+  SCRAP_METHOD_LABELS,
+  returnWindowExceededBy,
+} from '@/lib/returns'
+import type { Product, ReentryBatch, RepairTicket, ReturnInspection, ReturnOrder, ScrapRecord } from '@/types/wms'
 
 interface Props {
   open: boolean
@@ -39,61 +49,11 @@ interface Props {
   repairTickets: RepairTicket[]
   scrapRecord: ScrapRecord | undefined
   reentryBatch: ReentryBatch | undefined
+  returnWindowDays: number
   warehouseName: (id: string) => string
   productName: (id: string) => string
   getProduct: (id: string) => Product | undefined
   onClose: () => void
-}
-
-const CONDITION_LABELS: Record<string, string> = {
-  new: 'Nuevo',
-  like_new: 'Como nuevo',
-  good: 'Buen estado',
-  fair: 'Aceptable',
-  defective: 'Defectuoso',
-}
-
-const CONDITION_COLORS: Record<string, string> = {
-  new: 'bg-green-100 text-green-800',
-  like_new: 'bg-emerald-100 text-emerald-800',
-  good: 'bg-blue-100 text-blue-800',
-  fair: 'bg-amber-100 text-amber-800',
-  defective: 'bg-red-100 text-red-800',
-}
-
-const RESULT_LABELS: Record<string, string> = {
-  pass: 'Aprobada',
-  partial_pass: 'Aprobación parcial',
-  fail: 'Rechazada',
-}
-
-const RESULT_STYLES: Record<string, string> = {
-  pass: 'bg-green-100 text-green-800 border-green-200',
-  partial_pass: 'bg-amber-100 text-amber-800 border-amber-200',
-  fail: 'bg-red-100 text-red-800 border-red-200',
-}
-
-const REPAIR_TYPE_LABELS: Record<string, string> = {
-  cosmetic: 'Cosmética',
-  functional: 'Funcional',
-  warranty: 'Garantía',
-}
-
-const REPAIR_STATUS_LABELS: Record<string, string> = {
-  open: 'Abierto',
-  in_progress: 'En proceso',
-  ready_to_receive: 'Listo para recibir',
-  received: 'Recibido',
-  completed: 'Completado',
-  failed: 'Fallido',
-}
-
-const SCRAP_METHOD_LABELS: Record<string, string> = {
-  incinerate: 'Incineración',
-  landfill: 'Relleno sanitario',
-  donate: 'Donación',
-  liquidate: 'Liquidación',
-  recycle: 'Reciclaje',
 }
 
 const InfoRow = ({ label, children }: { label: string; children: React.ReactNode }) => (
@@ -110,6 +70,7 @@ export const ReturnDetailSheet = ({
   repairTickets,
   scrapRecord,
   reentryBatch,
+  returnWindowDays,
   warehouseName,
   productName,
   getProduct,
@@ -140,7 +101,7 @@ export const ReturnDetailSheet = ({
             </InfoRow>
             <InfoRow label="Tipo">
               <Badge variant="outline" className="text-xs">
-                {TYPE_LABELS[returnOrder.type]}
+                {RETURN_TYPE_LABELS[returnOrder.type]}
               </Badge>
             </InfoRow>
             <InfoRow label="Disposición">
@@ -165,7 +126,33 @@ export const ReturnDetailSheet = ({
                 {format(parseISO(returnOrder.createdAt), 'dd MMM yyyy', { locale: es })}
               </span>
             </InfoRow>
+            {returnOrder.dispatchDate && (
+              <InfoRow label="Despacho original">
+                <span className="flex items-center gap-1">
+                  <CalendarClock className="size-3" />
+                  {format(parseISO(returnOrder.dispatchDate), 'dd MMM yyyy', { locale: es })}
+                </span>
+              </InfoRow>
+            )}
           </section>
+
+          {(() => {
+            const exceeded = returnWindowExceededBy(
+              returnOrder.dispatchDate,
+              returnWindowDays,
+              seedTimestamp
+            )
+            if (exceeded === null) return null
+            return (
+              <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-200">
+                <CalendarClock className="mt-0.5 size-3.5 shrink-0" />
+                <span>
+                  Fuera de la ventana de devolución: {exceeded} días desde el despacho (máximo{' '}
+                  {returnWindowDays}).
+                </span>
+              </div>
+            )
+          })()}
 
           <Separator />
 

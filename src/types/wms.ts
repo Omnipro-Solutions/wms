@@ -120,6 +120,11 @@ export interface StorageLocation {
   maxVolumeM3: number // max volume this slot holds (0 = unlimited)
   distanceToDispatchM: number // meters from location to dispatch/packing
   routeCode?: string // staging zone de una ruta SAP, ej. "sap-rt-001"
+  // Replenishment module (#11) — per-pick-face min/max override.
+  // When set, takes precedence over the product-level and demand-based defaults
+  // (see selectReplenishmentNeeds). Only meaningful for pick faces.
+  minStockUnits?: number
+  maxStockUnits?: number
 }
 
 export interface Product {
@@ -295,6 +300,53 @@ export interface TransferLeg {
   receivedAt?: string
   operatorName?: string
   notes?: string
+  // Reconciliación por línea capturada al recepcionar (vacío = recepción sin discrepancias).
+  lineReceipts?: TransferLegLineReceipt[]
+}
+
+// Recepción a nivel de línea de un tramo, con captura de discrepancias contra lo despachado.
+// receivedQty + damagedQty pueden sumar menos que requestedQty (faltante) o más (sobrante).
+export interface TransferLegLineReceipt {
+  productId: string
+  requestedQty: number
+  receivedQty: number // unidades sanas que entran a stock disponible en el destino
+  damagedQty: number // unidades averiadas en tránsito (no entran a disponible)
+  discrepancyReasonId?: string // Reason context 'transfer_discrepancy' cuando hay faltante/avería
+}
+
+// ─── Movimientos internos (intra-almacén) ───────────────────────────────────
+// Motor unificado de "tareas de trabajo": todo movimiento que no cruza de nodo.
+// El origen y el destino comparten warehouseId (invariante intra-almacén).
+export type InternalMoveType =
+  | 'putaway' // recepción → ubicación (flujo de recepción)
+  | 'replenishment' // reserva → pick-face
+  | 'reslotting' // reubicación por slotting
+  | 'bin_to_bin' // ad-hoc manual
+  | 'consolidation' // juntar SKU disperso en una sola ubicación
+  | 'quarantine' // a ubicación de control de calidad (retención física)
+  | 'housekeeping' // despeje de pasillo / staging
+
+// FSM de dos pasos: pick en origen, drop en destino. Entre 'picked' y 'dropped'
+// las unidades están "en movimiento" (fuera del origen, aún no en destino).
+export type InternalMoveStatus = 'pending' | 'assigned' | 'picked' | 'dropped' | 'cancelled'
+
+export interface InternalMoveTask {
+  id: string
+  code: string // legible, p. ej. MI-001
+  warehouseId: string // mismo origen y destino ⇒ intra-almacén (invariante)
+  moveType: InternalMoveType
+  productId: string
+  fromLocationId: string
+  toLocationId: string
+  quantity: number
+  lot?: string
+  serial?: string // arrastra trazabilidad a través del movimiento
+  status: InternalMoveStatus
+  reasonId?: string // Reason context 'internal_move'
+  operatorName?: string
+  createdAt: string
+  pickedAt?: string
+  droppedAt?: string
 }
 
 // --- Cross-docking (Sprint 9 — #7) ---
@@ -329,13 +381,24 @@ export type ReturnStatus =
 
 export type ItemCondition = 'new' | 'like_new' | 'good' | 'fair' | 'defective' | 'damaged'
 
+// The four dispositions a single inspected line can be graded into.
+export type ItemDisposition = 'restock' | 'repair' | 'scrap' | 'reject'
+
+// Grading policy: maps an inspected condition rating to the disposition the
+// system recommends by default. Consumed by the inspection dialog when
+// WmsSettings.returnAutoDispositionEnabled is on. Configured in /returns-settings.
+export interface ReturnGradingRule {
+  condition: ItemCondition
+  disposition: ItemDisposition
+}
+
 export interface ReturnItemInspection {
   returnLineId: string // references OrderLine.id in ReturnOrder.items
   productId: string
   inspectedQuantity: number
   conditionRating: ItemCondition
   notes: string
-  recommendedDisposition: 'restock' | 'repair' | 'scrap' | 'reject'
+  recommendedDisposition: ItemDisposition
   serial?: string // captured during inspection for serialized products
   serialMatchesDispatch?: boolean // true if the serial was found in the original dispatch pick movement
 }
@@ -438,6 +501,10 @@ export interface ReturnOrder {
   items: OrderLine[]
   inspectionId?: string // references ReturnInspection.id once inspected
   createdAt: string
+  // Original dispatch date — used to evaluate the return window (returnWindowDays).
+  dispatchDate?: string
+  // Stamped when the return reaches a terminal state (closed/rejected). Powers cycle-time KPI.
+  closedAt?: string
 }
 
 export interface CommerceOrder {
@@ -666,6 +733,55 @@ export interface LoadManifest {
   assignedDriverId?: string
 }
 
+// --- Yard / Dock management (#8) — Gestión de patio y muelles ---
+// Coordinates dock assignment and arrival/departure appointments for inbound
+// (ASN) and outbound (LoadManifest) traffic. Configured in /yard-settings.
+
+export type DockType = 'inbound' | 'outbound' | 'mixed'
+export type DockStatus = 'active' | 'blocked' | 'maintenance'
+
+export interface Dock {
+  id: string
+  code: string // e.g. 'M-01'
+  name: string
+  warehouseId: string
+  type: DockType
+  status: DockStatus
+  notes?: string
+}
+
+export type DockAppointmentType = 'inbound' | 'outbound'
+
+// FSM: scheduled → arrived → in_progress → completed, with no_show/cancelled
+// as terminal off-ramps. See lib/state-machines.ts (dockAppointmentTransitions).
+export type DockAppointmentStatus =
+  | 'scheduled'
+  | 'arrived'
+  | 'in_progress'
+  | 'completed'
+  | 'no_show'
+  | 'cancelled'
+
+export interface DockAppointment {
+  id: string
+  code: string // e.g. 'CITA-001'
+  warehouseId: string
+  dockId?: string // asignado en Estándar; puede crearse sin muelle (ver assignDock)
+  type: DockAppointmentType
+  status: DockAppointmentStatus
+  asnId?: string // referencia para citas inbound
+  manifestId?: string // referencia para citas outbound
+  carrierName?: string
+  driverName?: string
+  vehiclePlate?: string
+  scheduledStart: string // ISO datetime
+  scheduledEnd: string // ISO datetime
+  arrivedAt?: string
+  startedAt?: string
+  completedAt?: string
+  notes?: string
+}
+
 export interface IntegrationConnection {
   id: string
   name: string
@@ -676,9 +792,11 @@ export interface IntegrationConnection {
   processedMessages: number
 }
 
+// Intra-warehouse replenishment: refill a pick face from a reserve location.
 export interface ReplenishmentTask {
   id: string
   productId: string
+  warehouseId?: string // warehouse the pick face belongs to (fallback: derived from destination)
   originLocationId: string
   destinationLocationId: string // a slotting-defined pick face
   currentStock: number
@@ -688,6 +806,38 @@ export interface ReplenishmentTask {
   priority: 'low' | 'medium' | 'high'
   status: OperationalStatus
   operatorName?: string
+  createdAt?: string
+  auto?: boolean // generated by the automatic engine vs. created manually
+}
+
+// --- Store (retail) replenishment (#11 Estándar) ---
+
+// Min/max policy for a product at a retail store. Drives DC→store replenishment.
+export interface StoreReplenishmentPolicy {
+  id: string
+  storeWarehouseId: string // a Warehouse of type 'store'
+  productId: string
+  minStock: number
+  maxStock: number
+  active: boolean
+}
+
+// A DC→store replenishment task: move stock from a distribution center to a
+// store whose on-floor stock dropped below its policy minimum.
+export interface StoreReplenishmentTask {
+  id: string
+  storeWarehouseId: string // destination store
+  sourceWarehouseId: string // origin distribution center
+  productId: string
+  currentStock: number
+  minStock: number
+  maxStock: number
+  suggestedQuantity: number
+  priority: 'low' | 'medium' | 'high'
+  status: OperationalStatus
+  operatorName?: string
+  createdAt: string
+  auto: boolean // generated by the automatic engine vs. created manually
 }
 
 // --- Batch picking ---
@@ -823,6 +973,59 @@ export interface RouteSlottingRecommendation {
   score: number // 0-100
 }
 
+// --- Slotting rules (configurable placement directives) ---
+//
+// A slotting rule is a business directive that OVERRIDES the ABC/XYZ-derived
+// ideal tier for the products it matches. It is the "gobierno" layer on top of
+// the pure algorithm: e.g. "electrónica de alto valor siempre en golden" or
+// "cargas pesadas fuera de golden aunque sean clase A". Rules are edited in
+// Configuración → Slotting and take effect live on /slotting.
+
+export type SlottingTier = 'golden' | 'standard' | 'remote'
+
+// How a rule decides whether a product is in scope.
+export type SlottingRuleMatchType =
+  | 'category' // product.category === value
+  | 'abcClass' // computed ABC class === value ('A' | 'B' | 'C')
+  | 'weightAboveKg' // product.unitWeightKg >= Number(value)
+  | 'trackBy' // product.trackBy === value ('none' | 'lot' | 'serial')
+
+// What a rule DOES to the products it matches. Two flavours:
+//  · soft  → 'preferTier' nudges the ideal tier used by the scoring engine.
+//  · hard  → the rest are constraints: a candidate location that violates any of
+//            them is discarded (it can never be recommended for this product).
+// Kinds map to attributes that already exist on StorageLocation / RackType, so
+// no data migration is needed (Fase 1). Cold-chain / temperature is Fase 2.
+export type SlottingDirectiveKind =
+  | 'preferTier' // soft: preferred SlottingTier
+  | 'requireLocationType' // hard: StorageLocation.type must equal value
+  | 'requireZone' // hard: StorageLocation.zone must equal value
+  | 'requireGolden' // hard: location must be a golden pick face
+  | 'forbidGolden' // hard: location must NOT be golden
+  | 'maxLevel' // hard: StorageLocation.level (numeric) must be <= value
+  | 'requireRackCompatible' // hard: rack↔producto compatibility (checkRackCompatibility)
+
+export type SlottingDirective =
+  | { kind: 'preferTier'; tier: SlottingTier }
+  | { kind: 'requireLocationType'; locationType: LocationType }
+  | { kind: 'requireZone'; zone: string }
+  | { kind: 'requireGolden' }
+  | { kind: 'forbidGolden' }
+  | { kind: 'maxLevel'; level: number }
+  | { kind: 'requireRackCompatible' }
+
+export interface SlottingRule {
+  id: string
+  code: string
+  name: string
+  description?: string
+  matchType: SlottingRuleMatchType
+  matchValue: string // interpreted per matchType (category name, 'A', '50', 'serial'…)
+  directives: SlottingDirective[] // soft preference + hard constraints applied to matches
+  priority: number // higher wins for the soft tier when several active rules match
+  active: boolean
+}
+
 // --- Administration domain ---
 
 export interface Operator {
@@ -839,7 +1042,14 @@ export interface Reason {
   id: string
   code: string
   label: string // Spanish label shown in the UI
-  context: 'return' | 'partial_picking' | 'adjustment' | 'scrap' | 'hold'
+  context:
+    | 'return'
+    | 'partial_picking'
+    | 'adjustment'
+    | 'scrap'
+    | 'hold'
+    | 'internal_move' // movimientos internos ad-hoc (bin-to-bin, consolidación, cuarentena…)
+    | 'transfer_discrepancy' // short / over / damaged al recepcionar un traslado
   active: boolean
 }
 
@@ -902,6 +1112,67 @@ export interface WmsSettings {
   locationHighUtilizationPct: number
   // Si está activo, bloquear una ubicación exige que esté vacía (gobierno del layout).
   blockRequiresEmptyLocation: boolean
+  // Returns module (#12) — reverse-logistics governance. Configured in /returns-settings.
+  // Congela todas las operaciones de devoluciones (avanzar, inspeccionar, reingresar, dar de baja…).
+  returnsFreezeActive: boolean
+  // Días máximos desde el despacho original para aceptar una devolución (ventana RMA).
+  returnWindowDays: number
+  // Si está activo, la inspección exige que el serial devuelto exista en el historial de despacho.
+  returnRequireSerialValidation: boolean
+  // Si está activo, la inspección pre-llena la disposición recomendada según returnGradingPolicy.
+  returnAutoDispositionEnabled: boolean
+  // Ubicación destino por defecto para reingreso al inventario y retornos de taller.
+  returnDefaultLocationId: string
+  // Matriz de calificación → disposición (grading policy) usada por la auto-disposición.
+  returnGradingPolicy: ReturnGradingRule[]
+  // Replenishment module (#11) — configured in /replenishment-settings.
+  // Congela toda la operación de reabastecimiento (generar, iniciar, completar tareas).
+  replenishmentFreezeActive: boolean
+  // Umbrales de prioridad como fracción del mínimo (0–1):
+  //   stock/min < high   → prioridad ALTA
+  //   stock/min < medium → prioridad MEDIA   (medium debe ser > high)
+  //   min > stock ≥ min×medium → prioridad BAJA
+  // replenishmentHighFactor ya existe arriba (default 0.5).
+  replenishmentMediumFactor: number // e.g. 0.8 of min stock
+  // Min/max por defecto cuando un SKU/ubicación no tiene límites explícitos ni datos de demanda.
+  replenishmentDefaultMinUnits: number
+  replenishmentDefaultMaxUnits: number
+  // Si está activo, las tareas de reposición a tiendas se generan automáticamente
+  // (retail). El CD origen por defecto es replenishmentStoreSourceWarehouseId.
+  replenishmentAutoStoreEnabled: boolean
+  replenishmentStoreSourceWarehouseId: string // CD que surte a las tiendas
+  // Cycle count module (#13) — configured in /cycle-count-settings.
+  // Congela crear/iniciar/registrar/completar/cancelar planes de conteo.
+  cycleCountFreezeActive: boolean
+  // Valor por defecto del switch "conteo ciego" al crear un plan nuevo (el operario no
+  // ve la cantidad esperada del sistema mientras cuenta — buena práctica anti-sesgo).
+  cycleCountBlindCountDefault: boolean
+  // % de variación por encima del cual una línea se resalta como "fuera de tolerancia".
+  // Solo gobierna el resaltado visual — la aprobación real sigue usando
+  // adjustmentApprovalThreshold (unidades) vía el motor de ajustes existente.
+  cycleCountVarianceTolerancePct: number
+  // Frecuencia de conteo (días) por clase ABC — a más rotación, más frecuente.
+  cycleCountFrequencyDaysA: number
+  cycleCountFrequencyDaysB: number
+  cycleCountFrequencyDaysC: number
+  // Si está activo, /cycle-count-settings y /cycle-count pueden generar planes
+  // sugeridos automáticamente para las combinaciones almacén×clase ABC vencidas.
+  cycleCountAutoSuggestEnabled: boolean
+  // Yard/Dock module (#8) — patio y muelles. Configured in /yard-settings.
+  // Congela crear/asignar muelle/avanzar (llegó, iniciar, completar, no-show, cancelar) citas.
+  yardFreezeActive: boolean
+  // Ventana operativa del patio — citas fuera de este rango se rechazan al crearlas.
+  yardOperatingHoursStart: string // 'HH:mm'
+  yardOperatingHoursEnd: string // 'HH:mm'
+  // Días de la semana en que opera el patio (0=domingo … 6=sábado).
+  yardWorkingDays: number[]
+  // Duración por defecto (minutos) al proponer una ventana horaria nueva.
+  yardDefaultSlotMinutes: number
+  // Minutos tras la hora agendada, sin llegada registrada, para marcar la cita "en riesgo".
+  yardLateThresholdMinutes: number
+  // Si está activo, permite agendar/asignar más de una cita activa sobre el mismo muelle
+  // en horarios que se solapan (excepción a la validación de conflicto de agenda).
+  yardAllowOverbooking: boolean
 }
 
 // --- Inventory adjustment requests (Sprint 2 — #56) ---
@@ -926,26 +1197,53 @@ export interface InventoryAdjustmentRequest {
   rejectionNote?: string
 }
 
-// --- Cyclic count plan (Sprint 2 — #54) ---
+// --- Cyclic count plan (Sprint 2 — #54; expanded for module #13) ---
 
 export type CyclicCountStatus = 'pending' | 'in_progress' | 'completed' | 'cancelled'
-export type CyclicCountMethod = 'by_zone' | 'by_abc' | 'by_rotation'
+export type CyclicCountMethod = 'by_zone' | 'by_category' | 'by_abc' | 'by_rotation'
 
 export interface CyclicCountPlan {
   id: string
   code: string
   name: string
   method: CyclicCountMethod
-  filterValue: string // zone code, ABC class, or rotation threshold
+  filterValue: string // zone code, category name, ABC class, or 'alta'/'baja' rotation
   warehouseId: string
   locationIds: string[]
   assignedOperatorName?: string
   scheduledDate: string // ISO date
   status: CyclicCountStatus
   createdAt: string
+  startedAt?: string
   completedAt?: string
-  totalLocations: number
-  countedLocations: number
+  // Progress is tracked per count LINE (product×location×lot), not per location —
+  // one location can hold several SKUs/lots, each counted independently (RF capture).
+  totalItems: number
+  countedItems: number
+  blindCount: boolean // operator doesn't see the expected quantity while counting
+  auto: boolean // generated by the ABC-frequency scheduler vs. created manually
+}
+
+// One row per InventoryItem included in a plan, snapshotted when the plan is created.
+// expectedQuantity is the system on-hand at that moment; countedQuantity/variance are
+// filled in during floor counting (recordCycleCountLine). Undefined countedQuantity
+// means the line hasn't been counted yet.
+export interface CyclicCountLine {
+  id: string
+  planId: string
+  inventoryItemId: string
+  productId: string
+  warehouseId: string
+  locationId: string
+  lot?: string
+  serial?: string
+  expectedQuantity: number
+  countedQuantity?: number
+  variance?: number // countedQuantity - expectedQuantity
+  countedAt?: string
+  countedBy?: string
+  // Set when completeCyclicCount() creates an InventoryAdjustmentRequest for this line.
+  adjustmentRequestId?: string
 }
 
 // --- Reports domain (derived aggregations, NOT stored entities) ---

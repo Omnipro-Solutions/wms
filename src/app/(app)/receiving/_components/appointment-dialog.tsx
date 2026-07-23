@@ -19,14 +19,8 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
+import { isDockCompatible } from '@/lib/rules/yard'
 import type { Asn } from '@/types/wms'
-
-const DOCKS = [
-  { value: 'dock-1', label: 'Muelle 1' },
-  { value: 'dock-2', label: 'Muelle 2' },
-  { value: 'dock-3', label: 'Muelle 3' },
-  { value: 'dock-4', label: 'Muelle 4' },
-]
 
 const TIME_SLOTS = [
   '06:00-08:00',
@@ -44,7 +38,7 @@ interface Props {
 }
 
 export const AppointmentDialog = ({ asn, open, onClose }: Props) => {
-  const { updateAsnAppointment } = useWmsStore()
+  const { docks, locations, updateAsnAppointment } = useWmsStore()
 
   const [dockId, setDockId] = useState('')
   const [timeSlot, setTimeSlot] = useState('')
@@ -61,6 +55,15 @@ export const AppointmentDialog = ({ asn, open, onClose }: Props) => {
   }, [asn])
 
   if (!asn) return null
+
+  // ASN has no warehouseId of its own yet — infer it from the suggested putaway
+  // location, same fallback used by createCrossDockTask in wms-store.ts.
+  const warehouseId = asn.suggestedPutawayLocationId
+    ? (locations.find((l) => l.id === asn.suggestedPutawayLocationId)?.warehouseId ?? 'wh-bog')
+    : 'wh-bog'
+  const availableDocks = docks.filter(
+    (d) => d.warehouseId === warehouseId && d.status === 'active' && isDockCompatible(d, 'inbound')
+  )
 
   const handleSubmit = () => {
     const next: typeof errors = {}
@@ -94,13 +97,18 @@ export const AppointmentDialog = ({ asn, open, onClose }: Props) => {
                 <SelectValue placeholder="Seleccionar muelle" />
               </SelectTrigger>
               <SelectContent>
-                {DOCKS.map((d) => (
-                  <SelectItem key={d.value} value={d.value}>
-                    {d.label}
+                {availableDocks.map((d) => (
+                  <SelectItem key={d.id} value={d.id}>
+                    {d.code} — {d.name}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
+            {availableDocks.length === 0 && (
+              <p className="text-muted-foreground text-xs">
+                No hay muelles activos compatibles en esta bodega.
+              </p>
+            )}
             {errors.dockId && <p className="text-destructive text-xs">{errors.dockId}</p>}
           </div>
 

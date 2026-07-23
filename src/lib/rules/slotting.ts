@@ -1,4 +1,18 @@
-import type { AbcClass, CommerceOrder, XyzClass } from '@/types/wms'
+import type {
+  AbcClass,
+  CommerceOrder,
+  LocationType,
+  Product,
+  RackType,
+  SlottingDirective,
+  SlottingDirectiveKind,
+  SlottingRule,
+  SlottingRuleMatchType,
+  SlottingTier,
+  StorageLocation,
+  XyzClass,
+} from '@/types/wms'
+import { checkRackCompatibility, LOCATION_TYPE_LABELS } from '@/lib/rules/locations'
 
 // ABC via Pareto over a movement metric (pickingFrequency or unitsSold).
 // A = top thresholdA of cumulative volume, B = up to thresholdB, C = rest.
@@ -69,6 +83,9 @@ export function idealLocationTier(abcClass: AbcClass, xyzClass: XyzClass): 'gold
 // Score 0-100; higher means relocating this product is more beneficial.
 // Now factors in XYZ variability so that stable fast-movers (AX) outrank
 // erratic ones (AZ) even with the same ABC class.
+//
+// `tierOverride` lets a configured slotting rule pin the target tier (see
+// resolvePreferredTier). When absent, the tier is derived from ABC/XYZ.
 export function slottingScore(args: {
   abcClass: AbcClass
   xyzClass: XyzClass
@@ -80,13 +97,14 @@ export function slottingScore(args: {
     distanceToDispatchM: number
     maxWeightKg: number
   }
+  tierOverride?: SlottingTier
 }): number {
-  const { abcClass, xyzClass, product, current, candidate } = args
+  const { abcClass, xyzClass, product, current, candidate, tierOverride } = args
 
   // Hard constraint: product must fit physically.
   if (product.unitWeightKg > candidate.maxWeightKg) return 0
 
-  const tier = idealLocationTier(abcClass, xyzClass)
+  const tier = tierOverride ?? idealLocationTier(abcClass, xyzClass)
 
   // Do not push items to golden if their tier doesn't warrant it.
   // AZ → standard: golden is wasted on erratic demand; CZ → remote.
@@ -232,4 +250,177 @@ export function validateRelocation(args: {
   }
 
   return { valid: errors.length === 0, warnings, errors }
+}
+
+// ─── Slotting rules (configurable placement directives) ───────────────────────
+// A rule GOVERNS placement for the products it matches via directives: a soft
+// 'preferTier' (resolvePreferredTier overrides the ABC/XYZ ideal tier) and hard
+// constraints (candidateAllowedByRules filters out violating candidate locations).
+
+export const SLOTTING_TIER_LABELS: Record<SlottingTier, string> = {
+  golden: 'Zona golden',
+  standard: 'Zona estándar',
+  remote: 'Zona remota',
+}
+
+export const SLOTTING_MATCH_TYPE_LABELS: Record<SlottingRuleMatchType, string> = {
+  category: 'Categoría del producto',
+  abcClass: 'Clase ABC',
+  weightAboveKg: 'Peso ≥ (kg)',
+  trackBy: 'Trazabilidad',
+}
+
+export const SLOTTING_DIRECTIVE_LABELS: Record<SlottingDirectiveKind, string> = {
+  preferTier: 'Preferir zona (preferencia)',
+  requireLocationType: 'Solo tipo de ubicación',
+  requireZone: 'Solo zona',
+  requireGolden: 'Solo zona golden',
+  forbidGolden: 'Nunca en golden',
+  maxLevel: 'Nivel máximo',
+  requireRackCompatible: 'Rack compatible con el producto',
+}
+
+// One-line, human-readable summary of a directive for the settings table.
+export function describeDirective(d: SlottingDirective): string {
+  switch (d.kind) {
+    case 'preferTier':
+      return `Preferir ${SLOTTING_TIER_LABELS[d.tier].toLowerCase()}`
+    case 'requireLocationType':
+      return `Solo ${LOCATION_TYPE_LABELS[d.locationType]}`
+    case 'requireZone':
+      return `Solo zona ${d.zone}`
+    case 'requireGolden':
+      return 'Solo golden'
+    case 'forbidGolden':
+      return 'Nunca golden'
+    case 'maxLevel':
+      return `Nivel ≤ ${d.level}`
+    case 'requireRackCompatible':
+      return 'Rack compatible'
+  }
+}
+
+// Does this product (with its computed ABC class) fall in the rule's scope?
+export function matchesSlottingRule(
+  product: Pick<Product, 'category' | 'unitWeightKg' | 'trackBy'>,
+  abcClass: AbcClass,
+  rule: SlottingRule
+): boolean {
+  switch (rule.matchType) {
+    case 'category':
+      return product.category === rule.matchValue
+    case 'abcClass':
+      return abcClass === rule.matchValue
+    case 'weightAboveKg': {
+      const threshold = Number(rule.matchValue)
+      return Number.isFinite(threshold) && product.unitWeightKg >= threshold
+    }
+    case 'trackBy':
+      return product.trackBy === rule.matchValue
+    default:
+      return false
+  }
+}
+
+// Active rules that match a product, sorted by priority (highest first).
+export function activeMatchingRules(
+  product: Pick<Product, 'category' | 'unitWeightKg' | 'trackBy'>,
+  abcClass: AbcClass,
+  rules: SlottingRule[]
+): SlottingRule[] {
+  return rules
+    .filter((r) => r.active && matchesSlottingRule(product, abcClass, r))
+    .sort((a, b) => b.priority - a.priority)
+}
+
+// The soft 'preferTier' directive of a rule, if it declares one.
+export function preferredTier(directives: SlottingDirective[]): SlottingTier | undefined {
+  for (const d of directives) if (d.kind === 'preferTier') return d.tier
+  return undefined
+}
+
+export function isHardDirective(d: SlottingDirective): boolean {
+  return d.kind !== 'preferTier'
+}
+
+export interface EffectiveTier {
+  tier: SlottingTier
+  appliedRule: SlottingRule | null // the rule whose preferTier won, if any
+}
+
+// Resolves the tier a product SHOULD occupy (soft preference): the base ABC/XYZ
+// tier unless a matching rule declares a preferTier — highest priority wins.
+export function resolvePreferredTier(
+  baseTier: SlottingTier,
+  matchingRules: SlottingRule[]
+): EffectiveTier {
+  for (const rule of matchingRules) {
+    const tier = preferredTier(rule.directives)
+    if (tier) return { tier, appliedRule: rule }
+  }
+  return { tier: baseTier, appliedRule: null }
+}
+
+export interface PlacementVerdict {
+  allowed: boolean
+  reasons: string[] // why the candidate was rejected (empty = allowed)
+}
+
+// Evaluates the HARD directives of a single rule against one candidate location.
+// preferTier is soft and ignored here (it feeds slottingScore's tierOverride).
+export function evaluatePlacement(
+  directives: SlottingDirective[],
+  product: Pick<Product, 'category' | 'unitWeightKg'>,
+  candidate: Pick<StorageLocation, 'type' | 'zone' | 'golden' | 'level'>,
+  rackType?: RackType
+): PlacementVerdict {
+  const reasons: string[] = []
+  for (const d of directives) {
+    switch (d.kind) {
+      case 'preferTier':
+        break // soft — handled by scoring
+      case 'requireLocationType':
+        if (candidate.type !== d.locationType)
+          reasons.push(`no es de tipo ${LOCATION_TYPE_LABELS[d.locationType]}`)
+        break
+      case 'requireZone':
+        if (candidate.zone !== d.zone) reasons.push(`no está en la zona ${d.zone}`)
+        break
+      case 'requireGolden':
+        if (!candidate.golden) reasons.push('no es golden')
+        break
+      case 'forbidGolden':
+        if (candidate.golden) reasons.push('es golden')
+        break
+      case 'maxLevel': {
+        const lvl = Number(candidate.level)
+        if (Number.isFinite(lvl) && lvl > d.level)
+          reasons.push(`el nivel ${candidate.level} supera el máximo ${d.level}`)
+        break
+      }
+      case 'requireRackCompatible':
+        if (rackType) {
+          const c = checkRackCompatibility(rackType, candidate, product)
+          if (!c.compatible) reasons.push(...c.reasons)
+        }
+        break
+    }
+  }
+  return { allowed: reasons.length === 0, reasons }
+}
+
+// Composes the hard directives of ALL matching rules against a candidate. To be
+// a valid destination the candidate must satisfy every matching rule.
+export function candidateAllowedByRules(
+  matchingRules: SlottingRule[],
+  product: Pick<Product, 'category' | 'unitWeightKg'>,
+  candidate: Pick<StorageLocation, 'type' | 'zone' | 'golden' | 'level'>,
+  rackType?: RackType
+): PlacementVerdict {
+  const reasons: string[] = []
+  for (const rule of matchingRules) {
+    const v = evaluatePlacement(rule.directives, product, candidate, rackType)
+    if (!v.allowed) reasons.push(`[${rule.code}] ${v.reasons.join(', ')}`)
+  }
+  return { allowed: reasons.length === 0, reasons }
 }

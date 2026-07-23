@@ -1,4 +1,11 @@
-import type { OperationalStatus, PickingTaskStatus, ReturnStatus } from '@/types/wms'
+import type {
+  CyclicCountStatus,
+  DockAppointmentStatus,
+  InternalMoveStatus,
+  OperationalStatus,
+  PickingTaskStatus,
+  ReturnStatus,
+} from '@/types/wms'
 
 export function canTransition<T extends string>(map: Record<string, T[]>, from: T, to: T): boolean {
   return map[from]?.includes(to) ?? false
@@ -29,6 +36,16 @@ export const legTransitions: Record<string, string[]> = {
   pending: ['in_transit', 'cancelled'],
   in_transit: ['received', 'cancelled'],
   received: [],
+  cancelled: [],
+}
+
+// Movimiento interno — dos pasos con cancelación. 'picked' = stock ya fuera del
+// origen y "en movimiento"; 'dropped' lo aterriza en el destino (terminal).
+export const internalMoveTransitions: Record<string, InternalMoveStatus[]> = {
+  pending: ['assigned', 'cancelled'],
+  assigned: ['picked', 'cancelled'],
+  picked: ['dropped', 'cancelled'],
+  dropped: [],
   cancelled: [],
 }
 
@@ -83,10 +100,30 @@ export const waveTransitions: Record<string, OperationalStatus[]> = {
   cancelled: [],
 }
 
+// Conteo cíclico (#13): pending → in_progress mientras se registran líneas en piso,
+// luego completed (genera ajustes) o cancelled en cualquier punto antes de completar.
+export const cyclicCountTransitions: Record<string, CyclicCountStatus[]> = {
+  pending: ['in_progress', 'cancelled'],
+  in_progress: ['completed', 'cancelled'],
+  completed: [],
+  cancelled: [],
+}
+
 export const sapRouteTransitions: Record<string, OperationalStatus[]> = {
   pending: ['synced'], // created in SAP -> synced
   synced: ['in_progress'], // planned/loading
   in_progress: ['in_transit'],
   in_transit: ['completed'],
   completed: [],
+}
+
+// Yard/Dock module (#8): agendada → llegó → en proceso → completada, con
+// no-show/cancelación como salidas terminales antes de completar.
+export const dockAppointmentTransitions: Record<string, DockAppointmentStatus[]> = {
+  scheduled: ['arrived', 'no_show', 'cancelled'],
+  arrived: ['in_progress', 'cancelled'],
+  in_progress: ['completed'],
+  completed: [],
+  no_show: [],
+  cancelled: [],
 }

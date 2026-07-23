@@ -1,21 +1,35 @@
 import { availableStock, isNearExpiration, agingDays, isLowRotation, resolveStockState } from '@/lib/rules/inventory'
 import type { StockStateCode } from '@/lib/rules/inventory'
 import {
+  activeMatchingRules,
   buildAffinityMatrix,
+  candidateAllowedByRules,
   classifyAbc,
   classifyXyz,
   estimatedDistanceSaved,
   estimatedTimeSaved,
   idealLocationTier,
+  matchesSlottingRule,
+  resolvePreferredTier,
   slottingScore,
 } from '@/lib/rules/slotting'
 import type { ProductAffinityPair } from '@/lib/rules/slotting'
 import { otifPercentage } from '@/lib/rules/shipping'
 import { productivityByOperator } from '@/lib/rules/picking'
+import { isAppointmentAtRisk } from '@/lib/rules/yard'
 import { dashboardHistory } from '@/data/seed'
 import { statusLabel } from '@/lib/status'
 import type { WmsState } from './wms-store'
-import type { AbcClass, ProductivityRow, RouteSlottingRecommendation, SlottingRecommendation, XyzClass } from '@/types/wms'
+import type {
+  AbcClass,
+  Dock,
+  DockAppointment,
+  InternalMoveTask,
+  ProductivityRow,
+  RouteSlottingRecommendation,
+  SlottingRecommendation,
+  XyzClass,
+} from '@/types/wms'
 
 export interface DashboardKpis {
   pendingOrders: number
@@ -38,6 +52,97 @@ export interface DashboardKpis {
   // Sprint 7
   slaBreaches: number
   slaAtRisk: number
+}
+
+// ── Returns module (#12) KPIs ─────────────────────────────────────────────────
+// Aggregated once here (per the architecture rule: KPIs live in selectors, never
+// derived inline in components).
+export interface ReturnsKpis {
+  total: number
+  active: number // non-terminal (not closed/rejected)
+  inTransit: number
+  underValidation: number // under_validation + sent_to_quality_control
+  inspected: number
+  toReenter: number
+  inRepair: number
+  openRepairTickets: number
+  toScrap: number
+  closed: number
+  rejected: number
+  returnRatePct: number // returns vs commerce orders (order-level proxy)
+  avgCycleDays: number | null // avg days createdAt → closedAt over finished returns (null if none)
+}
+
+export const selectReturnsKpis = (state: WmsState): ReturnsKpis => {
+  const returns = state.returnOrders
+  let inTransit = 0,
+    underValidation = 0,
+    toReenter = 0,
+    inRepair = 0,
+    toScrap = 0,
+    closed = 0,
+    rejected = 0
+
+  let cycleSum = 0
+  let cycleCount = 0
+
+  for (const r of returns) {
+    switch (r.status) {
+      case 'in_transit_to_dc':
+        inTransit++
+        break
+      case 'under_validation':
+      case 'sent_to_quality_control':
+        underValidation++
+        break
+      case 'reentered':
+        toReenter++
+        break
+      case 'sent_to_repair':
+        inRepair++
+        break
+      case 'sent_to_scrap':
+        toScrap++
+        break
+      case 'closed':
+        closed++
+        break
+      case 'rejected':
+        rejected++
+        break
+    }
+    if (r.closedAt) {
+      const days = Math.round(
+        (new Date(r.closedAt).getTime() - new Date(r.createdAt).getTime()) / 86_400_000
+      )
+      if (Number.isFinite(days) && days >= 0) {
+        cycleSum += days
+        cycleCount++
+      }
+    }
+  }
+
+  const active = returns.filter((r) => r.status !== 'closed' && r.status !== 'rejected').length
+  const openRepairTickets = state.repairTickets.filter(
+    (t) => t.status !== 'completed' && t.status !== 'failed'
+  ).length
+  const orders = state.commerceOrders.length
+
+  return {
+    total: returns.length,
+    active,
+    inTransit,
+    underValidation,
+    inspected: state.returnInspections.length,
+    toReenter,
+    inRepair,
+    openRepairTickets,
+    toScrap,
+    closed,
+    rejected,
+    returnRatePct: orders > 0 ? (returns.length / orders) * 100 : 0,
+    avgCycleDays: cycleCount > 0 ? Math.round(cycleSum / cycleCount) : null,
+  }
 }
 
 // ABC class per product, computed from demand stats (picking frequency).
@@ -168,15 +273,37 @@ export function selectSlottingRecommendations(state: WmsState): SlottingRecommen
     const abcClass: AbcClass = abc[item.productId] ?? 'C'
     const xyzClass: XyzClass = xyz[item.productId] ?? 'Z'
 
+    // Configured slotting rules govern placement in two ways:
+    //  · soft → the highest-priority 'preferTier' overrides the ABC/XYZ tier,
+    //           steering the score (golden gating) and the recommendation text.
+    //  · hard → any matching rule's constraints (forbidGolden, requireZone,
+    //           maxLevel, rack compatibility…) filter out candidate locations.
+    const baseTier = idealLocationTier(abcClass, xyzClass)
+    const matchingRules = activeMatchingRules(product, abcClass, state.slottingRules)
+    const { tier, appliedRule } = resolvePreferredTier(baseTier, matchingRules)
+
     let best: { loc: (typeof candidates)[number]; score: number } | null = null
     for (const candidate of candidates) {
       if (candidate.id === current.id) continue
+      // Slotting is an intra-warehouse optimization: candidates must live in the
+      // same warehouse as the item. Moving stock across warehouses is a transfer,
+      // not a relocation.
+      if (candidate.warehouseId !== item.warehouseId) continue
+      // Hard directives: a candidate that violates any matching rule is not a
+      // valid destination for this product.
+      if (matchingRules.length > 0) {
+        const rackType = candidate.rackTypeId
+          ? state.rackTypes.find((r) => r.id === candidate.rackTypeId)
+          : undefined
+        if (!candidateAllowedByRules(matchingRules, product, candidate, rackType).allowed) continue
+      }
       const score = slottingScore({
         abcClass,
         xyzClass,
         product: { unitWeightKg: product.unitWeightKg },
         current,
         candidate,
+        tierOverride: tier,
       })
       if (score > 0 && (!best || score > best.score)) best = { loc: candidate, score }
     }
@@ -188,10 +315,14 @@ export function selectSlottingRecommendations(state: WmsState): SlottingRecommen
       demand.pickingFrequency
     )
 
-    const tier = idealLocationTier(abcClass, xyzClass)
     const tierLabel =
       tier === 'golden' ? 'zona golden' : tier === 'remote' ? 'zona remota' : 'zona estándar'
-    const recommendation = `Reubicar ${product.name} (${abcClass}${xyzClass}) a ${best.loc.code} [${tierLabel}] — ahorra ${Math.round(distanceSaved)} m por ciclo.`
+    const ruleNote = appliedRule
+      ? ` · regla «${appliedRule.name}»`
+      : matchingRules.length > 0
+        ? ` · ${matchingRules.length} regla(s) de restricción`
+        : ''
+    const recommendation = `Reubicar ${product.name} (${abcClass}${xyzClass}) a ${best.loc.code} [${tierLabel}] — ahorra ${Math.round(distanceSaved)} m por ciclo${ruleNote}.`
 
     recs.push({
       id: `rec-${item.id}`,
@@ -244,6 +375,19 @@ export function selectSlottingImpact(
     aClassToGoldenCount: activeRecs.filter((r) => r.abcClass === 'A').length,
     czOutOfGoldenCount: czOutOfGolden,
   }
+}
+
+// Product ids matched by each slotting rule (regardless of active flag). Used by
+// Configuración → Slotting to preview a rule's scope before saving/activating it.
+export function selectSlottingRuleMatches(state: WmsState): Record<string, string[]> {
+  const abc = abcByProduct(state)
+  const result: Record<string, string[]> = {}
+  for (const rule of state.slottingRules) {
+    result[rule.id] = state.products
+      .filter((p) => matchesSlottingRule(p, abc[p.id] ?? 'C', rule))
+      .map((p) => p.id)
+  }
+  return result
 }
 
 // ─── Batch simulation (what-if dry-run) ──────────────────────────────────────
@@ -315,14 +459,57 @@ export interface ReplenishmentNeed {
   abcClass: AbcClass
 }
 
+// Resolves min/max for a product at a pick face, in precedence order:
+//   1. per-pick-face override (StorageLocation.min/maxStockUnits)
+//   2. per-SKU override        (Product.min/maxStockUnits)
+//   3. demand-based estimate   (pickingFrequency × 2 / × 6)
+//   4. global default          (settings.replenishmentDefault*Units)
+export function resolveStockLimits(
+  state: WmsState,
+  productId: string,
+  location?: { minStockUnits?: number; maxStockUnits?: number }
+): { minStock: number; maxStock: number } {
+  const product = state.products.find((p) => p.id === productId)
+  const demand = state.demandStats.find((d) => d.productId === productId)
+  const { replenishmentDefaultMinUnits, replenishmentDefaultMaxUnits } = state.settings
+
+  const minStock =
+    location?.minStockUnits ??
+    product?.minStockUnits ??
+    (demand ? Math.round(demand.pickingFrequency * 2) : replenishmentDefaultMinUnits)
+  const maxStock =
+    location?.maxStockUnits ??
+    product?.maxStockUnits ??
+    (demand ? Math.round(demand.pickingFrequency * 6) : replenishmentDefaultMaxUnits)
+
+  return { minStock, maxStock }
+}
+
+// Priority as a function of how far below minimum the stock sits, using two
+// configurable fractions of the minimum (high < medium ≤ 1):
+//   stock/min < high   → 'high'   (critical, e.g. < 50% of min)
+//   stock/min < medium → 'medium' (e.g. < 80% of min)
+//   stock < min        → 'low'    (approaching min)
+export function replenishmentPriority(
+  currentStock: number,
+  minStock: number,
+  highFactor: number,
+  mediumFactor: number
+): 'high' | 'medium' | 'low' {
+  if (minStock <= 0) return 'low'
+  const ratio = currentStock / minStock
+  if (ratio < highFactor) return 'high'
+  if (ratio < mediumFactor) return 'medium'
+  return 'low'
+}
+
+const PRIORITY_ORDER = { high: 0, medium: 1, low: 2 } as const
+
 // Detects pick faces whose stock is below minStock and have no active task already.
-// Uses replenishmentHighFactor from settings to determine HIGH priority:
-//   high   → stock < minStock * replenishmentHighFactor (e.g. < 50% of min)
-//   medium → stock < minStock
-//   (above minStock → not a need)
+// Priority is derived from replenishmentHighFactor / replenishmentMediumFactor.
 export function selectReplenishmentNeeds(state: WmsState): ReplenishmentNeed[] {
   const abc = abcByProduct(state)
-  const { replenishmentHighFactor } = state.settings
+  const { replenishmentHighFactor, replenishmentMediumFactor } = state.settings
 
   // Pick faces that already have an active (non-terminal) task — skip them.
   const activeDests = new Set(
@@ -331,14 +518,11 @@ export function selectReplenishmentNeeds(state: WmsState): ReplenishmentNeed[] {
       .map((t) => t.destinationLocationId)
   )
 
-  // Best reserve location per warehouse (highest maxWeightKg, not blocked).
+  // First non-blocked reserve location per warehouse.
   const reserveByWarehouse: Record<string, string> = {}
   for (const loc of state.locations) {
     if (loc.type !== 'reserve' || loc.isBlocked) continue
-    const current = reserveByWarehouse[loc.warehouseId]
-    if (!current) {
-      reserveByWarehouse[loc.warehouseId] = loc.id
-    }
+    if (!reserveByWarehouse[loc.warehouseId]) reserveByWarehouse[loc.warehouseId] = loc.id
   }
 
   const needs: ReplenishmentNeed[] = []
@@ -354,14 +538,7 @@ export function selectReplenishmentNeeds(state: WmsState): ReplenishmentNeed[] {
     if (itemsHere.length === 0) continue
 
     for (const item of itemsHere) {
-      // We need demand context to get minStock. Use the median of demandSamples as proxy.
-      const demand = state.demandStats.find((d) => d.productId === item.productId)
-      if (!demand) continue
-
-      // Use explicit product limits if set; otherwise infer from demand stats.
-      const product = state.products.find((p) => p.id === item.productId)
-      const minStock = product?.minStockUnits ?? Math.round(demand.pickingFrequency * 2)
-      const maxStock = product?.maxStockUnits ?? Math.round(demand.pickingFrequency * 6)
+      const { minStock, maxStock } = resolveStockLimits(state, item.productId, loc)
       if (minStock <= 0) continue
 
       const currentStock = item.onHandQuantity - item.reservedQuantity - item.holdQuantity
@@ -370,9 +547,6 @@ export function selectReplenishmentNeeds(state: WmsState): ReplenishmentNeed[] {
       const reserveLocationId = reserveByWarehouse[loc.warehouseId]
       if (!reserveLocationId) continue
 
-      const highThreshold = minStock * replenishmentHighFactor
-      const priority: 'high' | 'medium' | 'low' = currentStock < highThreshold ? 'high' : 'medium'
-
       needs.push({
         productId: item.productId,
         pickFaceLocationId: loc.id,
@@ -380,17 +554,91 @@ export function selectReplenishmentNeeds(state: WmsState): ReplenishmentNeed[] {
         currentStock,
         minStock,
         maxStock,
-        suggestedQuantity: maxStock - currentStock,
-        priority,
+        suggestedQuantity: Math.max(0, maxStock - currentStock),
+        priority: replenishmentPriority(
+          currentStock,
+          minStock,
+          replenishmentHighFactor,
+          replenishmentMediumFactor
+        ),
         abcClass: abc[item.productId] ?? 'C',
       })
     }
   }
 
-  return needs.sort((a, b) => {
-    const order = { high: 0, medium: 1, low: 2 }
-    return order[a.priority] - order[b.priority]
-  })
+  return needs.sort((a, b) => PRIORITY_ORDER[a.priority] - PRIORITY_ORDER[b.priority])
+}
+
+// ─── Store (retail) replenishment needs ───────────────────────────────────────
+
+export interface StoreReplenishmentNeed {
+  storeWarehouseId: string
+  productId: string
+  sourceWarehouseId: string
+  currentStock: number
+  minStock: number
+  maxStock: number
+  suggestedQuantity: number
+  priority: 'high' | 'medium' | 'low'
+  abcClass: AbcClass
+  hasActiveTask: boolean
+}
+
+// For each active store min/max policy, sums the store's on-floor stock and, when
+// it sits below the policy minimum, emits a DC→store replenishment need sourced
+// from settings.replenishmentStoreSourceWarehouseId.
+export function selectStoreReplenishmentNeeds(state: WmsState): StoreReplenishmentNeed[] {
+  const abc = abcByProduct(state)
+  const {
+    replenishmentHighFactor,
+    replenishmentMediumFactor,
+    replenishmentStoreSourceWarehouseId,
+  } = state.settings
+
+  // (store, product) pairs that already have an active (non-terminal) task.
+  const activeKeys = new Set(
+    state.storeReplenishmentTasks
+      .filter((t) => t.status !== 'completed' && t.status !== 'cancelled')
+      .map((t) => `${t.storeWarehouseId}::${t.productId}`)
+  )
+
+  const needs: StoreReplenishmentNeed[] = []
+
+  for (const policy of state.storeReplenishmentPolicies) {
+    if (!policy.active) continue
+    if (policy.minStock <= 0) continue
+
+    const currentStock = state.inventoryItems
+      .filter(
+        (i) =>
+          i.warehouseId === policy.storeWarehouseId &&
+          i.productId === policy.productId &&
+          i.status !== 'on_hold'
+      )
+      .reduce((sum, i) => sum + (i.onHandQuantity - i.reservedQuantity - i.holdQuantity), 0)
+
+    if (currentStock >= policy.minStock) continue
+
+    needs.push({
+      storeWarehouseId: policy.storeWarehouseId,
+      productId: policy.productId,
+      sourceWarehouseId: replenishmentStoreSourceWarehouseId,
+      currentStock,
+      minStock: policy.minStock,
+      maxStock: policy.maxStock,
+      suggestedQuantity: Math.max(0, policy.maxStock - currentStock),
+      priority: replenishmentPriority(
+        currentStock,
+        policy.minStock,
+        replenishmentHighFactor,
+        replenishmentMediumFactor
+      ),
+      abcClass: abc[policy.productId] ?? 'C',
+      hasActiveTask: activeKeys.has(`${policy.storeWarehouseId}::${policy.productId}`),
+    })
+  }
+
+  return needs.sort((a, b) => PRIORITY_ORDER[a.priority] - PRIORITY_ORDER[b.priority])
 }
 
 // ─── Affinity recommendations ────────────────────────────────────────────────
@@ -536,6 +784,59 @@ export function selectInventoryAccuracy(state: WmsState): InventoryAccuracy {
 }
 
 export { availableStock }
+
+// ── Cycle count schedule (#13 Estándar) — ABC-driven "due for count" list ──────
+//
+// For each product×warehouse combo with stock on hand, finds the last time it was
+// physically counted (max countedAt across cyclicCountLines) and compares the days
+// elapsed against the frequency configured for its ABC class. Only overdue entries
+// are returned (never counted counts as overdue), most overdue first — this feeds
+// both the "Vencidos por clase ABC" table and the suggested-plan generator.
+
+export interface CycleCountScheduleEntry {
+  productId: string
+  warehouseId: string
+  abcClass: AbcClass
+  lastCountedAt: string | null
+  daysSinceCount: number | null
+  frequencyDays: number
+  overdue: boolean
+}
+
+export function selectCycleCountSchedule(state: WmsState): CycleCountScheduleEntry[] {
+  const abc = abcByProduct(state)
+  const frequencyByClass: Record<AbcClass, number> = {
+    A: state.settings.cycleCountFrequencyDaysA,
+    B: state.settings.cycleCountFrequencyDaysB,
+    C: state.settings.cycleCountFrequencyDaysC,
+  }
+
+  const combos = new Map<string, { productId: string; warehouseId: string }>()
+  for (const item of state.inventoryItems) {
+    if (item.onHandQuantity <= 0) continue
+    const key = `${item.productId}__${item.warehouseId}`
+    if (!combos.has(key)) combos.set(key, { productId: item.productId, warehouseId: item.warehouseId })
+  }
+
+  const now = new Date()
+  const entries: CycleCountScheduleEntry[] = []
+  for (const { productId, warehouseId } of combos.values()) {
+    const abcClass = abc[productId] ?? 'C'
+    const frequencyDays = frequencyByClass[abcClass]
+    const countedDates = state.cyclicCountLines
+      .filter((l) => l.productId === productId && l.warehouseId === warehouseId && l.countedAt)
+      .map((l) => l.countedAt as string)
+    const lastCountedAt = countedDates.length > 0 ? countedDates.sort().at(-1)! : null
+    const daysSinceCount = lastCountedAt
+      ? Math.floor((now.getTime() - new Date(lastCountedAt).getTime()) / (1000 * 60 * 60 * 24))
+      : null
+    const overdue = daysSinceCount === null || daysSinceCount >= frequencyDays
+    if (!overdue) continue
+    entries.push({ productId, warehouseId, abcClass, lastCountedAt, daysSinceCount, frequencyDays, overdue })
+  }
+
+  return entries.sort((a, b) => (b.daysSinceCount ?? Number.MAX_SAFE_INTEGER) - (a.daysSinceCount ?? Number.MAX_SAFE_INTEGER))
+}
 
 // ── ATP (Available-to-Promise) per product per warehouse — Sprint 7 #96 ───────
 //
@@ -890,4 +1191,157 @@ export function selectDashboardChartData(state: WmsState): DashboardChartData {
   const operatorProductivity = productivityByOperator(state.pickingTasks).slice(0, 8)
 
   return { gauges, weeklyDemand, ordersByStatus, operatorProductivity }
+}
+
+// ─── Internal moves (movimientos internos) ──────────────────────────────────
+
+export interface ConsolidationOpportunity {
+  warehouseId: string
+  productId: string
+  locations: { locationId: string; quantity: number }[]
+  totalQuantity: number
+  // Ubicación destino sugerida: la que ya concentra más stock disponible.
+  targetLocationId: string
+  sourceCount: number
+}
+
+export interface MisplacedStockRow {
+  itemId: string
+  productId: string
+  warehouseId: string
+  locationId: string
+  quantity: number
+  idealTier: 'golden' | 'standard' | 'remote'
+  inGolden: boolean
+}
+
+// Active internal-move tasks (not yet dropped/cancelled), oldest first (FIFO queue).
+export const selectInternalMoveQueue = (state: WmsState): InternalMoveTask[] =>
+  state.internalMoves
+    .filter((t) => t.status === 'pending' || t.status === 'assigned' || t.status === 'picked')
+    .slice()
+    .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+
+// Same SKU with available stock spread across ≥2 pick-face bins in one warehouse:
+// a candidate to consolidate into the fullest bin and free up the others.
+export function selectConsolidationOpportunities(state: WmsState): ConsolidationOpportunity[] {
+  const pickLocationIds = new Set(
+    state.locations.filter((l) => l.type === 'pick' && !l.isBlocked).map((l) => l.id)
+  )
+  // key = warehouseId::productId → per-location available quantities
+  const groups = new Map<string, { locationId: string; quantity: number }[]>()
+  for (const item of state.inventoryItems) {
+    if (!pickLocationIds.has(item.locationId)) continue
+    const qty = availableStock(item)
+    if (qty <= 0) continue
+    const key = `${item.warehouseId}::${item.productId}`
+    const rows = groups.get(key) ?? []
+    const existing = rows.find((r) => r.locationId === item.locationId)
+    if (existing) existing.quantity += qty
+    else rows.push({ locationId: item.locationId, quantity: qty })
+    groups.set(key, rows)
+  }
+
+  const out: ConsolidationOpportunity[] = []
+  for (const [key, locations] of groups) {
+    if (locations.length < 2) continue
+    const [warehouseId, productId] = key.split('::')
+    const sorted = [...locations].sort((a, b) => b.quantity - a.quantity)
+    out.push({
+      warehouseId,
+      productId,
+      locations: sorted,
+      totalQuantity: sorted.reduce((s, l) => s + l.quantity, 0),
+      targetLocationId: sorted[0].locationId,
+      sourceCount: sorted.length,
+    })
+  }
+  return out.sort((a, b) => b.sourceCount - a.sourceCount || b.totalQuantity - a.totalQuantity)
+}
+
+// Stock sitting in the wrong location tier for its ABC/XYZ profile — each row is a
+// candidate reslotting move (high-value in a remote bin, or low-value in a golden bin).
+export function selectMisplacedStock(state: WmsState): MisplacedStockRow[] {
+  const abc = abcByProduct(state)
+  const xyz = xyzByProduct(state)
+  const rows: MisplacedStockRow[] = []
+  for (const item of state.inventoryItems) {
+    const abcClass = abc[item.productId]
+    const loc = state.locations.find((l) => l.id === item.locationId)
+    if (!abcClass || !loc) continue
+    if (availableStock(item) <= 0) continue
+    const tier = idealLocationTier(abcClass, xyz[item.productId] ?? 'Z')
+    const misplaced = (tier === 'golden' && !loc.golden) || (tier === 'remote' && loc.golden)
+    if (!misplaced) continue
+    rows.push({
+      itemId: item.id,
+      productId: item.productId,
+      warehouseId: item.warehouseId,
+      locationId: item.locationId,
+      quantity: item.onHandQuantity,
+      idealTier: tier,
+      inGolden: !!loc.golden,
+    })
+  }
+  return rows
+}
+
+// ── Yard / Dock management (#8) ───────────────────────────────────────────────
+
+const OCCUPYING_APPOINTMENT_STATUSES = new Set<DockAppointment['status']>(['arrived', 'in_progress'])
+
+export interface DockBoardRow {
+  dock: Dock
+  // The appointment currently holding the dock (arrived or in progress), if any.
+  currentAppointment: DockAppointment | null
+  // The next still-scheduled appointment for this dock, earliest first.
+  nextAppointment: DockAppointment | null
+}
+
+// One row per dock with what's happening on it right now — powers the live
+// board in /yard (Tab "Hoy").
+export const selectDockBoard = (state: WmsState): DockBoardRow[] =>
+  state.docks.map((dock) => {
+    const onThisDock = state.dockAppointments
+      .filter((a) => a.dockId === dock.id)
+      .sort((a, b) => a.scheduledStart.localeCompare(b.scheduledStart))
+    return {
+      dock,
+      currentAppointment: onThisDock.find((a) => OCCUPYING_APPOINTMENT_STATUSES.has(a.status)) ?? null,
+      nextAppointment: onThisDock.find((a) => a.status === 'scheduled') ?? null,
+    }
+  })
+
+export interface YardKpis {
+  appointmentsToday: number
+  docksAvailable: number
+  docksOccupied: number
+  docksOutOfService: number
+  atRiskCount: number
+  noShowToday: number
+}
+
+// nowMs must be passed in by the caller (e.g. Date.now()) — keeps Date.now() out of the selector.
+export const selectYardKpis = (state: WmsState, nowMs = 0): YardKpis => {
+  const now = new Date(nowMs || Date.now())
+  const todayStr = now.toISOString().slice(0, 10)
+
+  const occupiedDockIds = new Set(
+    state.dockAppointments
+      .filter((a) => OCCUPYING_APPOINTMENT_STATUSES.has(a.status) && a.dockId)
+      .map((a) => a.dockId as string)
+  )
+
+  return {
+    appointmentsToday: state.dockAppointments.filter((a) => a.scheduledStart.slice(0, 10) === todayStr).length,
+    docksAvailable: state.docks.filter((d) => d.status === 'active' && !occupiedDockIds.has(d.id)).length,
+    docksOccupied: state.docks.filter((d) => d.status === 'active' && occupiedDockIds.has(d.id)).length,
+    docksOutOfService: state.docks.filter((d) => d.status !== 'active').length,
+    atRiskCount: state.dockAppointments.filter((a) =>
+      isAppointmentAtRisk(a, now.getTime(), state.settings.yardLateThresholdMinutes)
+    ).length,
+    noShowToday: state.dockAppointments.filter(
+      (a) => a.status === 'no_show' && a.scheduledStart.slice(0, 10) === todayStr
+    ).length,
+  }
 }

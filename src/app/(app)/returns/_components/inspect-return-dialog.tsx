@@ -1,14 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import {
-  TriangleAlert,
-  ClipboardCheck,
-  Info,
-  Hash,
-  CheckCircle2,
-  AlertTriangle,
-} from 'lucide-react'
+import { TriangleAlert, ClipboardCheck, Info, Hash } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -30,54 +23,31 @@ import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { cn } from '@/lib/utils'
-import type { ItemCondition, ReturnItemInspection, OrderLine, Product } from '@/types/wms'
+import {
+  CONDITION_COLORS,
+  CONDITION_DOT,
+  CONDITION_LABELS,
+  CONDITION_ORDER,
+  ITEM_DISPOSITION_LABELS,
+  RESULT_LABELS,
+  RESULT_STYLES,
+} from '@/lib/returns'
+import type {
+  ItemCondition,
+  ItemDisposition,
+  ReturnGradingRule,
+  ReturnItemInspection,
+  OrderLine,
+  Product,
+} from '@/types/wms'
 
-const CONDITION_OPTIONS: { value: ItemCondition; label: string; color: string; dot: string }[] = [
-  {
-    value: 'new',
-    label: 'Nuevo',
-    color: 'bg-green-100 dark:bg-emerald-950/40 text-green-800 dark:text-emerald-300 border-green-200 dark:border-emerald-800/50',
-    dot: 'bg-green-500',
-  },
-  {
-    value: 'like_new',
-    label: 'Como nuevo',
-    color: 'bg-emerald-100 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800/50',
-    dot: 'bg-emerald-500',
-  },
-  {
-    value: 'good',
-    label: 'Buen estado',
-    color: 'bg-blue-100 dark:bg-blue-950/40 text-blue-800 dark:text-blue-300 border-blue-200 dark:border-blue-800/50',
-    dot: 'bg-blue-500',
-  },
-  {
-    value: 'fair',
-    label: 'Aceptable',
-    color: 'bg-amber-100 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 border-amber-200 dark:border-amber-800/50',
-    dot: 'bg-amber-500',
-  },
-  {
-    value: 'defective',
-    label: 'Defectuoso',
-    color: 'bg-red-100 dark:bg-red-950/40 text-red-800 dark:text-red-300 border-red-200 dark:border-red-800/50',
-    dot: 'bg-red-500',
-  },
-]
-
-const DISPOSITION_OPTIONS: {
-  value: ReturnItemInspection['recommendedDisposition']
-  label: string
-}[] = [
-  { value: 'restock', label: 'Reingresar al stock' },
-  { value: 'repair', label: 'Enviar a reparación' },
-  { value: 'scrap', label: 'Enviar a desecho' },
-  { value: 'reject', label: 'Rechazar' },
-]
+const DISPOSITION_OPTIONS = (Object.keys(ITEM_DISPOSITION_LABELS) as ItemDisposition[]).map(
+  (value) => ({ value, label: ITEM_DISPOSITION_LABELS[value] })
+)
 
 interface ItemInspectionState {
   conditionRating: ItemCondition
-  recommendedDisposition: ReturnItemInspection['recommendedDisposition']
+  recommendedDisposition: ItemDisposition
   notes: string
   serial: string
 }
@@ -89,6 +59,13 @@ interface Props {
   items: OrderLine[]
   productName: (id: string) => string
   getProduct?: (id: string) => Product | undefined
+  // Grading policy (from WmsSettings): when auto-disposition is on, changing an
+  // item's condition pre-fills its recommended disposition from this matrix.
+  autoDispositionEnabled?: boolean
+  gradingPolicy?: ReturnGradingRule[]
+  // Serials actually dispatched for a product (from pick movements) — offered as
+  // suggestions so serial validation is demonstrable without guessing.
+  getDispatchedSerials?: (productId: string) => string[]
   onConfirm: (inspectorName: string, items: ReturnItemInspection[], notes: string) => void
   onClose: () => void
   error?: string
@@ -101,10 +78,21 @@ export const InspectReturnDialog = ({
   items,
   productName,
   getProduct,
+  autoDispositionEnabled = false,
+  gradingPolicy = [],
+  getDispatchedSerials,
   onConfirm,
   onClose,
   error,
 }: Props) => {
+  // Recommended disposition for a given condition, per the grading policy.
+  const dispositionForCondition = (condition: ItemCondition): ItemDisposition =>
+    gradingPolicy.find((g) => g.condition === condition)?.disposition ?? 'restock'
+
+  const initialDisposition = autoDispositionEnabled
+    ? dispositionForCondition('good')
+    : 'restock'
+
   const [inspectorName, setInspectorName] = useState('')
   const [generalNotes, setGeneralNotes] = useState('')
   const [itemStates, setItemStates] = useState<Record<string, ItemInspectionState>>(() =>
@@ -113,7 +101,7 @@ export const InspectReturnDialog = ({
         line.id,
         {
           conditionRating: 'good' as ItemCondition,
-          recommendedDisposition: 'restock' as ReturnItemInspection['recommendedDisposition'],
+          recommendedDisposition: initialDisposition,
           notes: '',
           serial: '',
         },
@@ -122,7 +110,15 @@ export const InspectReturnDialog = ({
   )
 
   const handleItemChange = (lineId: string, field: keyof ItemInspectionState, value: string) => {
-    setItemStates((prev) => ({ ...prev, [lineId]: { ...prev[lineId], [field]: value } }))
+    setItemStates((prev) => {
+      const next = { ...prev[lineId], [field]: value }
+      // Auto-disposition: when the condition changes, snap the recommended
+      // disposition to the configured grading policy (inspector can still override).
+      if (field === 'conditionRating' && autoDispositionEnabled) {
+        next.recommendedDisposition = dispositionForCondition(value as ItemCondition)
+      }
+      return { ...prev, [lineId]: next }
+    })
   }
 
   const handleConfirm = () => {
@@ -141,26 +137,12 @@ export const InspectReturnDialog = ({
     onConfirm(inspectorName, inspectionItems, generalNotes)
   }
 
-  const conditionOpt = (rating: ItemCondition) => CONDITION_OPTIONS.find((o) => o.value === rating)
-
   const defectiveCount = items.filter(
     (l) => itemStates[l.id].conditionRating === 'defective'
   ).length
 
   const overallResult =
     defectiveCount === 0 ? 'pass' : defectiveCount === items.length ? 'fail' : 'partial_pass'
-
-  const RESULT_STYLES: Record<string, string> = {
-    pass: 'bg-green-50 dark:bg-emerald-950/40 text-green-800 dark:text-emerald-300 border-green-200 dark:border-emerald-800/50',
-    partial_pass: 'bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 border-amber-200 dark:border-amber-800/50',
-    fail: 'bg-red-50 dark:bg-red-950/40 text-red-800 dark:text-red-300 border-red-200 dark:border-red-800/50',
-  }
-
-  const RESULT_LABELS: Record<string, string> = {
-    pass: 'Aprobada',
-    partial_pass: 'Aprobación parcial',
-    fail: 'Rechazada',
-  }
 
   return (
     <Dialog
@@ -217,7 +199,6 @@ export const InspectReturnDialog = ({
 
             {items.map((line, idx) => {
               const state = itemStates[line.id]
-              const cond = conditionOpt(state.conditionRating)
 
               return (
                 <div
@@ -240,12 +221,13 @@ export const InspectReturnDialog = ({
                         devuelta{line.requestedQuantity !== 1 ? 's' : ''}
                       </p>
                     </div>
-                    {cond && (
-                      <Badge variant="outline" className={cn('shrink-0 gap-1.5', cond.color)}>
-                        <span className={cn('size-1.5 rounded-full', cond.dot)} />
-                        {cond.label}
-                      </Badge>
-                    )}
+                    <Badge
+                      variant="outline"
+                      className={cn('shrink-0 gap-1.5', CONDITION_COLORS[state.conditionRating])}
+                    >
+                      <span className={cn('size-1.5 rounded-full', CONDITION_DOT[state.conditionRating])} />
+                      {CONDITION_LABELS[state.conditionRating]}
+                    </Badge>
                   </div>
 
                   {/* Condición + Disposición */}
@@ -260,11 +242,11 @@ export const InspectReturnDialog = ({
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          {CONDITION_OPTIONS.map((opt) => (
-                            <SelectItem key={opt.value} value={opt.value}>
+                          {CONDITION_ORDER.map((c) => (
+                            <SelectItem key={c} value={c}>
                               <div className="flex items-center gap-2">
-                                <span className={cn('size-2 rounded-full', opt.dot)} />
-                                {opt.label}
+                                <span className={cn('size-2 rounded-full', CONDITION_DOT[c])} />
+                                {CONDITION_LABELS[c]}
                               </div>
                             </SelectItem>
                           ))}
@@ -305,28 +287,46 @@ export const InspectReturnDialog = ({
                   </div>
 
                   {/* Serial capture — only shown for serialized products */}
-                  {getProduct && getProduct(line.productId)?.trackBy === 'serial' && (
-                    <div className="space-y-1.5">
-                      <Label className="flex items-center gap-1.5 text-xs font-medium">
-                        <Hash className="text-muted-foreground size-3" />
-                        Número de serie del ítem devuelto
-                      </Label>
-                      <Input
-                        placeholder="Ej: SN-2024-0001"
-                        value={state.serial}
-                        onChange={(e) => handleItemChange(line.id, 'serial', e.target.value)}
-                        className="font-mono text-sm"
-                      />
-                      {state.serial.trim() && (
-                        <p
-                          className={cn('flex items-center gap-1 text-xs', 'text-muted-foreground')}
-                        >
-                          <Info className="size-3" />
-                          El serial se verificará contra el historial de despachos al confirmar.
-                        </p>
-                      )}
-                    </div>
-                  )}
+                  {getProduct && getProduct(line.productId)?.trackBy === 'serial' && (() => {
+                    const dispatched = getDispatchedSerials?.(line.productId) ?? []
+                    const listId = `dispatched-serials-${line.id}`
+                    return (
+                      <div className="space-y-1.5">
+                        <Label className="flex items-center gap-1.5 text-xs font-medium">
+                          <Hash className="text-muted-foreground size-3" />
+                          Número de serie del ítem devuelto
+                        </Label>
+                        <Input
+                          placeholder="Ej: SN-2024-0001"
+                          value={state.serial}
+                          onChange={(e) => handleItemChange(line.id, 'serial', e.target.value)}
+                          className="font-mono text-sm"
+                          list={dispatched.length > 0 ? listId : undefined}
+                        />
+                        {dispatched.length > 0 && (
+                          <datalist id={listId}>
+                            {dispatched.map((s) => (
+                              <option key={s} value={s} />
+                            ))}
+                          </datalist>
+                        )}
+                        {dispatched.length > 0 && (
+                          <p className="text-muted-foreground flex items-center gap-1 text-xs">
+                            <Info className="size-3" />
+                            {dispatched.length} serie{dispatched.length !== 1 ? 's' : ''} despachada
+                            {dispatched.length !== 1 ? 's' : ''} disponible
+                            {dispatched.length !== 1 ? 's' : ''} como sugerencia.
+                          </p>
+                        )}
+                        {state.serial.trim() && (
+                          <p className="text-muted-foreground flex items-center gap-1 text-xs">
+                            <Info className="size-3" />
+                            El serial se verificará contra el historial de despachos al confirmar.
+                          </p>
+                        )}
+                      </div>
+                    )
+                  })()}
                 </div>
               )
             })}

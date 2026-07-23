@@ -6,7 +6,6 @@ import {
   AlertTriangle,
   Box,
   Building2,
-  CalendarClock,
   Database,
   MapPin,
   Package,
@@ -54,7 +53,7 @@ import {
 import { SubNav, type SubNavItem } from '@/components/shared/sub-nav'
 import { SettingField } from '@/components/shared/setting-field'
 import { cn } from '@/lib/utils'
-import type { CyclicCountMethod, DeliveryWindow, Product, UnitOfMeasure, Warehouse } from '@/types/wms'
+import type { DeliveryWindow, Product, UnitOfMeasure, Warehouse } from '@/types/wms'
 
 const ROLE_LABELS: Record<string, string> = {
   picker: 'Picker',
@@ -72,19 +71,6 @@ const CONTEXT_LABELS: Record<string, string> = {
   hold: 'Bloqueo',
 }
 
-const COUNT_METHOD_LABELS: Record<CyclicCountMethod, string> = {
-  by_zone: 'Por zona',
-  by_abc: 'Por clase ABC',
-  by_rotation: 'Por rotación',
-}
-
-const COUNT_STATUS_COLORS: Record<string, string> = {
-  pending: 'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-900/50',
-  in_progress: 'bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-900/50',
-  completed: 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-900/50',
-  cancelled: 'bg-zinc-50 dark:bg-zinc-800/50 text-zinc-500 dark:text-zinc-300 border-zinc-200 dark:border-zinc-700/50',
-}
-
 const ROTATION_LABELS: Record<string, string> = {
   fifo: 'FIFO — Primero en entrar, primero en salir',
   fefo: 'FEFO — Primero en vencer, primero en salir',
@@ -95,7 +81,6 @@ const ADMIN_TABS: SubNavItem[] = [
   { value: 'operators', label: 'Operadores' },
   { value: 'reasons', label: 'Razones' },
   { value: 'carriers', label: 'Carriers' },
-  { value: 'cyclic-counts', label: 'Conteos cíclicos' },
   { value: 'uom', label: 'Unidades de medida' },
   { value: 'products', label: 'Productos' },
   { value: 'settings', label: 'Configuración' },
@@ -122,16 +107,11 @@ const AdminPage = () => {
     stockMovements,
     commerceOrders,
     pickingTasks,
-    cyclicCountPlans,
     settings,
     toggleOperator,
     toggleReason,
     toggleCarrier,
     updateSettings,
-    createCyclicCount,
-    startCyclicCount,
-    completeCyclicCount,
-    cancelCyclicCount,
     createUom,
     updateUom,
     toggleUom,
@@ -141,18 +121,6 @@ const AdminPage = () => {
   const [resetDialogOpen, setResetDialogOpen] = useState(false)
   const [settingsChanged, setSettingsChanged] = useState(false)
   const [localSettings, setLocalSettings] = useState({ ...settings })
-
-  // Create cyclic count form
-  const [countFormOpen, setCountFormOpen] = useState(false)
-  const [countForm, setCountForm] = useState({
-    name: '',
-    method: 'by_zone' as CyclicCountMethod,
-    filterValue: '',
-    warehouseId: warehouses[0]?.id ?? '',
-    scheduledDate: '',
-    assignedOperatorName: '',
-  })
-  const [countFormError, setCountFormError] = useState('')
 
   // Almacenes — delivery windows editor
   const [editingWarehouseId, setEditingWarehouseId] = useState<string | null>(null)
@@ -185,39 +153,6 @@ const AdminPage = () => {
   const handleSaveSettings = () => {
     updateSettings(localSettings)
     setSettingsChanged(false)
-  }
-
-  const handleCreateCount = () => {
-    setCountFormError('')
-    if (!countForm.name.trim()) { setCountFormError('El nombre es obligatorio'); return }
-    if (!countForm.filterValue.trim()) { setCountFormError('El valor de filtro es obligatorio'); return }
-    if (!countForm.scheduledDate) { setCountFormError('La fecha es obligatoria'); return }
-
-    const filterLocs = locations.filter((l) => {
-      if (countForm.warehouseId && l.warehouseId !== countForm.warehouseId) return false
-      if (countForm.method === 'by_zone') return l.zone === countForm.filterValue.toUpperCase()
-      return true
-    })
-
-    createCyclicCount({
-      name: countForm.name.trim(),
-      method: countForm.method,
-      filterValue: countForm.filterValue.trim(),
-      warehouseId: countForm.warehouseId,
-      locationIds: filterLocs.map((l) => l.id),
-      assignedOperatorName: countForm.assignedOperatorName.trim() || undefined,
-      scheduledDate: countForm.scheduledDate,
-      totalLocations: filterLocs.length,
-    })
-    setCountFormOpen(false)
-    setCountForm({
-      name: '',
-      method: 'by_zone',
-      filterValue: '',
-      warehouseId: warehouses[0]?.id ?? '',
-      scheduledDate: '',
-      assignedOperatorName: '',
-    })
   }
 
   // UoM form state
@@ -482,88 +417,6 @@ const AdminPage = () => {
           </Card>
       )}
 
-      {/* ── Cyclic Counts ── */}
-      {activeTab === 'cyclic-counts' && (
-        <div className="space-y-4">
-          <div className="flex justify-end">
-            <Button onClick={() => setCountFormOpen(true)}>
-              <CalendarClock className="mr-1.5 size-4" /> Nuevo plan de conteo
-            </Button>
-          </div>
-
-          {cyclicCountPlans.length === 0 ? (
-            <Card>
-              <CardContent className="flex flex-col items-center gap-2 py-12 text-center">
-                <CalendarClock className="size-10 text-zinc-300" />
-                <p className="text-sm font-medium">Sin planes de conteo cíclico</p>
-                <p className="text-xs text-muted-foreground">Crea un plan para programar conteos de inventario por zona, clase ABC o rotación.</p>
-              </CardContent>
-            </Card>
-          ) : (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-sm">
-                  <CalendarClock className="size-4" /> Planes de conteo ({cyclicCountPlans.length})
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="p-0">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Código</TableHead>
-                      <TableHead>Nombre</TableHead>
-                      <TableHead>Método</TableHead>
-                      <TableHead>Filtro</TableHead>
-                      <TableHead className="text-right">Ubicaciones</TableHead>
-                      <TableHead>Fecha programada</TableHead>
-                      <TableHead>Estado</TableHead>
-                      <TableHead />
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {cyclicCountPlans.map((plan) => (
-                      <TableRow key={plan.id}>
-                        <TableCell className="font-mono text-xs font-semibold">{plan.code}</TableCell>
-                        <TableCell className="font-medium">{plan.name}</TableCell>
-                        <TableCell className="text-muted-foreground text-sm">{COUNT_METHOD_LABELS[plan.method]}</TableCell>
-                        <TableCell className="text-muted-foreground text-sm">{plan.filterValue}</TableCell>
-                        <TableCell className="text-right tabular-nums">
-                          {plan.countedLocations}/{plan.totalLocations}
-                        </TableCell>
-                        <TableCell className="text-sm">{plan.scheduledDate}</TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className={cn('text-xs', COUNT_STATUS_COLORS[plan.status])}>
-                            {plan.status === 'pending' ? 'Pendiente' : plan.status === 'in_progress' ? 'En progreso' : plan.status === 'completed' ? 'Completado' : 'Cancelado'}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex justify-end gap-1">
-                            {plan.status === 'pending' && (
-                              <Button variant="ghost" size="sm" onClick={() => startCyclicCount(plan.id)}>
-                                Iniciar
-                              </Button>
-                            )}
-                            {plan.status === 'in_progress' && (
-                              <Button variant="ghost" size="sm" className="text-emerald-600" onClick={() => completeCyclicCount(plan.id)}>
-                                Completar
-                              </Button>
-                            )}
-                            {(plan.status === 'pending' || plan.status === 'in_progress') && (
-                              <Button variant="ghost" size="sm" className="text-red-500" onClick={() => cancelCyclicCount(plan.id)}>
-                                Cancelar
-                              </Button>
-                            )}
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
-          )}
-        </div>
-      )}
 
       {/* ── Units of Measure ── */}
       {activeTab === 'uom' && (
@@ -1019,64 +872,6 @@ const AdminPage = () => {
           <DialogFooter>
             <Button variant="outline" onClick={() => setResetDialogOpen(false)}>Cancelar</Button>
             <Button variant="destructive" onClick={resetStore}>Sí, resetear demo</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Create cyclic count dialog */}
-      <Dialog open={countFormOpen} onOpenChange={setCountFormOpen}>
-        <DialogContent className="sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <CalendarClock className="size-4" /> Nuevo plan de conteo cíclico
-            </DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 py-2">
-            <div className="space-y-1">
-              <Label htmlFor="cc-name">Nombre *</Label>
-              <Input id="cc-name" placeholder="Ej: Conteo zona A — junio" value={countForm.name} onChange={(e) => setCountForm({ ...countForm, name: e.target.value })} />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label>Método</Label>
-                <Select value={countForm.method} onValueChange={(v) => setCountForm({ ...countForm, method: v as CyclicCountMethod })}>
-                  <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="by_zone">Por zona</SelectItem>
-                    <SelectItem value="by_abc">Por clase ABC</SelectItem>
-                    <SelectItem value="by_rotation">Por rotación</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="cc-filter">Valor de filtro *</Label>
-                <Input id="cc-filter" placeholder={countForm.method === 'by_zone' ? 'Ej: A, B, QC…' : countForm.method === 'by_abc' ? 'Ej: A, B, C' : 'Ej: alta'} value={countForm.filterValue} onChange={(e) => setCountForm({ ...countForm, filterValue: e.target.value })} />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label>Almacén</Label>
-                <Select value={countForm.warehouseId} onValueChange={(v) => setCountForm({ ...countForm, warehouseId: v })}>
-                  <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {warehouses.map((w) => <SelectItem key={w.id} value={w.id}>{w.name}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="cc-date">Fecha programada *</Label>
-                <Input id="cc-date" type="date" value={countForm.scheduledDate} onChange={(e) => setCountForm({ ...countForm, scheduledDate: e.target.value })} />
-              </div>
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="cc-operator">Operador asignado</Label>
-              <Input id="cc-operator" placeholder="Nombre del operador (opcional)" value={countForm.assignedOperatorName} onChange={(e) => setCountForm({ ...countForm, assignedOperatorName: e.target.value })} />
-            </div>
-            {countFormError && <p className="text-destructive text-sm">{countFormError}</p>}
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => { setCountFormOpen(false); setCountFormError('') }}>Cancelar</Button>
-            <Button onClick={handleCreateCount}>Crear plan</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

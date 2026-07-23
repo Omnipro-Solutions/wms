@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useMemo, useCallback } from 'react'
-import { useRouter, usePathname, useSearchParams } from 'next/navigation'
+import { useSearchParams } from 'next/navigation'
 import {
   AlertTriangle,
   ArrowRight,
@@ -13,7 +13,6 @@ import {
   History,
   MapPin,
   MoveRight,
-  PackageCheck,
   Plus,
   RefreshCcw,
   TrendingDown,
@@ -25,7 +24,6 @@ import { useWmsStore } from '@/store/wms-store'
 import {
   selectSlottingRecommendations,
   selectSlottingImpact,
-  selectReplenishmentNeeds,
   selectAffinityRecommendations,
   selectSlottingTrends,
   selectRouteSlottingRecommendations,
@@ -68,13 +66,11 @@ import { TabPanel } from './_components/tab-panel'
 import {
   buildOptimizationColumns,
   buildClassificationColumns,
-  buildReplenishmentColumns,
   buildAffinityColumns,
   buildHistoryColumns,
   buildSimulationColumns,
   type OptimizationRow,
   type ClassificationRow,
-  type ReplenishmentRow,
   type AffinityRow,
   type HistoryRow,
 } from './columns'
@@ -85,7 +81,7 @@ import {
 
 // ─── local types ──────────────────────────────────────────────────────────────
 
-type TabValue = 'optimization' | 'classification' | 'replenishment' | 'affinity' | 'history' | 'ruta'
+type TabValue = 'optimization' | 'classification' | 'affinity' | 'history' | 'ruta'
 
 interface RelocateDialogData {
   itemId: string
@@ -101,17 +97,8 @@ interface RelocateDialogData {
 
 const SlottingPage = () => {
   const state = useWmsStore()
-  const {
-    relocateInventory,
-    startReplenishment,
-    completeReplenishment,
-    generateReplenishmentTasks,
-    relocateAll,
-    captureSlottingSnapshot,
-  } = useWmsStore()
+  const { relocateInventory, relocateAll, captureSlottingSnapshot } = useWmsStore()
   const { productName, locationCode } = useStoreHelpers()
-  const router = useRouter()
-  const pathname = usePathname()
   const searchParams = useSearchParams()
 
   const activeTab = (searchParams.get('tab') as TabValue) ?? 'optimization'
@@ -119,7 +106,6 @@ const SlottingPage = () => {
   const SLOTTING_TABS: SubNavItem[] = [
     { value: 'optimization', label: 'Recomendaciones' },
     { value: 'classification', label: 'Clasificación ABC/XYZ' },
-    { value: 'replenishment', label: 'Reposición' },
     { value: 'affinity', label: 'Afinidad' },
     { value: 'history', label: 'Historial' },
     { value: 'ruta', label: 'Por ruta' },
@@ -129,7 +115,6 @@ const SlottingPage = () => {
   const xyz = useMemo(() => xyzByProduct(state), [state])
   const recommendations = useMemo(() => selectSlottingRecommendations(state), [state])
   const misplaced = useMemo(() => misplacedAClassItems(state), [state])
-  const replenishmentNeeds = useMemo(() => selectReplenishmentNeeds(state), [state])
   const affinityRecs = useMemo(() => selectAffinityRecommendations(state), [state])
   const trends = useMemo(() => selectSlottingTrends(state), [state])
   const routeRecs = useMemo(() => selectRouteSlottingRecommendations(state), [state])
@@ -138,8 +123,6 @@ const SlottingPage = () => {
   const [relocated, setRelocated] = useState<Set<string>>(new Set())
   const [abcFilter, setAbcFilter] = useState<string>('all')
   const [xyzFilter, setXyzFilter] = useState<string>('all')
-  const [generating, setGenerating] = useState(false)
-  const [lastGenerated, setLastGenerated] = useState(0)
   const [simulation, setSimulation] = useState<SimulationSummary | null>(null)
   const [applyingAll, setApplyingAll] = useState(false)
   const [snapshotLabel, setSnapshotLabel] = useState('')
@@ -157,13 +140,6 @@ const SlottingPage = () => {
   )
 
   const impact = useMemo(() => selectSlottingImpact(state, activeRecs), [state, activeRecs])
-
-  const pendingReplenishment = useMemo(
-    () =>
-      state.replenishmentTasks.filter((t) => t.status === 'pending' || t.status === 'assigned')
-        .length,
-    [state.replenishmentTasks]
-  )
 
   const affinityPending = useMemo(
     () => affinityRecs.filter((r) => !r.isAlreadyClose),
@@ -241,42 +217,6 @@ const SlottingPage = () => {
         }
       }),
     [filteredDemandStats, state.products, state.inventoryItems, state.locations, abc, xyz]
-  )
-
-  const replenishmentRows = useMemo<ReplenishmentRow[]>(
-    () =>
-      state.replenishmentTasks
-        .slice()
-        .sort(
-          (a, b) =>
-            (({ high: 0, medium: 1, low: 2 })[a.priority] ?? 2) -
-            ({ high: 0, medium: 1, low: 2 }[b.priority] ?? 2)
-        )
-        .map((task) => {
-          const product = state.products.find((p) => p.id === task.productId)
-          const abcClass: AbcClass = abc[task.productId] ?? 'C'
-          const coveragePct =
-            task.minStock > 0
-              ? Math.min(100, Math.round((task.currentStock / task.minStock) * 100))
-              : 100
-          return {
-            id: task.id,
-            productId: task.productId,
-            productName: productName(task.productId),
-            productImageUrl: product?.imageUrl ?? null,
-            abcClass,
-            originLocationCode: locationCode(task.originLocationId),
-            destinationLocationCode: locationCode(task.destinationLocationId),
-            currentStock: task.currentStock,
-            minStock: task.minStock,
-            suggestedQuantity: task.suggestedQuantity,
-            priority: task.priority,
-            status: task.status,
-            operatorName: task.operatorName ?? null,
-            isCritical: coveragePct < 30,
-          }
-        }),
-    [state.replenishmentTasks, state.products, abc, productName, locationCode]
   )
 
   const affinityRows = useMemo<AffinityRow[]>(
@@ -404,28 +344,6 @@ const SlottingPage = () => {
     }
   }
 
-  const handleStartReplenishment = useCallback(
-    (taskId: string) => {
-      try {
-        startReplenishment(taskId, 'Operador Slotting')
-      } catch {
-        /* guard */
-      }
-    },
-    [startReplenishment]
-  )
-
-  const handleCompleteReplenishment = useCallback(
-    (taskId: string) => {
-      try {
-        completeReplenishment(taskId)
-      } catch {
-        /* guard */
-      }
-    },
-    [completeReplenishment]
-  )
-
   // ── memoized columns ──────────────────────────────────────────────────────
 
   const optimizationCols = useMemo(
@@ -433,24 +351,10 @@ const SlottingPage = () => {
     [openRelocateDialog]
   )
   const classificationCols = useMemo(() => buildClassificationColumns(), [])
-  const replenishmentCols = useMemo(
-    () => buildReplenishmentColumns(handleStartReplenishment, handleCompleteReplenishment),
-    [handleStartReplenishment, handleCompleteReplenishment]
-  )
   const affinityCols = useMemo(() => buildAffinityColumns(), [])
   const historyCols = useMemo(() => buildHistoryColumns(), [])
   const simulationCols = useMemo(() => buildSimulationColumns(), [])
   const routeSlottingCols = useMemo(() => buildRouteSlottingColumns(), [])
-
-  const handleGenerateTasks = () => {
-    setGenerating(true)
-    try {
-      const created = generateReplenishmentTasks()
-      setLastGenerated(created.length)
-    } finally {
-      setGenerating(false)
-    }
-  }
 
   const handleSimulateAll = () => {
     const summary = simulateRelocateAll(state, activeRecs)
@@ -472,7 +376,7 @@ const SlottingPage = () => {
     if (!simulation) return
     setApplyingAll(true)
     try {
-      const count = relocateAll(activeRecs, 'Slotting Automático')
+      relocateAll(activeRecs, 'Slotting Automático')
       setRelocated((prev) => {
         const next = new Set(prev)
         for (const rec of activeRecs) {
@@ -484,7 +388,6 @@ const SlottingPage = () => {
         return next
       })
       setSimulation(null)
-      setLastGenerated(count)
     } finally {
       setApplyingAll(false)
     }
@@ -496,11 +399,11 @@ const SlottingPage = () => {
     <div className="flex flex-col gap-6">
       <PageHeader
         title="Slotting — Optimización de ubicaciones"
-        description="Clasificación ABC/XYZ en vivo · Recomendaciones con score dinámico · Gestión de reabastecimiento"
+        description="Clasificación ABC/XYZ en vivo · Recomendaciones con score dinámico · Afinidad de co-picking"
       />
 
       {/* ── KPIs ── */}
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <KpiCard
           icon={TriangleAlert}
           value={misplaced.length}
@@ -521,13 +424,6 @@ const SlottingPage = () => {
           label="Min. ahorro estimado/turno"
           sublabel={`${formatNumber(impact.totalDistanceSavedM)} m recorrido menos`}
           tone="green"
-        />
-        <KpiCard
-          icon={PackageCheck}
-          value={pendingReplenishment}
-          label="Reabastecimientos pendientes"
-          sublabel="Pick faces bajo mínimo"
-          tone={pendingReplenishment > 0 ? 'red' : 'neutral'}
         />
       </div>
 
@@ -661,77 +557,6 @@ const SlottingPage = () => {
                 searchColumn="productName"
                 searchPlaceholder="Buscar por producto o SKU…"
                 emptyMessage="Sin productos clasificados."
-              />
-            )}
-          </TabPanel>
-        </div>
-      )}
-
-      {/* ════════ Tab: Reabastecimiento ════════ */}
-      {activeTab === 'replenishment' && (
-        <div className="space-y-4">
-          <TabPanel
-            icon={PackageCheck}
-            iconClass="text-blue-500"
-            title="Tareas de reabastecimiento de pick faces"
-            description="Pick faces con stock bajo mínimo. Genera tareas para que los operadores repongan desde el almacén de reserva."
-            action={
-              replenishmentNeeds.length > 0 ? (
-                <Button
-                  size="sm"
-                  onClick={handleGenerateTasks}
-                  disabled={generating}
-                  className="shrink-0 bg-amber-600 hover:bg-amber-700"
-                >
-                  {generating ? (
-                    <RefreshCcw className="mr-1.5 size-3.5 animate-spin" />
-                  ) : (
-                    <Plus className="mr-1.5 size-3.5" />
-                  )}
-                  Generar {replenishmentNeeds.length} tarea
-                  {replenishmentNeeds.length > 1 ? 's' : ''}
-                </Button>
-              ) : undefined
-            }
-          >
-            {replenishmentNeeds.length > 0 && (
-              <div className="mb-4 flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 dark:border-amber-900/50 dark:bg-amber-950/40">
-                <TriangleAlert className="mt-0.5 size-4 shrink-0 text-amber-600" />
-                <div className="text-sm">
-                  <p className="font-semibold text-amber-800 dark:text-amber-300">
-                    {replenishmentNeeds.length} pick face
-                    {replenishmentNeeds.length > 1 ? 's' : ''} bajo mínimo sin tarea activa
-                  </p>
-                  <p className="mt-0.5 text-xs text-amber-700 dark:text-amber-300">
-                    {replenishmentNeeds.filter((n) => n.priority === 'high').length} críticas (stock
-                    &lt; {Math.round(state.settings.replenishmentHighFactor * 100)}% del mínimo)
-                    {lastGenerated > 0 && (
-                      <span className="ml-2 font-medium text-green-700 dark:text-emerald-300">
-                        · {lastGenerated} tarea{lastGenerated > 1 ? 's' : ''} generada
-                        {lastGenerated > 1 ? 's' : ''}
-                      </span>
-                    )}
-                  </p>
-                </div>
-              </div>
-            )}
-
-            {state.replenishmentTasks.length === 0 ? (
-              <EmptyState
-                icon={CheckCircle2}
-                title="Sin tareas de reabastecimiento"
-                description="Todos los pick faces están sobre su nivel mínimo de stock."
-              />
-            ) : (
-              <DataTable
-                columns={replenishmentCols}
-                data={replenishmentRows}
-                searchColumn="productName"
-                searchPlaceholder="Buscar por producto…"
-                emptyMessage="Sin tareas de reabastecimiento."
-                rowClassName={(row: ReplenishmentRow) =>
-                  cn('group', row.isCritical && 'bg-red-50/50 dark:bg-red-950/30')
-                }
               />
             )}
           </TabPanel>

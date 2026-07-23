@@ -40,6 +40,10 @@ const STATUS_MAP: Record<string, StatusMeta> = {
   rejected: { label: 'Rechazada', variant: 'danger' },
   closed: { label: 'Cerrada', variant: 'neutral' },
 
+  // InternalMoveStatus (movimientos internos, dos pasos)
+  picked: { label: 'En movimiento', variant: 'progress' },
+  dropped: { label: 'Depositado', variant: 'success' },
+
   // PickingTaskStatus
   partially_picked: { label: 'Parcialmente preparado', variant: 'warning' },
   partial_with_shortage: { label: 'Parcial con faltante', variant: 'warning' },
@@ -69,6 +73,15 @@ const STATUS_MAP: Record<string, StatusMeta> = {
   mismatch: { label: 'Discrepancia', variant: 'danger' },
   labelled: { label: 'Etiquetado', variant: 'progress' },
   dispatched: { label: 'Despachado', variant: 'success' },
+
+  // DockAppointmentStatus (Yard/Dock module #8) — reuses in_progress/completed/cancelled above.
+  scheduled: { label: 'Agendada', variant: 'neutral' },
+  arrived: { label: 'Llegó', variant: 'info' },
+  no_show: { label: 'No-show', variant: 'danger' },
+
+  // Dock status (Yard/Dock module #8) — reuses 'active' above.
+  blocked: { label: 'Bloqueado', variant: 'danger' },
+  maintenance: { label: 'Mantenimiento', variant: 'warning' },
 }
 
 export function statusMeta(status: string): StatusMeta {

@@ -4,7 +4,13 @@ import type {
   Carrier,
   ClusterTask,
   CommerceOrder,
+  CyclicCountLine,
+  CyclicCountPlan,
+  Dock,
+  DockAppointment,
   IntegrationConnection,
+  InternalMoveTask,
+  InventoryAdjustmentRequest,
   InventoryItem,
   LoadManifest,
   Operator,
@@ -20,10 +26,13 @@ import type {
   RackType,
   Reason,
   ReplenishmentTask,
+  StoreReplenishmentPolicy,
+  StoreReplenishmentTask,
   ReturnInspection,
   ReturnOrder,
   SapRoute,
   Shipment,
+  SlottingRule,
   StockMovement,
   StorageLocation,
   Store,
@@ -124,6 +133,35 @@ export const warehouses: Warehouse[] = [
 export const stores: Store[] = warehouses
   .filter((w) => w.type === 'store')
   .map((w) => ({ id: w.id, code: w.code, name: w.name, city: w.city }))
+
+// Muelles de carga/descarga (#8 — Gestión de patio y muelles). Los ids
+// dock-1..dock-4 de Bogotá coinciden con los que ya usaba el diálogo de citas
+// de /receiving, así ambos módulos comparten el mismo catálogo real.
+export const docks: Dock[] = [
+  { id: 'dock-1', code: 'M-01', name: 'Muelle 1', warehouseId: 'wh-bog', type: 'inbound', status: 'active' },
+  { id: 'dock-2', code: 'M-02', name: 'Muelle 2', warehouseId: 'wh-bog', type: 'inbound', status: 'active' },
+  { id: 'dock-3', code: 'M-03', name: 'Muelle 3', warehouseId: 'wh-bog', type: 'mixed', status: 'active' },
+  {
+    id: 'dock-4',
+    code: 'M-04',
+    name: 'Muelle 4',
+    warehouseId: 'wh-bog',
+    type: 'outbound',
+    status: 'maintenance',
+    notes: 'Puerta hidráulica en reparación — reprogramada para el 25/07.',
+  },
+  { id: 'dock-5', code: 'M-01', name: 'Muelle 1', warehouseId: 'wh-med', type: 'inbound', status: 'active' },
+  { id: 'dock-6', code: 'M-02', name: 'Muelle 2', warehouseId: 'wh-med', type: 'outbound', status: 'active' },
+  {
+    id: 'dock-7',
+    code: 'M-03',
+    name: 'Muelle 3',
+    warehouseId: 'wh-med',
+    type: 'mixed',
+    status: 'blocked',
+    notes: 'Bloqueado por obras de ampliación del patio.',
+  },
+]
 
 // Tipos de estiba (rack types) — definen qué se puede almacenar en cada rack
 // según el estilo, la capacidad por nivel y las categorías admitidas (#4 estándar).
@@ -279,6 +317,10 @@ export const locations: StorageLocation[] = [
     volumeCapacityM3: 1.5,
     maxVolumeM3: 0.5,
     distanceToDispatchM: 6,
+    // Override de reabastecimiento a nivel de ubicación: manda sobre el min/max del
+    // SKU. Todo lo que viva en esta cara se evalúa contra 25/60 (demo #11 Estándar).
+    minStockUnits: 25,
+    maxStockUnits: 60,
   },
   {
     id: 'loc-b0204',
@@ -300,6 +342,51 @@ export const locations: StorageLocation[] = [
     volumeCapacityM3: 3,
     maxVolumeM3: 0.5,
     distanceToDispatchM: 45,
+  },
+  // Pick-faces de alta capacidad (≥120 kg) para línea blanca pesada. Sin ellos,
+  // ningún golden aguanta una nevera/lavadora (68/72 kg) y el caso textbook de
+  // slotting ("alta rotación → golden") no se puede demostrar. Ver docs/modulo_slotting.md §5.
+  {
+    id: 'loc-a0301',
+    code: 'PICK-HEAVY-01',
+    barcode: 'LOC-A-PICKHEAVY1',
+    warehouseId: 'wh-bog',
+    zone: 'A',
+    aisle: '03',
+    rack: 'A',
+    level: '1',
+    position: '01',
+    rackTypeId: 'rack-sel-std',
+    type: 'pick',
+    isPickFace: true,
+    golden: true,
+    isBlocked: false,
+    accessibilityScore: 88,
+    maxWeightKg: 120,
+    volumeCapacityM3: 6,
+    maxVolumeM3: 0.9,
+    distanceToDispatchM: 10,
+  },
+  {
+    id: 'loc-b0301',
+    code: 'STD-HEAVY-01',
+    barcode: 'LOC-B-STDHEAVY1',
+    warehouseId: 'wh-bog',
+    zone: 'B',
+    aisle: '03',
+    rack: 'A',
+    level: '1',
+    position: '01',
+    rackTypeId: 'rack-sel-std',
+    type: 'pick',
+    isPickFace: true,
+    golden: false,
+    isBlocked: false,
+    accessibilityScore: 58,
+    maxWeightKg: 120,
+    volumeCapacityM3: 8,
+    maxVolumeM3: 0.9,
+    distanceToDispatchM: 36,
   },
   {
     id: 'loc-reserve',
@@ -588,6 +675,73 @@ export const locations: StorageLocation[] = [
     maxVolumeM3: 0,
     distanceToDispatchM: 5,
   },
+  // ─── Salas de venta de tienda (retail) ───────────────────────────────────────
+  // Cada tienda mantiene su stock en una "sala de ventas" (pick face). El
+  // reabastecimiento retail (DC→tienda) aterriza aquí. Ver storeReplenishmentPolicies.
+  {
+    id: 'loc-floor-andino',
+    code: 'SALA-AND',
+    barcode: 'LOC-ST-AND',
+    warehouseId: 'wh-andino',
+    zone: 'SALA',
+    type: 'pick',
+    isPickFace: true,
+    golden: false,
+    isBlocked: false,
+    accessibilityScore: 90,
+    maxWeightKg: 500,
+    volumeCapacityM3: 50,
+    maxVolumeM3: 0,
+    distanceToDispatchM: 0,
+  },
+  {
+    id: 'loc-floor-santafe',
+    code: 'SALA-SFE',
+    barcode: 'LOC-ST-SFE',
+    warehouseId: 'wh-santafe',
+    zone: 'SALA',
+    type: 'pick',
+    isPickFace: true,
+    golden: false,
+    isBlocked: false,
+    accessibilityScore: 90,
+    maxWeightKg: 500,
+    volumeCapacityM3: 50,
+    maxVolumeM3: 0,
+    distanceToDispatchM: 0,
+  },
+  {
+    id: 'loc-floor-viva',
+    code: 'SALA-VIV',
+    barcode: 'LOC-ST-VIV',
+    warehouseId: 'wh-viva',
+    zone: 'SALA',
+    type: 'pick',
+    isPickFace: true,
+    golden: false,
+    isBlocked: false,
+    accessibilityScore: 90,
+    maxWeightKg: 500,
+    volumeCapacityM3: 50,
+    maxVolumeM3: 0,
+    distanceToDispatchM: 0,
+  },
+  {
+    id: 'loc-floor-unicentro',
+    code: 'SALA-UNI',
+    barcode: 'LOC-ST-UNI',
+    warehouseId: 'wh-unicentro',
+    zone: 'SALA',
+    type: 'pick',
+    isPickFace: true,
+    golden: false,
+    isBlocked: false,
+    accessibilityScore: 90,
+    maxWeightKg: 500,
+    volumeCapacityM3: 50,
+    maxVolumeM3: 0,
+    distanceToDispatchM: 0,
+  },
 ]
 
 export const products: Product[] = [
@@ -747,8 +901,8 @@ export const products: Product[] = [
     imageUrl:
       'https://images.unsplash.com/photo-1594736797933-d0501ba2fe65?w=80&h=80&fit=crop&auto=format',
     rotationStrategy: 'fifo',
-    minStockUnits: 5,
-    maxStockUnits: 50,
+    minStockUnits: 20,
+    maxStockUnits: 60,
   },
   {
     id: 'p-cafetera',
@@ -767,7 +921,7 @@ export const products: Product[] = [
     imageUrl:
       'https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?w=80&h=80&fit=crop&auto=format',
     rotationStrategy: 'fifo',
-    minStockUnits: 5,
+    minStockUnits: 15,
     maxStockUnits: 50,
   },
   {
@@ -937,6 +1091,69 @@ export const demandStats: ProductDemandStat[] = [
   },
 ]
 
+// ─── Slotting rules (gobierno de ubicaciones) ────────────────────────────────
+// Cada regla hace match con un conjunto de productos (matchType/matchValue) y les
+// aplica DIRECTIVAS: una preferencia de zona (blanda, alimenta el score) y/o
+// restricciones duras (una ubicación candidata que las viola queda descartada).
+// Se editan en Configuración → Slotting y su efecto se ve en vivo en /slotting.
+//
+// Efecto esperado con el seed actual (verificado ejecutando el motor):
+//   SLR-01 (activa)   → el Televisor 55" (clase CX) se recomienda a la zona golden
+//                       (PICK-FAST-01): prioriza el alto valor cerca de despacho.
+//   SLR-02 (activa)   → Nevera (68 kg) y Lavadora (72 kg), clase A: con la regla van
+//                       a STD-HEAVY-01 (estándar); al desactivarla saltan a
+//                       PICK-HEAVY-01 (golden). Es el toggle golden↔estándar visible.
+//                       La Estufa (35 kg) NO la afecta (< 60 kg) → se queda en golden:
+//                       buen contraste "pesada de verdad vs. pesada media".
+//   SLR-03 (inactiva) → al activarla (requireZone 'B'), la clase C se relega a la
+//                       zona B lejana: la Plancha salta de la zona A a la zona B.
+//                       El Televisor, al ser también clase C, compone SLR-01+SLR-03
+//                       y termina en un golden DE la zona B (demo de composición).
+export const slottingRules: SlottingRule[] = [
+  {
+    id: 'slr-01',
+    code: 'SLR-01',
+    name: 'Electrónica de alto valor en golden',
+    description:
+      'La electrónica de alto valor se ubica en la zona golden (cerca de despacho) para control de merma y manejo rápido, aunque su rotación no lo exija.',
+    matchType: 'category',
+    matchValue: 'Electrónica',
+    directives: [{ kind: 'preferTier', tier: 'golden' }],
+    priority: 100,
+    active: true,
+  },
+  {
+    id: 'slr-02',
+    code: 'SLR-02',
+    name: 'Cargas pesadas fuera de golden',
+    description:
+      'Los productos de 60 kg o más se mantienen en zona estándar (accesible a montacargas) y nunca en el pick-face golden, aunque sean de alta rotación.',
+    matchType: 'weightAboveKg',
+    matchValue: '60',
+    directives: [{ kind: 'preferTier', tier: 'standard' }, { kind: 'forbidGolden' }],
+    priority: 90,
+    active: true,
+  },
+  {
+    id: 'slr-03',
+    code: 'SLR-03',
+    name: 'Baja rotación (clase C) a zona remota',
+    description:
+      'Todos los productos clase C se relegan a la zona remota para liberar posiciones cercanas. Inactiva por defecto — actívala en la demo para ver el efecto en vivo.',
+    matchType: 'abcClass',
+    matchValue: 'C',
+    // requireZone 'B' (dura) fuerza la clase C a la zona lejana B. preferTier remote
+    // es solo la etiqueta: el score no distingue estándar de remoto, así que la
+    // restricción dura es la que mueve realmente la ubicación destino.
+    directives: [
+      { kind: 'preferTier', tier: 'remote' },
+      { kind: 'requireZone', zone: 'B' },
+    ],
+    priority: 50,
+    active: false,
+  },
+]
+
 export const inventoryItems: InventoryItem[] = [
   // ─── Línea Blanca en zona reserva (serial-tracked, un registro por unidad) ────
   {
@@ -1090,6 +1307,30 @@ export const inventoryItems: InventoryItem[] = [
     status: 'available',
   },
   {
+    // Misma cafetera dispersa en una segunda ubicación pick → oportunidad de
+    // consolidación (selectConsolidationOpportunities): pickfast1 30 + pickfast2 8.
+    id: 'inv-caf-2',
+    productId: 'p-cafetera',
+    warehouseId: 'wh-bog',
+    locationId: 'loc-pickfast2',
+    onHandQuantity: 8,
+    reservedQuantity: 0,
+    holdQuantity: 0,
+    status: 'available',
+  },
+  {
+    // Origen del movimiento interno sembrado en estado "En movimiento" (mi-2):
+    // ya refleja el stock restante tras haber recogido 6 unidades hacia el destino.
+    id: 'inv-mi-src',
+    productId: 'p-plancha',
+    warehouseId: 'wh-bog',
+    locationId: 'loc-b0101',
+    onHandQuantity: 14,
+    reservedQuantity: 0,
+    holdQuantity: 0,
+    status: 'available',
+  },
+  {
     id: 'inv-san-1',
     productId: 'p-sanduchera',
     warehouseId: 'wh-bog',
@@ -1106,7 +1347,9 @@ export const inventoryItems: InventoryItem[] = [
     warehouseId: 'wh-bog',
     locationId: 'loc-a0102',
     lot: 'LOT-PLA-2601',
-    onHandQuantity: 35,
+    // Ya refleja el ajuste del conteo cíclico demo cc-3 (35 → 32, ver demoCyclicCountLines):
+    // el conteo de piso encontró 32 unidades, el ajuste se auto-aprobó (delta -3 ≤ threshold).
+    onHandQuantity: 32,
     reservedQuantity: 0,
     holdQuantity: 0,
     status: 'available',
@@ -1260,6 +1503,59 @@ export const inventoryItems: InventoryItem[] = [
     holdQuantity: 0,
     status: 'available',
     receivedDate: '2026-03-10T09:00:00.000Z',
+  },
+  // ─── Stock en sala de venta de tiendas (retail) — insumo del reabastecimiento DC→tienda ──
+  // Cantidades por debajo del mínimo de su política (ver storeReplenishmentPolicies) para
+  // que la detección de "tiendas bajo mínimo" tenga qué mostrar en la demo.
+  {
+    id: 'inv-st-and-lic',
+    productId: 'p-licuadora',
+    warehouseId: 'wh-andino',
+    locationId: 'loc-floor-andino',
+    onHandQuantity: 3, // política min 10 → ALTA (3/10 = 0.30)
+    reservedQuantity: 0,
+    holdQuantity: 0,
+    status: 'available',
+  },
+  {
+    id: 'inv-st-and-caf',
+    productId: 'p-cafetera',
+    warehouseId: 'wh-andino',
+    locationId: 'loc-floor-andino',
+    onHandQuantity: 6, // política min 8 → MEDIA (6/8 = 0.75)
+    reservedQuantity: 0,
+    holdQuantity: 0,
+    status: 'available',
+  },
+  {
+    id: 'inv-st-sfe-pla',
+    productId: 'p-plancha',
+    warehouseId: 'wh-santafe',
+    locationId: 'loc-floor-santafe',
+    onHandQuantity: 11, // política min 12 → BAJA (11/12 = 0.92)
+    reservedQuantity: 0,
+    holdQuantity: 0,
+    status: 'available',
+  },
+  {
+    id: 'inv-st-viv-san',
+    productId: 'p-sanduchera',
+    warehouseId: 'wh-viva',
+    locationId: 'loc-floor-viva',
+    onHandQuantity: 0, // política min 6 → ALTA (quiebre de stock)
+    reservedQuantity: 0,
+    holdQuantity: 0,
+    status: 'available',
+  },
+  {
+    id: 'inv-st-uni-bat',
+    productId: 'p-batidora',
+    warehouseId: 'wh-unicentro',
+    locationId: 'loc-floor-unicentro',
+    onHandQuantity: 25, // sobre el mínimo (política inactiva) → no genera necesidad
+    reservedQuantity: 0,
+    holdQuantity: 0,
+    status: 'available',
   },
 ]
 
@@ -1652,6 +1948,40 @@ export const transfers: TransferOrder[] = [
     isMultiLeg: false,
     currentLegIndex: 0,
     assignedDriverId: 'op-driver-1',
+  },
+]
+
+// ─── Movimientos internos (intra-almacén) ───────────────────────────────────
+export const internalMoves: InternalMoveTask[] = [
+  {
+    // Tarea pendiente en cola: reubicar sanducheras de una posición A a una B.
+    id: 'mi-1',
+    code: 'MI-001',
+    warehouseId: 'wh-bog',
+    moveType: 'bin_to_bin',
+    productId: 'p-sanduchera',
+    fromLocationId: 'loc-a0101',
+    toLocationId: 'loc-b0204',
+    quantity: 10,
+    status: 'pending',
+    reasonId: 'rs-17', // Reubicación operativa
+    createdAt: '2026-07-21T14:00:00.000Z',
+  },
+  {
+    // Tarea "En movimiento": ya se recogieron 6 planchas del origen (inv-mi-src
+    // refleja el stock restante); falta depositarlas en el pick-face destino.
+    id: 'mi-2',
+    code: 'MI-002',
+    warehouseId: 'wh-bog',
+    moveType: 'replenishment',
+    productId: 'p-plancha',
+    fromLocationId: 'loc-b0101',
+    toLocationId: 'loc-pickfast2',
+    quantity: 6,
+    status: 'picked',
+    operatorName: 'Carlos Rueda',
+    createdAt: '2026-07-22T08:30:00.000Z',
+    pickedAt: '2026-07-22T08:45:00.000Z',
   },
 ]
 
@@ -2482,6 +2812,117 @@ export const loadManifests: LoadManifest[] = [
   },
 ]
 
+// Citas de patio y muelles (#8). Fechas fijas (no relativas a "hoy") salvo las
+// marcadas explícitamente como demo en vivo — cubren cada estado de la FSM,
+// citas con y sin muelle asignado, y referencia opcional a ASN/manifiesto.
+export const dockAppointments: DockAppointment[] = [
+  {
+    id: 'apt-1',
+    code: 'CITA-001',
+    warehouseId: 'wh-bog',
+    dockId: 'dock-1',
+    type: 'inbound',
+    status: 'completed',
+    asnId: 'asn-1',
+    carrierName: 'Coordinadora',
+    driverName: 'Jorge Ramírez',
+    vehiclePlate: 'WMS-101',
+    scheduledStart: '2026-07-18T08:00:00',
+    scheduledEnd: '2026-07-18T10:00:00',
+    arrivedAt: '2026-07-18T07:55:00',
+    startedAt: '2026-07-18T08:10:00',
+    completedAt: '2026-07-18T09:40:00',
+  },
+  {
+    id: 'apt-2',
+    code: 'CITA-002',
+    warehouseId: 'wh-bog',
+    dockId: 'dock-2',
+    type: 'inbound',
+    status: 'in_progress',
+    asnId: 'asn-2',
+    carrierName: 'TCC',
+    driverName: 'Andrés Pardo',
+    vehiclePlate: 'WMS-202',
+    scheduledStart: '2026-07-23T06:00:00',
+    scheduledEnd: '2026-07-23T08:00:00',
+    arrivedAt: '2026-07-23T05:50:00',
+    startedAt: '2026-07-23T06:05:00',
+  },
+  {
+    id: 'apt-3',
+    code: 'CITA-003',
+    warehouseId: 'wh-bog',
+    type: 'inbound',
+    status: 'scheduled',
+    asnId: 'asn-3',
+    carrierName: 'Coordinadora',
+    scheduledStart: '2026-07-23T14:00:00',
+    scheduledEnd: '2026-07-23T16:00:00',
+  },
+  {
+    id: 'apt-4',
+    code: 'CITA-004',
+    warehouseId: 'wh-med',
+    dockId: 'dock-5',
+    type: 'inbound',
+    status: 'arrived',
+    carrierName: 'Envia.com',
+    driverName: 'Marcela Ríos',
+    vehiclePlate: 'MED-303',
+    scheduledStart: '2026-07-23T09:00:00',
+    scheduledEnd: '2026-07-23T11:00:00',
+    arrivedAt: '2026-07-23T08:50:00',
+  },
+  {
+    id: 'apt-5',
+    code: 'CITA-005',
+    warehouseId: 'wh-med',
+    dockId: 'dock-6',
+    type: 'outbound',
+    status: 'scheduled',
+    manifestId: 'lm-ruta1',
+    carrierName: 'Coordinadora',
+    scheduledStart: '2026-07-24T09:00:00',
+    scheduledEnd: '2026-07-24T11:00:00',
+  },
+  {
+    id: 'apt-6',
+    code: 'CITA-006',
+    warehouseId: 'wh-bog',
+    type: 'outbound',
+    status: 'scheduled',
+    manifestId: 'lm-ruta2',
+    carrierName: 'TCC',
+    scheduledStart: '2026-07-24T13:00:00',
+    scheduledEnd: '2026-07-24T15:00:00',
+  },
+  {
+    id: 'apt-7',
+    code: 'CITA-007',
+    warehouseId: 'wh-bog',
+    type: 'inbound',
+    status: 'no_show',
+    carrierName: 'Servientrega',
+    scheduledStart: '2026-07-21T07:00:00',
+    scheduledEnd: '2026-07-21T09:00:00',
+    notes: 'Transportista nunca confirmó llegada; reprogramar con el proveedor.',
+  },
+  {
+    id: 'apt-8',
+    code: 'CITA-008',
+    warehouseId: 'wh-bog',
+    dockId: 'dock-3',
+    type: 'inbound',
+    status: 'cancelled',
+    asnId: 'asn-4',
+    carrierName: 'Coordinadora',
+    scheduledStart: '2026-07-19T10:00:00',
+    scheduledEnd: '2026-07-19T12:00:00',
+    notes: 'Cancelada por el proveedor — se reprogramó por fuera del sistema.',
+  },
+]
+
 export const integrations: IntegrationConnection[] = [
   {
     id: 'int-sap',
@@ -2529,6 +2970,7 @@ export const replenishmentTasks: ReplenishmentTask[] = [
   {
     id: 'rp-1',
     productId: 'p-licuadora',
+    warehouseId: 'wh-bog',
     originLocationId: 'loc-reserve',
     destinationLocationId: 'loc-pickfast1',
     currentStock: 5,
@@ -2537,10 +2979,13 @@ export const replenishmentTasks: ReplenishmentTask[] = [
     suggestedQuantity: 45,
     status: 'pending',
     priority: 'high',
+    createdAt: '2026-07-21T14:00:00.000Z',
+    auto: false,
   },
   {
     id: 'rp-2',
     productId: 'p-cafetera',
+    warehouseId: 'wh-bog',
     originLocationId: 'loc-reserve',
     destinationLocationId: 'loc-pickfast1',
     currentStock: 8,
@@ -2550,6 +2995,37 @@ export const replenishmentTasks: ReplenishmentTask[] = [
     status: 'completed',
     operatorName: 'Paula Vega',
     priority: 'medium',
+    createdAt: '2026-07-20T10:30:00.000Z',
+    auto: false,
+  },
+]
+
+// ─── Store (retail) replenishment policies — min/max por tienda×SKU (#11 Estándar) ──
+export const storeReplenishmentPolicies: StoreReplenishmentPolicy[] = [
+  { id: 'srp-pol-1', storeWarehouseId: 'wh-andino', productId: 'p-licuadora', minStock: 10, maxStock: 40, active: true },
+  { id: 'srp-pol-2', storeWarehouseId: 'wh-andino', productId: 'p-cafetera', minStock: 8, maxStock: 30, active: true },
+  { id: 'srp-pol-3', storeWarehouseId: 'wh-santafe', productId: 'p-plancha', minStock: 12, maxStock: 40, active: true },
+  { id: 'srp-pol-4', storeWarehouseId: 'wh-viva', productId: 'p-sanduchera', minStock: 6, maxStock: 24, active: true },
+  // Política inactiva: la tienda tiene stock de sobra y el toggle está apagado → no genera necesidad.
+  { id: 'srp-pol-5', storeWarehouseId: 'wh-unicentro', productId: 'p-batidora', minStock: 10, maxStock: 30, active: false },
+]
+
+// Un ejemplo histórico ya completado (surtido DC→tienda) para poblar la pestaña Tiendas.
+export const storeReplenishmentTasks: StoreReplenishmentTask[] = [
+  {
+    id: 'srp-seed-1',
+    storeWarehouseId: 'wh-santafe',
+    sourceWarehouseId: 'wh-bog',
+    productId: 'p-licuadora',
+    currentStock: 38,
+    minStock: 10,
+    maxStock: 40,
+    suggestedQuantity: 35,
+    priority: 'medium',
+    status: 'completed',
+    operatorName: 'Paula Vega',
+    createdAt: '2026-07-19T09:00:00.000Z',
+    auto: true,
   },
 ]
 
@@ -2774,6 +3250,50 @@ export const reasons: Reason[] = [
     code: 'SCRAP-RECALL',
     label: 'Recall de producto',
     context: 'scrap',
+    active: true,
+  },
+  // ─── Movimientos internos (context: 'internal_move') ────────────────────────
+  {
+    id: 'rs-17',
+    code: 'MI-REUBIC',
+    label: 'Reubicación operativa',
+    context: 'internal_move',
+    active: true,
+  },
+  {
+    id: 'rs-18',
+    code: 'MI-CONSOL',
+    label: 'Consolidación de stock disperso',
+    context: 'internal_move',
+    active: true,
+  },
+  {
+    id: 'rs-19',
+    code: 'MI-PUTAWAY-ERR',
+    label: 'Corrección de putaway',
+    context: 'internal_move',
+    active: true,
+  },
+  {
+    id: 'rs-20',
+    code: 'MI-CUARENT',
+    label: 'Retención a cuarentena',
+    context: 'internal_move',
+    active: true,
+  },
+  // ─── Discrepancias de traslado (context: 'transfer_discrepancy') ────────────
+  {
+    id: 'rs-21',
+    code: 'TR-FALTANTE',
+    label: 'Faltante en tránsito',
+    context: 'transfer_discrepancy',
+    active: true,
+  },
+  {
+    id: 'rs-22',
+    code: 'TR-AVERIA',
+    label: 'Avería en tránsito',
+    context: 'transfer_discrepancy',
     active: true,
   },
 ]
@@ -3038,6 +3558,43 @@ export const settings: WmsSettings = {
   goldenMinAccessibility: 80,
   locationHighUtilizationPct: 85,
   blockRequiresEmptyLocation: false,
+  // Returns module (#12) — reverse-logistics governance
+  returnsFreezeActive: false,
+  returnWindowDays: 30,
+  returnRequireSerialValidation: true,
+  returnAutoDispositionEnabled: true,
+  returnDefaultLocationId: 'loc-returns',
+  returnGradingPolicy: [
+    { condition: 'new', disposition: 'restock' },
+    { condition: 'like_new', disposition: 'restock' },
+    { condition: 'good', disposition: 'restock' },
+    { condition: 'fair', disposition: 'repair' },
+    { condition: 'defective', disposition: 'repair' },
+    { condition: 'damaged', disposition: 'scrap' },
+  ],
+  // Replenishment module (#11)
+  replenishmentFreezeActive: false,
+  replenishmentMediumFactor: 0.8,
+  replenishmentDefaultMinUnits: 10,
+  replenishmentDefaultMaxUnits: 40,
+  replenishmentAutoStoreEnabled: false,
+  replenishmentStoreSourceWarehouseId: 'wh-bog',
+  // Cycle count module (#13)
+  cycleCountFreezeActive: false,
+  cycleCountBlindCountDefault: true,
+  cycleCountVarianceTolerancePct: 2,
+  cycleCountFrequencyDaysA: 30,
+  cycleCountFrequencyDaysB: 60,
+  cycleCountFrequencyDaysC: 90,
+  cycleCountAutoSuggestEnabled: true,
+  // Yard/Dock module (#8)
+  yardFreezeActive: false,
+  yardOperatingHoursStart: '06:00',
+  yardOperatingHoursEnd: '20:00',
+  yardWorkingDays: [1, 2, 3, 4, 5, 6],
+  yardDefaultSlotMinutes: 60,
+  yardLateThresholdMinutes: 30,
+  yardAllowOverbooking: false,
   slaConfigs: [
     {
       id: 'sla-1',
@@ -3640,3 +4197,160 @@ export const demoReturnOrder2: ReturnOrder = {
   items: [{ id: 'demo-retl-2', productId: 'p-cafetera', requestedQuantity: 1 }],
   createdAt: '2026-06-29T09:00:00.000Z',
 }
+
+// ─── Conteo cíclico (#13) — 3 planes en distintos estados ──────────────────────
+//
+// cc-1 pending  · por zona (A) · nada contado — deja el flujo "Iniciar → Contar" completo por demostrar.
+// cc-2 in_progress · por categoría (Pequeños Electrodomésticos) · 1 de 3 líneas ya contada,
+//      modo NO ciego — deja el resto para terminar en vivo (incl. cruzar el umbral de aprobación).
+// cc-3 completed · por rotación (baja) · su única línea ya generó el ajuste aprobado que
+//      dejó inv-pla-1 en 32 uds (ver arriba) — cierra el ciclo conteo → ajuste → IRA.
+
+export const demoCyclicCountPlans: CyclicCountPlan[] = [
+  {
+    id: 'cc-1',
+    code: 'CC-001',
+    name: 'Conteo zona A — pick fast',
+    method: 'by_zone',
+    filterValue: 'A',
+    warehouseId: 'wh-bog',
+    locationIds: ['loc-a0101'],
+    scheduledDate: '2026-07-27',
+    status: 'pending',
+    createdAt: '2026-07-23T08:00:00.000Z',
+    totalItems: 2,
+    countedItems: 0,
+    blindCount: true,
+    auto: false,
+  },
+  {
+    id: 'cc-2',
+    code: 'CC-002',
+    name: 'Conteo Pequeños Electrodomésticos',
+    method: 'by_category',
+    filterValue: 'Pequeños Electrodomésticos',
+    warehouseId: 'wh-bog',
+    locationIds: ['loc-pickfast1', 'loc-pickfast2', 'loc-a0101'],
+    assignedOperatorName: 'Operador CD',
+    scheduledDate: '2026-07-22',
+    status: 'in_progress',
+    createdAt: '2026-07-21T14:00:00.000Z',
+    startedAt: '2026-07-22T15:00:00.000Z',
+    totalItems: 3,
+    countedItems: 1,
+    blindCount: false,
+    auto: false,
+  },
+  {
+    id: 'cc-3',
+    code: 'CC-003',
+    name: 'Conteo baja rotación — Pequeños Electrodomésticos',
+    method: 'by_rotation',
+    filterValue: 'baja',
+    warehouseId: 'wh-bog',
+    locationIds: ['loc-a0102'],
+    assignedOperatorName: 'Operador CD',
+    scheduledDate: '2026-07-15',
+    status: 'completed',
+    createdAt: '2026-07-14T18:00:00.000Z',
+    startedAt: '2026-07-15T09:00:00.000Z',
+    completedAt: '2026-07-15T10:30:00.000Z',
+    totalItems: 1,
+    countedItems: 1,
+    blindCount: true,
+    auto: false,
+  },
+]
+
+export const demoCyclicCountLines: CyclicCountLine[] = [
+  // cc-1 — pendientes de contar
+  {
+    id: 'ccl-1-1',
+    planId: 'cc-1',
+    inventoryItemId: 'inv-mic-1',
+    productId: 'p-microondas',
+    warehouseId: 'wh-bog',
+    locationId: 'loc-a0101',
+    serial: 'MIC-2026-0001',
+    expectedQuantity: 1,
+  },
+  {
+    id: 'ccl-1-2',
+    planId: 'cc-1',
+    inventoryItemId: 'inv-mic-2',
+    productId: 'p-microondas',
+    warehouseId: 'wh-bog',
+    locationId: 'loc-a0101',
+    serial: 'MIC-2026-0002',
+    expectedQuantity: 1,
+  },
+  // cc-2 — una línea ya contada (diferencia menor, dentro de tolerancia), dos pendientes
+  {
+    id: 'ccl-2-1',
+    planId: 'cc-2',
+    inventoryItemId: 'inv-caf-1',
+    productId: 'p-cafetera',
+    warehouseId: 'wh-bog',
+    locationId: 'loc-pickfast1',
+    expectedQuantity: 30,
+    countedQuantity: 27,
+    variance: -3,
+    countedAt: '2026-07-22T15:10:00.000Z',
+    countedBy: 'Operador CD',
+  },
+  {
+    id: 'ccl-2-2',
+    planId: 'cc-2',
+    inventoryItemId: 'inv-bat-1',
+    productId: 'p-batidora',
+    warehouseId: 'wh-bog',
+    locationId: 'loc-pickfast2',
+    expectedQuantity: 18,
+  },
+  {
+    id: 'ccl-2-3',
+    planId: 'cc-2',
+    inventoryItemId: 'inv-san-1',
+    productId: 'p-sanduchera',
+    warehouseId: 'wh-bog',
+    locationId: 'loc-a0101',
+    expectedQuantity: 40,
+  },
+  // cc-3 — completada, ya generó el ajuste aprobado adj-cc-demo-1
+  {
+    id: 'ccl-3-1',
+    planId: 'cc-3',
+    inventoryItemId: 'inv-pla-1',
+    productId: 'p-plancha',
+    warehouseId: 'wh-bog',
+    locationId: 'loc-a0102',
+    lot: 'LOT-PLA-2601',
+    expectedQuantity: 35,
+    countedQuantity: 32,
+    variance: -3,
+    countedAt: '2026-07-15T10:15:00.000Z',
+    countedBy: 'Operador CD',
+    adjustmentRequestId: 'adj-cc-demo-1',
+  },
+]
+
+// Ajuste ya aprobado que produjo el conteo cc-3 — deja el IRA reflejando la desviación
+// desde el primer render, sin pasos previos (ver selectInventoryAccuracy).
+export const demoAdjustmentRequests: InventoryAdjustmentRequest[] = [
+  {
+    id: 'adj-cc-demo-1',
+    inventoryItemId: 'inv-pla-1',
+    productId: 'p-plancha',
+    warehouseId: 'wh-bog',
+    locationId: 'loc-a0102',
+    currentQty: 35,
+    countedQty: 32,
+    delta: -3,
+    reasonId: 'rs-5', // ADJ-CONTEO
+    operatorName: 'Operador CD',
+    requestedAt: '2026-07-15T10:30:00.000Z',
+    status: 'approved',
+    reviewedBy: 'sistema',
+    reviewedAt: '2026-07-15T10:30:00.000Z',
+  },
+]

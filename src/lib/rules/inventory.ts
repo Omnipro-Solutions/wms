@@ -69,6 +69,20 @@ export function applyScrap(item: StockLevels, qty: number): StockLevels {
   return { ...item, onHandQuantity: item.onHandQuantity - qty }
 }
 
+// Internal move — step 1 (pick): pull available units off the source bin. The
+// units then live "on the move task" until dropped, so they leave on-hand here.
+export function applyInternalMovePick(item: StockLevels, qty: number): StockLevels {
+  if (qty <= 0) throw new Error('quantity must be positive')
+  if (qty > availableStock(item)) throw new Error('insufficient available stock to move')
+  return { ...item, onHandQuantity: item.onHandQuantity - qty }
+}
+
+// Internal move — step 2 (drop): land the units on the destination bin. Same math
+// as a receipt; the store also stamps the audit movement and the destination status.
+export function applyInternalMoveDrop(item: StockLevels, qty: number): StockLevels {
+  return applyReceipt(item, qty)
+}
+
 // Adjustment sets on-hand to the counted value; caller records the delta.
 export function applyAdjustment(item: StockLevels, countedOnHand: number): StockLevels {
   if (countedOnHand < 0) throw new Error('counted quantity cannot be negative')

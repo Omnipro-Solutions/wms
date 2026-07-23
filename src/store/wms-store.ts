@@ -3,26 +3,43 @@ import { persist, createJSONStorage } from 'zustand/middleware'
 import { idbStorage } from '@/lib/idb-storage.client'
 import * as seed from '@/data/seed'
 import {
+  agingDays,
   applyAdjustment,
   applyHold,
+  applyInternalMoveDrop,
+  applyInternalMovePick,
   applyReceipt,
   applyRelease,
   applyReserve,
   applyScrap,
   availableStock,
+  isLowRotation,
 } from '@/lib/rules/inventory'
 import {
   canTransition,
   asnTransitions,
   commerceTransitions,
+  cyclicCountTransitions,
   pickingTaskTransitions,
   waveTransitions,
   transferTransitions,
   returnTransitions,
   legTransitions,
+  internalMoveTransitions,
+  dockAppointmentTransitions,
 } from '@/lib/state-machines'
 import {
+  APPOINTMENT_TYPE_LABELS,
+  hasDockConflict,
+  isDockCompatible,
+  isWithinOperatingHours,
+  isWorkingDay,
+} from '@/lib/rules/yard'
+import {
+  abcByProduct,
+  selectCycleCountSchedule,
   selectReplenishmentNeeds,
+  selectStoreReplenishmentNeeds,
   selectSlottingRecommendations,
   selectSlottingImpact,
   selectAffinityRecommendations,
@@ -38,8 +55,16 @@ import type {
   ClusterTask,
   CommerceOrder,
   CrossDockTask,
+  CyclicCountLine,
+  CyclicCountMethod,
   CyclicCountPlan,
+  Dock,
+  DockAppointment,
+  DockAppointmentType,
+  DockStatus,
   IntegrationConnection,
+  InternalMoveTask,
+  InternalMoveType,
   InventoryAdjustmentRequest,
   InventoryItem,
   LoadManifest,
@@ -64,15 +89,19 @@ import type {
   RepairTicket,
   RepairTicketLine,
   ReplenishmentTask,
+  StoreReplenishmentPolicy,
+  StoreReplenishmentTask,
   ScrapLine,
   ScrapRecord,
   ReturnInspection,
   ReturnItemInspection,
   ReturnOrder,
   Shipment,
+  SlottingRule,
   StockMovement,
   StorageLocation,
   TransferLeg,
+  TransferLegLineReceipt,
   TransferLegStatus,
   TransferOrder,
   UnitOfMeasure,
@@ -84,12 +113,51 @@ import type {
 import { canCrossDock } from '@/lib/rules/crossdock'
 import { isGoldenEligible } from '@/lib/rules/locations'
 import { toBaseQty } from '@/lib/rules/uom'
+import { nextReturnStatus, TERMINAL_RETURN_STATUSES } from '@/lib/returns'
 
 let movementCounter = seed.stockMovements.length
+
+// Shared error shown by every returns action when the module is frozen (see /returns-settings).
+const RETURNS_FROZEN_MSG = 'Devoluciones en modo congelado. No se permiten operaciones.'
+
+// Shared error shown by every replenishment action when the module is frozen (see /replenishment-settings).
+const REPLENISHMENT_FROZEN_MSG = 'Reabastecimiento en modo congelado. No se permiten operaciones.'
+
+// Shared error shown by every cycle count action when the module is frozen (see /cycle-count-settings).
+const CYCLE_COUNT_FROZEN_MSG = 'Conteo cíclico en modo congelado. No se permiten operaciones.'
+
+// Shared error shown by every yard/dock action when the module is frozen (see /yard-settings).
+const YARD_FROZEN_MSG = 'Patio y muelles en modo congelado. No se permiten operaciones.'
 
 const nextMovementId = (): string => {
   movementCounter += 1
   return `mv-${movementCounter}`
+}
+
+let internalMoveCounter = seed.internalMoves.length
+
+// Sequential id + human-readable code (MI-001) for a new internal move task.
+const nextInternalMoveRef = (): { id: string; code: string } => {
+  internalMoveCounter += 1
+  return { id: `mi-${internalMoveCounter}`, code: `MI-${String(internalMoveCounter).padStart(3, '0')}` }
+}
+
+let dockAppointmentCounter = seed.dockAppointments.length
+
+// Sequential id + human-readable code (CITA-001) for a new dock appointment.
+const nextDockAppointmentRef = (): { id: string; code: string } => {
+  dockAppointmentCounter += 1
+  return { id: `apt-${dockAppointmentCounter}`, code: `CITA-${String(dockAppointmentCounter).padStart(3, '0')}` }
+}
+
+// Internal moves are location changes within a node; they log as putaway. The
+// reference type keeps the origin queryable (slotting vs replenishment vs manual).
+const internalMoveReferenceType = (
+  moveType: InternalMoveType
+): StockMovement['referenceType'] => {
+  if (moveType === 'reslotting') return 'slotting'
+  if (moveType === 'replenishment') return 'replenishment'
+  return 'manual'
 }
 
 // Bulk layout generator input — one call materialises aisles × racks × levels ×
@@ -142,15 +210,22 @@ export interface WmsState {
   labels: WmsLabel[]
   integrations: IntegrationConnection[]
   replenishmentTasks: ReplenishmentTask[]
+  storeReplenishmentPolicies: StoreReplenishmentPolicy[]
+  storeReplenishmentTasks: StoreReplenishmentTask[]
+  internalMoves: InternalMoveTask[]
   crossDockTasks: CrossDockTask[]
   slottingSnapshots: SlottingSnapshot[]
+  slottingRules: SlottingRule[]
   operators: Operator[]
   reasons: Reason[]
   carriers: Carrier[]
   settings: WmsSettings
   adjustmentRequests: InventoryAdjustmentRequest[]
   cyclicCountPlans: CyclicCountPlan[]
+  cyclicCountLines: CyclicCountLine[]
   unitsOfMeasure: UnitOfMeasure[]
+  docks: Dock[]
+  dockAppointments: DockAppointment[]
   currentOperatorId: string | null
 
   // Sprint 6: operator session
@@ -255,14 +330,30 @@ export interface WmsState {
   // Transfers
   advanceTransfer: (transferId: string, operatorName: string) => TransferOrder
   dispatchLeg: (transferId: string, legId: string, operatorName: string) => TransferOrder
-  receiveLeg: (transferId: string, legId: string, operatorName: string, notes?: string) => TransferOrder
+  receiveLeg: (
+    transferId: string,
+    legId: string,
+    operatorName: string,
+    notes?: string,
+    lineReceipts?: TransferLegLineReceipt[]
+  ) => TransferOrder
   createTransferOrder: (payload: {
     legs: Array<{ originId: string; destinationId: string; estimatedArrivalDate: string }>
     items: OrderLine[]
     operatorName: string
   }) => TransferOrder
   // Returns
+  createReturn: (data: {
+    customerName: string
+    type: ReturnOrder['type']
+    originId: string
+    destinationId: string
+    reasonId: string
+    dispatchDate?: string
+    items: { productId: string; requestedQuantity: number }[]
+  }) => ReturnOrder
   advanceReturn: (returnId: string, operatorName: string) => ReturnOrder
+  rejectReturn: (returnId: string, operatorName: string, note?: string) => ReturnOrder
   inspectReturn: (
     returnId: string,
     inspectorName: string,
@@ -301,13 +392,44 @@ export interface WmsState {
     outcomeNotes: string,
     targetLocationId?: string
   ) => RepairTicket
-  // Replenishment
+  // Replenishment (intra-warehouse: reserve → pick face)
   startReplenishment: (taskId: string, operatorName: string) => ReplenishmentTask
   completeReplenishment: (taskId: string) => ReplenishmentTask
   generateReplenishmentTasks: () => ReplenishmentTask[]
+  // Store (retail) replenishment: DC → store
+  generateStoreReplenishmentTasks: () => StoreReplenishmentTask[]
+  startStoreReplenishment: (taskId: string, operatorName: string) => StoreReplenishmentTask
+  completeStoreReplenishment: (taskId: string) => StoreReplenishmentTask
+  upsertStoreReplenishmentPolicy: (
+    policy: Omit<StoreReplenishmentPolicy, 'id'> & { id?: string }
+  ) => StoreReplenishmentPolicy
+  removeStoreReplenishmentPolicy: (id: string) => void
+  toggleStoreReplenishmentPolicy: (id: string) => void
+  // Internal moves (movimientos internos intra-almacén, confirmación en dos pasos)
+  createInternalMove: (payload: {
+    warehouseId: string
+    moveType: InternalMoveType
+    productId: string
+    fromLocationId: string
+    toLocationId: string
+    quantity: number
+    lot?: string
+    serial?: string
+    reasonId?: string
+    operatorName?: string
+  }) => InternalMoveTask
+  assignMove: (taskId: string, operatorName: string) => InternalMoveTask
+  confirmPickFromSource: (taskId: string, operatorName?: string) => InternalMoveTask
+  confirmDropToDest: (taskId: string, operatorName?: string) => InternalMoveTask
+  cancelMove: (taskId: string) => InternalMoveTask
   // Slotting batch
   relocateAll: (recs: SlottingRecommendation[], operatorName: string) => number
   captureSlottingSnapshot: (label: string) => SlottingSnapshot
+  // Slotting rules (gobierno de ubicaciones)
+  createSlottingRule: (data: Omit<SlottingRule, 'id'>) => SlottingRule
+  updateSlottingRule: (id: string, data: Partial<Omit<SlottingRule, 'id'>>) => SlottingRule
+  toggleSlottingRule: (id: string) => SlottingRule
+  deleteSlottingRule: (id: string) => void
   // Admin — Operators
   createOperator: (data: Omit<Operator, 'id'>) => Operator
   updateOperator: (id: string, data: Partial<Omit<Operator, 'id'>>) => Operator
@@ -326,11 +448,25 @@ export interface WmsState {
   requestAdjustment: (itemId: string, countedQty: number, operatorName: string, reasonId?: string) => InventoryAdjustmentRequest
   approveAdjustment: (requestId: string, reviewerName: string) => InventoryAdjustmentRequest
   rejectAdjustment: (requestId: string, reviewerName: string, note: string) => InventoryAdjustmentRequest
-  // Inventory — Cyclic count (#54)
-  createCyclicCount: (data: Omit<CyclicCountPlan, 'id' | 'code' | 'createdAt' | 'status' | 'countedLocations'>) => CyclicCountPlan
+  // Cycle count module (#13) — plans generate their lines up front (snapshot of
+  // on-hand at creation time); recordCycleCountLine captures the floor count per
+  // line; completeCyclicCount feeds discrepancies through the existing adjustment
+  // engine (requestAdjustment) so approval + IRA stay governed in one place.
+  createCyclicCount: (data: {
+    name: string
+    method: CyclicCountMethod
+    filterValue: string
+    warehouseId: string
+    scheduledDate: string
+    assignedOperatorName?: string
+    blindCount?: boolean
+    auto?: boolean
+  }) => CyclicCountPlan
   startCyclicCount: (planId: string) => CyclicCountPlan
-  completeCyclicCount: (planId: string) => CyclicCountPlan
+  recordCycleCountLine: (lineId: string, countedQty: number, operatorName: string) => CyclicCountLine
+  completeCyclicCount: (planId: string, reviewerName: string) => CyclicCountPlan
   cancelCyclicCount: (planId: string) => CyclicCountPlan
+  generateSuggestedCycleCounts: () => CyclicCountPlan[]
   // Admin — Warehouses
   createWarehouse: (data: Omit<Warehouse, 'id'>) => Warehouse
   updateWarehouse: (id: string, data: Partial<Omit<Warehouse, 'id'>>) => Warehouse
@@ -362,6 +498,32 @@ export interface WmsState {
   updateSapRouteStatus: (id: string, status: SapRouteStatus) => void
   updateAsnAppointment: (id: string, data: { dockId?: string; timeSlot?: string; carrierConfirmed?: boolean }) => void
   updateWarehouseDeliveryWindows: (id: string, windows: DeliveryWindow[]) => void
+  // Yard / Dock management (#8)
+  createDock: (data: Omit<Dock, 'id'>) => Dock
+  updateDock: (id: string, data: Partial<Omit<Dock, 'id'>>) => Dock
+  setDockStatus: (id: string, status: DockStatus) => Dock
+  createDockAppointment: (payload: {
+    warehouseId: string
+    dockId?: string
+    type: DockAppointmentType
+    asnId?: string
+    manifestId?: string
+    carrierName?: string
+    driverName?: string
+    vehiclePlate?: string
+    scheduledStart: string
+    scheduledEnd: string
+    notes?: string
+  }) => DockAppointment
+  assignDock: (appointmentId: string, dockId: string) => DockAppointment
+  checkInAppointment: (
+    appointmentId: string,
+    data?: { driverName?: string; vehiclePlate?: string }
+  ) => DockAppointment
+  startAppointment: (appointmentId: string) => DockAppointment
+  completeAppointment: (appointmentId: string) => DockAppointment
+  markAppointmentNoShow: (appointmentId: string) => DockAppointment
+  cancelAppointment: (appointmentId: string) => DockAppointment
 }
 
 const recordMovement = (partial: Omit<StockMovement, 'id' | 'createdAt'>): StockMovement => ({
@@ -369,6 +531,40 @@ const recordMovement = (partial: Omit<StockMovement, 'id' | 'createdAt'>): Stock
   id: nextMovementId(),
   createdAt: seed.seedTimestamp,
 })
+
+// Resolves which InventoryItems a cycle count plan covers, given its method/filter.
+// Shared by createCyclicCount (manual plans) and generateSuggestedCycleCounts (ABC scheduler).
+const resolveCyclicCountItems = (
+  state: WmsState,
+  method: CyclicCountMethod,
+  filterValue: string,
+  warehouseId: string
+): InventoryItem[] => {
+  const items = state.inventoryItems.filter(
+    (i) => i.warehouseId === warehouseId && i.onHandQuantity > 0 && i.status !== 'in_transit'
+  )
+  if (method === 'by_zone') {
+    const zoneLocationIds = new Set(
+      state.locations.filter((l) => l.warehouseId === warehouseId && l.zone === filterValue).map((l) => l.id)
+    )
+    return items.filter((i) => zoneLocationIds.has(i.locationId))
+  }
+  if (method === 'by_category') {
+    const categoryProductIds = new Set(
+      state.products.filter((p) => p.category === filterValue).map((p) => p.id)
+    )
+    return items.filter((i) => categoryProductIds.has(i.productId))
+  }
+  if (method === 'by_abc') {
+    const abc = abcByProduct(state)
+    return items.filter((i) => (abc[i.productId] ?? 'C') === filterValue)
+  }
+  // by_rotation: 'alta' | 'baja', mirrors the /inventory Antigüedad tab's low-rotation rule.
+  const wantLowRotation = filterValue === 'baja'
+  return items.filter(
+    (i) => isLowRotation(agingDays(i), state.settings.agingLowRotationDays) === wantLowRotation
+  )
+}
 
 // Seed state factory — called only when localStorage has no prior session data.
 const buildSeedState = () => ({
@@ -403,15 +599,22 @@ const buildSeedState = () => ({
   labels: seed.labels,
   integrations: seed.integrations,
   replenishmentTasks: seed.replenishmentTasks,
+  storeReplenishmentPolicies: seed.storeReplenishmentPolicies,
+  storeReplenishmentTasks: seed.storeReplenishmentTasks,
+  internalMoves: seed.internalMoves,
   crossDockTasks: [] as CrossDockTask[],
   slottingSnapshots: [] as SlottingSnapshot[],
+  slottingRules: seed.slottingRules,
   operators: seed.operators,
   reasons: seed.reasons,
   carriers: seed.carriers,
   settings: seed.settings,
-  adjustmentRequests: [] as InventoryAdjustmentRequest[],
-  cyclicCountPlans: [] as CyclicCountPlan[],
+  adjustmentRequests: seed.demoAdjustmentRequests,
+  cyclicCountPlans: seed.demoCyclicCountPlans,
+  cyclicCountLines: seed.demoCyclicCountLines,
   unitsOfMeasure: seed.unitsOfMeasure,
+  docks: seed.docks,
+  dockAppointments: seed.dockAppointments,
   currentOperatorId: 'op-0' as string | null,
 })
 
@@ -1281,14 +1484,39 @@ export const useWmsStore = create<WmsState>()(
       toLocationId,
       type: 'putaway',
       quantity: qty,
+      lot: item.lot,
+      serial: item.serial,
       referenceType: 'slotting',
       referenceId: itemId,
       operatorName,
     })
 
+    // Unifica la reubicación por slotting bajo el motor de movimientos internos:
+    // queda registrada (como reslotting ya completado) en la misma cola/historial.
+    const now = new Date().toISOString()
+    const { id: moveId, code } = nextInternalMoveRef()
+    const reslotTask: InternalMoveTask = {
+      id: moveId,
+      code,
+      warehouseId: item.warehouseId,
+      moveType: 'reslotting',
+      productId: item.productId,
+      fromLocationId: item.locationId,
+      toLocationId,
+      quantity: qty,
+      lot: item.lot,
+      serial: item.serial,
+      status: 'dropped',
+      operatorName,
+      createdAt: now,
+      pickedAt: now,
+      droppedAt: now,
+    }
+
     set({
       inventoryItems: updatedItems,
       stockMovements: [...state.stockMovements, movement],
+      internalMoves: [...state.internalMoves, reslotTask],
     })
   },
 
@@ -2116,7 +2344,7 @@ export const useWmsStore = create<WmsState>()(
     return updatedTransfer
   },
 
-  receiveLeg: (transferId, legId, operatorName, notes) => {
+  receiveLeg: (transferId, legId, operatorName, notes, lineReceipts) => {
     const state = get()
     const transfer = state.transfers.find((t) => t.id === transferId)
     if (!transfer) throw new Error('Traslado no encontrado')
@@ -2130,12 +2358,19 @@ export const useWmsStore = create<WmsState>()(
     }
 
     const now = new Date().toISOString()
+    // Reconciliación por línea: si el recepcionista captura cantidades, se usan para
+    // aterrizar solo lo sano (receivedQty) y registrar la avería/faltante como merma.
+    // Sin lineReceipts, se conserva el comportamiento previo (aterriza todo lo despachado).
+    const receiptByProduct = new Map<string, TransferLegLineReceipt>(
+      (lineReceipts ?? []).map((r) => [r.productId, r])
+    )
     const updatedLeg: TransferLeg = {
       ...leg,
       status: 'received',
       receivedAt: now,
       operatorName,
       notes,
+      lineReceipts: lineReceipts && lineReceipts.length > 0 ? lineReceipts : leg.lineReceipts,
     }
 
     const updatedLegs = transfer.legs.map((l) => (l.id === legId ? updatedLeg : l))
@@ -2148,59 +2383,85 @@ export const useWmsStore = create<WmsState>()(
     // y deja la mercancía disponible en la bodega destino, en el muelle de recibo.
     // En un tramo intermedio esto deja el stock en la bodega transitoria, listo para
     // re-despacharse; en el tramo final completa el traslado.
+    // NOTA MVP: la posición en tránsito se agrega por producto y no arrastra lote/serie
+    // individual — la continuidad lote/serie a través del tránsito queda pendiente.
     let updatedItems = [...state.inventoryItems]
     const movements: StockMovement[] = []
 
     for (const line of transfer.items) {
       const transitId = `inv-transit-${legId}-${line.productId}`
       const transitIdx = updatedItems.findIndex((i) => i.id === transitId)
-      const arrivedQty =
+      const dispatchedQty =
         transitIdx >= 0 ? updatedItems[transitIdx].onHandQuantity : line.requestedQuantity
 
       if (transitIdx >= 0) updatedItems = updatedItems.filter((i) => i.id !== transitId)
 
-      const destIdx = updatedItems.findIndex(
-        (i) =>
-          i.warehouseId === leg.destinationId &&
-          i.productId === line.productId &&
-          i.locationId === 'loc-recibo' &&
-          i.status === 'available'
-      )
-      if (destIdx >= 0) {
-        updatedItems[destIdx] = {
-          ...updatedItems[destIdx],
-          onHandQuantity: updatedItems[destIdx].onHandQuantity + arrivedQty,
+      const receipt = receiptByProduct.get(line.productId)
+      // Unidades sanas que entran a stock disponible; avería no aterriza (merma).
+      const soundQty = receipt ? Math.max(0, receipt.receivedQty) : dispatchedQty
+      const damagedQty = receipt ? Math.max(0, receipt.damagedQty) : 0
+
+      if (soundQty > 0) {
+        const destIdx = updatedItems.findIndex(
+          (i) =>
+            i.warehouseId === leg.destinationId &&
+            i.productId === line.productId &&
+            i.locationId === 'loc-recibo' &&
+            i.status === 'available'
+        )
+        if (destIdx >= 0) {
+          updatedItems[destIdx] = {
+            ...updatedItems[destIdx],
+            onHandQuantity: updatedItems[destIdx].onHandQuantity + soundQty,
+          }
+        } else {
+          updatedItems = [
+            ...updatedItems,
+            {
+              id: `inv-arr-${legId}-${line.productId}`,
+              productId: line.productId,
+              warehouseId: leg.destinationId,
+              locationId: 'loc-recibo',
+              onHandQuantity: soundQty,
+              reservedQuantity: 0,
+              holdQuantity: 0,
+              status: 'available' as const,
+              receivedDate: now,
+            },
+          ]
         }
-      } else {
-        updatedItems = [
-          ...updatedItems,
-          {
-            id: `inv-arr-${legId}-${line.productId}`,
+
+        movements.push(
+          recordMovement({
             productId: line.productId,
             warehouseId: leg.destinationId,
-            locationId: 'loc-recibo',
-            onHandQuantity: arrivedQty,
-            reservedQuantity: 0,
-            holdQuantity: 0,
-            status: 'available' as const,
-            receivedDate: now,
-          },
-        ]
+            fromLocationId: 'loc-transit',
+            toLocationId: 'loc-recibo',
+            type: 'transfer',
+            quantity: soundQty,
+            referenceType: 'transfer',
+            referenceId: transferId,
+            operatorName,
+          })
+        )
       }
 
-      movements.push(
-        recordMovement({
-          productId: line.productId,
-          warehouseId: leg.destinationId,
-          fromLocationId: 'loc-transit',
-          toLocationId: 'loc-recibo',
-          type: 'transfer',
-          quantity: arrivedQty,
-          referenceType: 'transfer',
-          referenceId: transferId,
-          operatorName,
-        })
-      )
+      // Avería en tránsito: no entra a disponible; se registra como merma (scrap) trazable.
+      if (damagedQty > 0) {
+        movements.push(
+          recordMovement({
+            productId: line.productId,
+            warehouseId: leg.destinationId,
+            fromLocationId: 'loc-transit',
+            toLocationId: 'loc-recibo',
+            type: 'scrap',
+            quantity: damagedQty,
+            referenceType: 'transfer',
+            referenceId: transferId,
+            operatorName,
+          })
+        )
+      }
     }
 
     const updatedTransfer: TransferOrder = {
@@ -2258,36 +2519,61 @@ export const useWmsStore = create<WmsState>()(
 
   // ─── Returns ──────────────────────────────────────────────────────────────
 
+  createReturn: (data) => {
+    const state = get()
+    if (state.settings.returnsFreezeActive) throw new Error(RETURNS_FROZEN_MSG)
+    if (data.items.length === 0) throw new Error('Agrega al menos un ítem a la devolución')
+    if (data.items.some((i) => i.requestedQuantity <= 0)) {
+      throw new Error('Las cantidades deben ser mayores a cero')
+    }
+
+    // RMA code: RMA-YYMM-NNN, sequential within the current session.
+    const now = new Date(seed.seedTimestamp)
+    const yy = String(now.getFullYear()).slice(-2)
+    const mm = String(now.getMonth() + 1).padStart(2, '0')
+    const seq = String(state.returnOrders.length + 1).padStart(3, '0')
+
+    const created: ReturnOrder = {
+      id: `ret-${Date.now()}`,
+      rmaCode: `RMA-${yy}${mm}-${seq}`,
+      customerName: data.customerName,
+      type: data.type,
+      originId: data.originId,
+      destinationId: data.destinationId,
+      status: 'requested',
+      reasonId: data.reasonId,
+      // New returns start without a decision — QC is the safe default until inspected.
+      disposition: 'quality_control',
+      items: data.items.map((i, idx) => ({
+        id: `retl-${Date.now()}-${idx}`,
+        productId: i.productId,
+        requestedQuantity: i.requestedQuantity,
+      })),
+      createdAt: seed.seedTimestamp,
+      ...(data.dispatchDate ? { dispatchDate: data.dispatchDate } : {}),
+    }
+    set({ returnOrders: [...state.returnOrders, created] })
+    return created
+  },
+
   advanceReturn: (returnId, operatorName) => {
     const state = get()
+    if (state.settings.returnsFreezeActive) throw new Error(RETURNS_FROZEN_MSG)
     const ret = state.returnOrders.find((r) => r.id === returnId)
     if (!ret) throw new Error('return order not found')
 
-    const NEXT: Partial<Record<string, string>> = {
-      requested: 'received_at_store',
-      received_at_store: 'in_transit_to_dc',
-      in_transit_to_dc: 'received_at_dc',
-      received_at_dc: 'under_validation',
-      under_validation:
-        ret.disposition === 'restock'
-          ? 'reentered'
-          : ret.disposition === 'scrap'
-            ? 'sent_to_scrap'
-            : ret.disposition === 'repair'
-              ? 'sent_to_repair'
-              : 'sent_to_quality_control',
-      sent_to_quality_control: ret.disposition === 'restock' ? 'reentered' : 'sent_to_scrap',
-      sent_to_repair: 'reentered',
-      reentered: 'closed',
-      sent_to_scrap: 'closed',
-      rejected: 'closed',
-    }
-    const next = NEXT[ret.status] as typeof ret.status | undefined
+    // Single source of truth for the next FSM step (shared with the UI).
+    const next = nextReturnStatus(ret)
     if (!next || !canTransition(returnTransitions, ret.status, next)) {
       throw new Error(`No se puede avanzar devolución desde el estado ${ret.status}`)
     }
 
-    const updated: ReturnOrder = { ...ret, status: next }
+    const updated: ReturnOrder = {
+      ...ret,
+      status: next,
+      // Stamp lifecycle end when we reach a terminal state — powers cycle-time KPI.
+      ...(TERMINAL_RETURN_STATUSES.has(next) ? { closedAt: seed.seedTimestamp } : {}),
+    }
     const movements: StockMovement[] = []
 
     if (next === 'reentered') {
@@ -2314,8 +2600,29 @@ export const useWmsStore = create<WmsState>()(
     return updated
   },
 
+  rejectReturn: (returnId, operatorName, note) => {
+    const state = get()
+    if (state.settings.returnsFreezeActive) throw new Error(RETURNS_FROZEN_MSG)
+    const ret = state.returnOrders.find((r) => r.id === returnId)
+    if (!ret) throw new Error('return order not found')
+    if (!canTransition(returnTransitions, ret.status, 'rejected')) {
+      throw new Error(`No se puede rechazar una devolución en estado ${ret.status}`)
+    }
+    void operatorName
+    void note
+    const updated: ReturnOrder = {
+      ...ret,
+      status: 'rejected',
+      disposition: 'rejected',
+      closedAt: seed.seedTimestamp,
+    }
+    set({ returnOrders: state.returnOrders.map((r) => (r.id === returnId ? updated : r)) })
+    return updated
+  },
+
   inspectReturn: (returnId, inspectorName, items, notes) => {
     const state = get()
+    if (state.settings.returnsFreezeActive) throw new Error(RETURNS_FROZEN_MSG)
     const ret = state.returnOrders.find((r) => r.id === returnId)
     if (!ret) throw new Error('return order not found')
     if (ret.status !== 'under_validation') {
@@ -2336,6 +2643,22 @@ export const useWmsStore = create<WmsState>()(
         serialMatchesDispatch: dispatchedSerials.has(item.serial),
       }
     })
+
+    // When serial validation is enforced (WmsSettings.returnRequireSerialValidation),
+    // a serial that isn't found in the dispatch history blocks the inspection — the
+    // returned unit cannot be proven to be one we actually shipped.
+    if (state.settings.returnRequireSerialValidation) {
+      const unmatched = enrichedItems.filter(
+        (i) => i.serial && i.serialMatchesDispatch === false
+      )
+      if (unmatched.length > 0) {
+        throw new Error(
+          `Validación de serie activa: ${unmatched
+            .map((i) => i.serial)
+            .join(', ')} no figura(n) en el historial de despacho. Corrige el serial o desactiva la validación en Configuración → Devoluciones.`
+        )
+      }
+    }
 
     const overallResult: ReturnInspection['overallResult'] = enrichedItems.every(
       (i) => i.conditionRating !== 'defective'
@@ -2366,6 +2689,7 @@ export const useWmsStore = create<WmsState>()(
 
   setReturnDisposition: (returnId, disposition) => {
     const state = get()
+    if (state.settings.returnsFreezeActive) throw new Error(RETURNS_FROZEN_MSG)
     const ret = state.returnOrders.find((r) => r.id === returnId)
     if (!ret) throw new Error('return order not found')
     if (ret.status !== 'under_validation') {
@@ -2378,6 +2702,7 @@ export const useWmsStore = create<WmsState>()(
 
   executeReentry: (returnId, lines, operatorName) => {
     const state = get()
+    if (state.settings.returnsFreezeActive) throw new Error(RETURNS_FROZEN_MSG)
     const ret = state.returnOrders.find((r) => r.id === returnId)
     if (!ret) throw new Error('return order not found')
     if (ret.status !== 'reentered') {
@@ -2461,7 +2786,7 @@ export const useWmsStore = create<WmsState>()(
     }
 
     // Advance return to closed
-    const updatedReturn: ReturnOrder = { ...ret, status: 'closed' }
+    const updatedReturn: ReturnOrder = { ...ret, status: 'closed', closedAt: seed.seedTimestamp }
 
     set({
       inventoryItems: updatedItems,
@@ -2474,6 +2799,7 @@ export const useWmsStore = create<WmsState>()(
 
   executeScrap: (returnId, lines, disposalMethod, operatorName, referenceDoc, notes) => {
     const state = get()
+    if (state.settings.returnsFreezeActive) throw new Error(RETURNS_FROZEN_MSG)
     const ret = state.returnOrders.find((r) => r.id === returnId)
     if (!ret) throw new Error('return order not found')
     if (ret.status !== 'sent_to_scrap') {
@@ -2531,7 +2857,7 @@ export const useWmsStore = create<WmsState>()(
       ...(notes ? { notes } : {}),
     }
 
-    const updatedReturn: ReturnOrder = { ...ret, status: 'closed' }
+    const updatedReturn: ReturnOrder = { ...ret, status: 'closed', closedAt: seed.seedTimestamp }
 
     set({
       inventoryItems: updatedItems,
@@ -2544,6 +2870,7 @@ export const useWmsStore = create<WmsState>()(
 
   createRepairTicket: (returnId, vendorName, repairType, lines, expectedReturnDate, operatorName) => {
     const state = get()
+    if (state.settings.returnsFreezeActive) throw new Error(RETURNS_FROZEN_MSG)
     const ret = state.returnOrders.find((r) => r.id === returnId)
     if (!ret) throw new Error('return order not found')
     if (ret.status !== 'sent_to_repair') {
@@ -2570,6 +2897,7 @@ export const useWmsStore = create<WmsState>()(
 
   receiveRepairReturn: (ticketId, outcome, finalCostUsd, outcomeNotes, targetLocationId) => {
     const state = get()
+    if (state.settings.returnsFreezeActive) throw new Error(RETURNS_FROZEN_MSG)
     const ticket = state.repairTickets.find((t) => t.id === ticketId)
     if (!ticket) throw new Error('repair ticket not found')
     if (ticket.status === 'completed' || ticket.status === 'failed') {
@@ -2680,10 +3008,11 @@ export const useWmsStore = create<WmsState>()(
     return updatedTicket
   },
 
-  // ─── Replenishment ────────────────────────────────────────────────────────
+  // ─── Replenishment (intra-warehouse: reserve → pick face) ───────────────────
 
   startReplenishment: (taskId, operatorName) => {
     const state = get()
+    if (state.settings.replenishmentFreezeActive) throw new Error(REPLENISHMENT_FROZEN_MSG)
     const task = state.replenishmentTasks.find((t) => t.id === taskId)
     if (!task) throw new Error('replenishment task not found')
     if (task.status !== 'pending')
@@ -2697,6 +3026,7 @@ export const useWmsStore = create<WmsState>()(
 
   completeReplenishment: (taskId) => {
     const state = get()
+    if (state.settings.replenishmentFreezeActive) throw new Error(REPLENISHMENT_FROZEN_MSG)
     const task = state.replenishmentTasks.find((t) => t.id === taskId)
     if (!task) throw new Error('replenishment task not found')
     if (task.status !== 'assigned')
@@ -2711,6 +3041,10 @@ export const useWmsStore = create<WmsState>()(
     const origin = state.inventoryItems[originIdx]
     const qty = Math.min(task.suggestedQuantity, origin.onHandQuantity)
     if (qty <= 0) throw new Error('Sin stock disponible para reponer')
+
+    // Warehouse is the pick face's, not a hardcoded DC — keeps multi-warehouse correct.
+    const destLoc = state.locations.find((l) => l.id === task.destinationLocationId)
+    const warehouseId = task.warehouseId ?? destLoc?.warehouseId ?? origin.warehouseId
 
     let updatedItems = state.inventoryItems.map((i, idx) =>
       idx === originIdx ? { ...i, onHandQuantity: i.onHandQuantity - qty } : i
@@ -2730,7 +3064,7 @@ export const useWmsStore = create<WmsState>()(
         {
           id: `inv-rp-${taskId}`,
           productId: task.productId,
-          warehouseId: 'wh-bog',
+          warehouseId,
           locationId: task.destinationLocationId,
           onHandQuantity: qty,
           reservedQuantity: 0,
@@ -2747,7 +3081,7 @@ export const useWmsStore = create<WmsState>()(
     }
     const movement = recordMovement({
       productId: task.productId,
-      warehouseId: 'wh-bog',
+      warehouseId,
       fromLocationId: task.originLocationId,
       toLocationId: task.destinationLocationId,
       type: 'putaway',
@@ -2767,25 +3101,445 @@ export const useWmsStore = create<WmsState>()(
 
   generateReplenishmentTasks: () => {
     const state = get()
+    if (state.settings.replenishmentFreezeActive) throw new Error(REPLENISHMENT_FROZEN_MSG)
     const needs = selectReplenishmentNeeds(state)
     if (needs.length === 0) return []
 
+    const now = new Date().toISOString()
     const baseIdx = state.replenishmentTasks.length
-    const newTasks: ReplenishmentTask[] = needs.map((need, i) => ({
-      id: `rp-gen-${baseIdx + i + 1}`,
+    const newTasks: ReplenishmentTask[] = needs.map((need, i) => {
+      const pickFace = state.locations.find((l) => l.id === need.pickFaceLocationId)
+      return {
+        id: `rp-gen-${baseIdx + i + 1}`,
+        productId: need.productId,
+        warehouseId: pickFace?.warehouseId,
+        originLocationId: need.reserveLocationId,
+        destinationLocationId: need.pickFaceLocationId,
+        currentStock: need.currentStock,
+        minStock: need.minStock,
+        maxStock: need.maxStock,
+        suggestedQuantity: need.suggestedQuantity,
+        priority: need.priority,
+        status: 'pending',
+        createdAt: now,
+        auto: false,
+      }
+    })
+
+    set({ replenishmentTasks: [...state.replenishmentTasks, ...newTasks] })
+    return newTasks
+  },
+
+  // ─── Store (retail) replenishment: DC → store ───────────────────────────────
+
+  generateStoreReplenishmentTasks: () => {
+    const state = get()
+    if (state.settings.replenishmentFreezeActive) throw new Error(REPLENISHMENT_FROZEN_MSG)
+    const needs = selectStoreReplenishmentNeeds(state).filter((n) => !n.hasActiveTask)
+    if (needs.length === 0) return []
+
+    const now = new Date().toISOString()
+    const baseIdx = state.storeReplenishmentTasks.length
+    const newTasks: StoreReplenishmentTask[] = needs.map((need, i) => ({
+      id: `srp-gen-${baseIdx + i + 1}`,
+      storeWarehouseId: need.storeWarehouseId,
+      sourceWarehouseId: need.sourceWarehouseId,
       productId: need.productId,
-      originLocationId: need.reserveLocationId,
-      destinationLocationId: need.pickFaceLocationId,
       currentStock: need.currentStock,
       minStock: need.minStock,
       maxStock: need.maxStock,
       suggestedQuantity: need.suggestedQuantity,
       priority: need.priority,
       status: 'pending',
+      createdAt: now,
+      auto: state.settings.replenishmentAutoStoreEnabled,
     }))
 
-    set({ replenishmentTasks: [...state.replenishmentTasks, ...newTasks] })
+    set({ storeReplenishmentTasks: [...state.storeReplenishmentTasks, ...newTasks] })
     return newTasks
+  },
+
+  startStoreReplenishment: (taskId, operatorName) => {
+    const state = get()
+    if (state.settings.replenishmentFreezeActive) throw new Error(REPLENISHMENT_FROZEN_MSG)
+    const task = state.storeReplenishmentTasks.find((t) => t.id === taskId)
+    if (!task) throw new Error('store replenishment task not found')
+    if (task.status !== 'pending')
+      throw new Error(`No se puede iniciar desde el estado ${task.status}`)
+    const updated: StoreReplenishmentTask = { ...task, status: 'in_transit', operatorName }
+    set({
+      storeReplenishmentTasks: state.storeReplenishmentTasks.map((t) =>
+        t.id === taskId ? updated : t
+      ),
+    })
+    return updated
+  },
+
+  completeStoreReplenishment: (taskId) => {
+    const state = get()
+    if (state.settings.replenishmentFreezeActive) throw new Error(REPLENISHMENT_FROZEN_MSG)
+    const task = state.storeReplenishmentTasks.find((t) => t.id === taskId)
+    if (!task) throw new Error('store replenishment task not found')
+    if (task.status !== 'in_transit')
+      throw new Error(`No se puede completar desde el estado ${task.status}`)
+
+    // Pull from the source DC (any available position for the product).
+    const originIdx = state.inventoryItems.findIndex(
+      (i) =>
+        i.warehouseId === task.sourceWarehouseId &&
+        i.productId === task.productId &&
+        i.status === 'available' &&
+        i.onHandQuantity - i.reservedQuantity - i.holdQuantity > 0
+    )
+    if (originIdx === -1) throw new Error('El CD origen no tiene stock disponible para surtir')
+
+    const origin = state.inventoryItems[originIdx]
+    const originAvailable = origin.onHandQuantity - origin.reservedQuantity - origin.holdQuantity
+    const qty = Math.min(task.suggestedQuantity, originAvailable)
+    if (qty <= 0) throw new Error('Sin stock disponible en el CD origen')
+
+    // A store keeps its stock in its sales-floor pick face (loc-floor-<store>).
+    const storeFloor = state.locations.find(
+      (l) => l.warehouseId === task.storeWarehouseId && l.isPickFace && !l.isBlocked
+    )
+    const destLocationId = storeFloor?.id ?? `loc-floor-${task.storeWarehouseId}`
+
+    let updatedItems = state.inventoryItems.map((i, idx) =>
+      idx === originIdx ? { ...i, onHandQuantity: i.onHandQuantity - qty } : i
+    )
+
+    const destIdx = updatedItems.findIndex(
+      (i) => i.warehouseId === task.storeWarehouseId && i.productId === task.productId
+    )
+    if (destIdx >= 0) {
+      updatedItems[destIdx] = {
+        ...updatedItems[destIdx],
+        onHandQuantity: updatedItems[destIdx].onHandQuantity + qty,
+      }
+    } else {
+      updatedItems = [
+        ...updatedItems,
+        {
+          id: `inv-srp-${taskId}`,
+          productId: task.productId,
+          warehouseId: task.storeWarehouseId,
+          locationId: destLocationId,
+          onHandQuantity: qty,
+          reservedQuantity: 0,
+          holdQuantity: 0,
+          status: 'available',
+        },
+      ]
+    }
+
+    // Two audit entries: out of the DC and into the store (transfer semantics).
+    const movementOut = recordMovement({
+      productId: task.productId,
+      warehouseId: task.sourceWarehouseId,
+      fromLocationId: origin.locationId,
+      type: 'transfer',
+      quantity: qty,
+      referenceType: 'replenishment',
+      referenceId: taskId,
+      operatorName: task.operatorName ?? 'Operador',
+    })
+    const movementIn = recordMovement({
+      productId: task.productId,
+      warehouseId: task.storeWarehouseId,
+      toLocationId: destLocationId,
+      type: 'transfer',
+      quantity: qty,
+      referenceType: 'replenishment',
+      referenceId: taskId,
+      operatorName: task.operatorName ?? 'Operador',
+    })
+
+    const updated: StoreReplenishmentTask = {
+      ...task,
+      status: 'completed',
+      currentStock: task.currentStock + qty,
+    }
+
+    set({
+      storeReplenishmentTasks: state.storeReplenishmentTasks.map((t) =>
+        t.id === taskId ? updated : t
+      ),
+      inventoryItems: updatedItems,
+      stockMovements: [...state.stockMovements, movementOut, movementIn],
+    })
+    return updated
+  },
+
+  upsertStoreReplenishmentPolicy: (policy) => {
+    const state = get()
+    const existing = policy.id
+      ? state.storeReplenishmentPolicies.find((p) => p.id === policy.id)
+      : undefined
+    const resolved: StoreReplenishmentPolicy = {
+      id: existing?.id ?? `srp-pol-${state.storeReplenishmentPolicies.length + 1}-${policy.productId}`,
+      storeWarehouseId: policy.storeWarehouseId,
+      productId: policy.productId,
+      minStock: policy.minStock,
+      maxStock: policy.maxStock,
+      active: policy.active,
+    }
+    set({
+      storeReplenishmentPolicies: existing
+        ? state.storeReplenishmentPolicies.map((p) => (p.id === resolved.id ? resolved : p))
+        : [...state.storeReplenishmentPolicies, resolved],
+    })
+    return resolved
+  },
+
+  removeStoreReplenishmentPolicy: (id) => {
+    const state = get()
+    set({
+      storeReplenishmentPolicies: state.storeReplenishmentPolicies.filter((p) => p.id !== id),
+    })
+  },
+
+  toggleStoreReplenishmentPolicy: (id) => {
+    const state = get()
+    set({
+      storeReplenishmentPolicies: state.storeReplenishmentPolicies.map((p) =>
+        p.id === id ? { ...p, active: !p.active } : p
+      ),
+    })
+  },
+
+  // ─── Internal moves (movimientos internos intra-almacén) ────────────────────
+  // Motor unificado de tareas de trabajo con confirmación en dos pasos:
+  // create → assign → pick (sale del origen) → drop (aterriza en destino).
+
+  createInternalMove: (payload) => {
+    const state = get()
+    if (state.settings.inventoryFreezeActive)
+      throw new Error('Inventario en modo congelado. No se permiten movimientos internos.')
+    if (payload.quantity <= 0) throw new Error('La cantidad debe ser positiva')
+    if (payload.fromLocationId === payload.toLocationId)
+      throw new Error('El origen y el destino deben ser ubicaciones distintas')
+
+    // Invariante intra-almacén: origen y destino deben pertenecer al mismo nodo.
+    const fromLoc = state.locations.find((l) => l.id === payload.fromLocationId)
+    const toLoc = state.locations.find((l) => l.id === payload.toLocationId)
+    if (fromLoc && toLoc && fromLoc.warehouseId !== toLoc.warehouseId)
+      throw new Error('Un movimiento entre bodegas distintas es un traslado, no un movimiento interno')
+
+    // Debe haber disponible suficiente en el origen al momento de crear la tarea.
+    const source = state.inventoryItems.find(
+      (i) =>
+        i.productId === payload.productId &&
+        i.locationId === payload.fromLocationId &&
+        i.warehouseId === payload.warehouseId &&
+        (payload.lot ? i.lot === payload.lot : true) &&
+        (payload.serial ? i.serial === payload.serial : true)
+    )
+    if (!source) throw new Error('No hay stock del producto en la ubicación origen')
+    if (payload.quantity > availableStock(source))
+      throw new Error('La cantidad supera el stock disponible en el origen')
+
+    const { id, code } = nextInternalMoveRef()
+    const task: InternalMoveTask = {
+      id,
+      code,
+      warehouseId: payload.warehouseId,
+      moveType: payload.moveType,
+      productId: payload.productId,
+      fromLocationId: payload.fromLocationId,
+      toLocationId: payload.toLocationId,
+      quantity: payload.quantity,
+      lot: payload.lot ?? source.lot,
+      serial: payload.serial ?? source.serial,
+      status: payload.operatorName ? 'assigned' : 'pending',
+      reasonId: payload.reasonId,
+      operatorName: payload.operatorName,
+      createdAt: new Date().toISOString(),
+    }
+
+    set({ internalMoves: [...state.internalMoves, task] })
+    return task
+  },
+
+  assignMove: (taskId, operatorName) => {
+    const state = get()
+    const task = state.internalMoves.find((t) => t.id === taskId)
+    if (!task) throw new Error('Movimiento interno no encontrado')
+    if (!canTransition(internalMoveTransitions, task.status, 'assigned'))
+      throw new Error(`No se puede asignar desde el estado ${task.status}`)
+    const updated: InternalMoveTask = { ...task, status: 'assigned', operatorName }
+    set({ internalMoves: state.internalMoves.map((t) => (t.id === taskId ? updated : t)) })
+    return updated
+  },
+
+  confirmPickFromSource: (taskId, operatorName) => {
+    const state = get()
+    if (state.settings.inventoryFreezeActive)
+      throw new Error('Inventario en modo congelado. No se permiten movimientos internos.')
+    const task = state.internalMoves.find((t) => t.id === taskId)
+    if (!task) throw new Error('Movimiento interno no encontrado')
+    if (!canTransition(internalMoveTransitions, task.status, 'picked'))
+      throw new Error(`No se puede recoger desde el estado ${task.status}`)
+
+    const srcIdx = state.inventoryItems.findIndex(
+      (i) =>
+        i.productId === task.productId &&
+        i.locationId === task.fromLocationId &&
+        i.warehouseId === task.warehouseId &&
+        (task.lot ? i.lot === task.lot : true) &&
+        (task.serial ? i.serial === task.serial : true)
+    )
+    if (srcIdx === -1) throw new Error('No hay stock en la ubicación origen')
+    const source = state.inventoryItems[srcIdx]
+    const moved = applyInternalMovePick(source, task.quantity)
+
+    // Retira las unidades del origen; deja "en movimiento" sobre la tarea hasta el drop.
+    // Descarta el registro origen si queda totalmente vacío.
+    const drained =
+      moved.onHandQuantity === 0 && source.reservedQuantity === 0 && source.holdQuantity === 0
+    const updatedItems = drained
+      ? state.inventoryItems.filter((_, idx) => idx !== srcIdx)
+      : state.inventoryItems.map((i, idx) => (idx === srcIdx ? { ...i, ...moved } : i))
+
+    const updated: InternalMoveTask = {
+      ...task,
+      status: 'picked',
+      operatorName: operatorName ?? task.operatorName,
+      pickedAt: new Date().toISOString(),
+    }
+
+    set({
+      inventoryItems: updatedItems,
+      internalMoves: state.internalMoves.map((t) => (t.id === taskId ? updated : t)),
+    })
+    return updated
+  },
+
+  confirmDropToDest: (taskId, operatorName) => {
+    const state = get()
+    if (state.settings.inventoryFreezeActive)
+      throw new Error('Inventario en modo congelado. No se permiten movimientos internos.')
+    const task = state.internalMoves.find((t) => t.id === taskId)
+    if (!task) throw new Error('Movimiento interno no encontrado')
+    if (!canTransition(internalMoveTransitions, task.status, 'dropped'))
+      throw new Error(`No se puede depositar desde el estado ${task.status}`)
+
+    // Cuarentena: aterriza retenido en la ubicación QC; el resto entra disponible.
+    const toQuarantine = task.moveType === 'quarantine'
+    const landedStatus: InventoryItem['status'] = toQuarantine ? 'on_hold' : 'available'
+
+    let updatedItems = [...state.inventoryItems]
+    const destIdx = updatedItems.findIndex(
+      (i) =>
+        i.productId === task.productId &&
+        i.locationId === task.toLocationId &&
+        i.warehouseId === task.warehouseId &&
+        (task.lot ? i.lot === task.lot : true) &&
+        (task.serial ? i.serial === task.serial : true)
+    )
+    if (destIdx >= 0) {
+      const dest = updatedItems[destIdx]
+      updatedItems[destIdx] = {
+        ...dest,
+        ...applyInternalMoveDrop(dest, task.quantity),
+        holdQuantity: toQuarantine ? dest.holdQuantity + task.quantity : dest.holdQuantity,
+        status: toQuarantine ? 'on_hold' : dest.status,
+        holdReasonId: toQuarantine ? (task.reasonId ?? dest.holdReasonId) : dest.holdReasonId,
+      }
+    } else {
+      updatedItems = [
+        ...updatedItems,
+        {
+          id: `inv-${task.id}`,
+          productId: task.productId,
+          warehouseId: task.warehouseId,
+          locationId: task.toLocationId,
+          lot: task.lot,
+          serial: task.serial,
+          onHandQuantity: task.quantity,
+          reservedQuantity: 0,
+          holdQuantity: toQuarantine ? task.quantity : 0,
+          holdReasonId: toQuarantine ? task.reasonId : undefined,
+          status: landedStatus,
+        },
+      ]
+    }
+
+    const movement = recordMovement({
+      productId: task.productId,
+      warehouseId: task.warehouseId,
+      fromLocationId: task.fromLocationId,
+      toLocationId: task.toLocationId,
+      type: 'putaway',
+      quantity: task.quantity,
+      lot: task.lot,
+      serial: task.serial,
+      referenceType: internalMoveReferenceType(task.moveType),
+      referenceId: task.id,
+      operatorName: operatorName ?? task.operatorName ?? 'Operador',
+    })
+
+    const updated: InternalMoveTask = {
+      ...task,
+      status: 'dropped',
+      operatorName: operatorName ?? task.operatorName,
+      droppedAt: new Date().toISOString(),
+    }
+
+    set({
+      inventoryItems: updatedItems,
+      stockMovements: [...state.stockMovements, movement],
+      internalMoves: state.internalMoves.map((t) => (t.id === taskId ? updated : t)),
+    })
+    return updated
+  },
+
+  cancelMove: (taskId) => {
+    const state = get()
+    const task = state.internalMoves.find((t) => t.id === taskId)
+    if (!task) throw new Error('Movimiento interno no encontrado')
+    if (!canTransition(internalMoveTransitions, task.status, 'cancelled'))
+      throw new Error(`No se puede cancelar desde el estado ${task.status}`)
+
+    let updatedItems = state.inventoryItems
+    // Si ya se recogió, las unidades están "en movimiento": devuélvelas al origen.
+    if (task.status === 'picked') {
+      const srcIdx = updatedItems.findIndex(
+        (i) =>
+          i.productId === task.productId &&
+          i.locationId === task.fromLocationId &&
+          i.warehouseId === task.warehouseId &&
+          (task.lot ? i.lot === task.lot : true) &&
+          (task.serial ? i.serial === task.serial : true)
+      )
+      if (srcIdx >= 0) {
+        updatedItems = updatedItems.map((i, idx) =>
+          idx === srcIdx ? { ...i, ...applyReceipt(i, task.quantity) } : i
+        )
+      } else {
+        updatedItems = [
+          ...updatedItems,
+          {
+            id: `inv-${task.id}-back`,
+            productId: task.productId,
+            warehouseId: task.warehouseId,
+            locationId: task.fromLocationId,
+            lot: task.lot,
+            serial: task.serial,
+            onHandQuantity: task.quantity,
+            reservedQuantity: 0,
+            holdQuantity: 0,
+            status: 'available',
+          },
+        ]
+      }
+    }
+
+    const updated: InternalMoveTask = { ...task, status: 'cancelled' }
+    set({
+      inventoryItems: updatedItems,
+      internalMoves: state.internalMoves.map((t) => (t.id === taskId ? updated : t)),
+    })
+    return updated
   },
 
   relocateAll: (recs, operatorName) => {
@@ -2864,6 +3618,38 @@ export const useWmsStore = create<WmsState>()(
 
     set({ slottingSnapshots: [...state.slottingSnapshots, snapshot] })
     return snapshot
+  },
+
+  // ─── Slotting rules ─────────────────────────────────────────────────────────
+
+  createSlottingRule: (data) => {
+    const state = get()
+    const created: SlottingRule = { ...data, id: `slr-${Date.now()}` }
+    set({ slottingRules: [...state.slottingRules, created] })
+    return created
+  },
+
+  updateSlottingRule: (id, data) => {
+    const state = get()
+    const rule = state.slottingRules.find((r) => r.id === id)
+    if (!rule) throw new Error('slotting rule not found')
+    const updated: SlottingRule = { ...rule, ...data }
+    set({ slottingRules: state.slottingRules.map((r) => (r.id === id ? updated : r)) })
+    return updated
+  },
+
+  toggleSlottingRule: (id) => {
+    const state = get()
+    const rule = state.slottingRules.find((r) => r.id === id)
+    if (!rule) throw new Error('slotting rule not found')
+    const updated: SlottingRule = { ...rule, active: !rule.active }
+    set({ slottingRules: state.slottingRules.map((r) => (r.id === id ? updated : r)) })
+    return updated
+  },
+
+  deleteSlottingRule: (id) => {
+    const state = get()
+    set({ slottingRules: state.slottingRules.filter((r) => r.id !== id) })
   },
 
   // ─── Admin ────────────────────────────────────────────────────────────────
@@ -3073,56 +3859,174 @@ export const useWmsStore = create<WmsState>()(
     return updated
   },
 
-  // ── Cyclic count plans (#54) ─────────────────────────────────────────────
+  // ── Cyclic count plans (#13, extends #54) ────────────────────────────────
+  // Plans generate their CyclicCountLines up front (one per matching InventoryItem,
+  // snapshotting the on-hand qty at creation time). Completing a plan feeds every
+  // counted line with a variance through the existing adjustment engine
+  // (requestAdjustment) instead of a second, parallel approval mechanism.
 
   createCyclicCount: (data) => {
     const state = get()
-    const idx = state.cyclicCountPlans.length + 1
-    const plan: CyclicCountPlan = {
-      ...data,
-      id: `cc-${Date.now()}`,
-      code: `CC-${String(idx).padStart(3, '0')}`,
-      status: 'pending',
-      countedLocations: 0,
-      createdAt: new Date().toISOString(),
+    if (state.settings.cycleCountFreezeActive) throw new Error(CYCLE_COUNT_FROZEN_MSG)
+    const items = resolveCyclicCountItems(state, data.method, data.filterValue, data.warehouseId)
+    if (items.length === 0) {
+      throw new Error('No hay inventario que coincida con este filtro en el almacén seleccionado')
     }
-    set({ cyclicCountPlans: [...state.cyclicCountPlans, plan] })
+
+    const idx = state.cyclicCountPlans.length + 1
+    const planId = `cc-${Date.now()}`
+    const plan: CyclicCountPlan = {
+      id: planId,
+      code: `CC-${String(idx).padStart(3, '0')}`,
+      name: data.name,
+      method: data.method,
+      filterValue: data.filterValue,
+      warehouseId: data.warehouseId,
+      locationIds: Array.from(new Set(items.map((i) => i.locationId))),
+      assignedOperatorName: data.assignedOperatorName,
+      scheduledDate: data.scheduledDate,
+      status: 'pending',
+      createdAt: new Date().toISOString(),
+      totalItems: items.length,
+      countedItems: 0,
+      blindCount: data.blindCount ?? state.settings.cycleCountBlindCountDefault,
+      auto: data.auto ?? false,
+    }
+    const lines: CyclicCountLine[] = items.map((item, i) => ({
+      id: `${planId}-l${i + 1}`,
+      planId,
+      inventoryItemId: item.id,
+      productId: item.productId,
+      warehouseId: item.warehouseId,
+      locationId: item.locationId,
+      lot: item.lot,
+      serial: item.serial,
+      expectedQuantity: item.onHandQuantity,
+    }))
+    set({
+      cyclicCountPlans: [...state.cyclicCountPlans, plan],
+      cyclicCountLines: [...state.cyclicCountLines, ...lines],
+    })
     return plan
   },
 
   startCyclicCount: (planId) => {
     const state = get()
+    if (state.settings.cycleCountFreezeActive) throw new Error(CYCLE_COUNT_FROZEN_MSG)
     const plan = state.cyclicCountPlans.find((p) => p.id === planId)
     if (!plan) throw new Error('cyclic count plan not found')
-    if (plan.status !== 'pending') throw new Error('El plan no está en estado pendiente')
-    const updated: CyclicCountPlan = { ...plan, status: 'in_progress' }
+    if (!canTransition(cyclicCountTransitions, plan.status, 'in_progress')) {
+      throw new Error('El plan no está en estado pendiente')
+    }
+    const updated: CyclicCountPlan = { ...plan, status: 'in_progress', startedAt: new Date().toISOString() }
     set({ cyclicCountPlans: state.cyclicCountPlans.map((p) => p.id === planId ? updated : p) })
     return updated
   },
 
-  completeCyclicCount: (planId) => {
+  recordCycleCountLine: (lineId, countedQty, operatorName) => {
     const state = get()
+    if (state.settings.cycleCountFreezeActive) throw new Error(CYCLE_COUNT_FROZEN_MSG)
+    if (countedQty < 0) throw new Error('La cantidad contada no puede ser negativa')
+    const line = state.cyclicCountLines.find((l) => l.id === lineId)
+    if (!line) throw new Error('cyclic count line not found')
+    const plan = state.cyclicCountPlans.find((p) => p.id === line.planId)
+    if (!plan || plan.status !== 'in_progress') {
+      throw new Error('El plan de este conteo no está en progreso')
+    }
+    const wasCounted = line.countedQuantity !== undefined
+    const updated: CyclicCountLine = {
+      ...line,
+      countedQuantity: countedQty,
+      variance: countedQty - line.expectedQuantity,
+      countedAt: new Date().toISOString(),
+      countedBy: operatorName,
+    }
+    set({
+      cyclicCountLines: state.cyclicCountLines.map((l) => (l.id === lineId ? updated : l)),
+      cyclicCountPlans: wasCounted
+        ? state.cyclicCountPlans
+        : state.cyclicCountPlans.map((p) =>
+            p.id === plan.id ? { ...p, countedItems: p.countedItems + 1 } : p
+          ),
+    })
+    return updated
+  },
+
+  completeCyclicCount: (planId, reviewerName) => {
+    const state = get()
+    if (state.settings.cycleCountFreezeActive) throw new Error(CYCLE_COUNT_FROZEN_MSG)
     const plan = state.cyclicCountPlans.find((p) => p.id === planId)
     if (!plan) throw new Error('cyclic count plan not found')
-    if (plan.status !== 'in_progress') throw new Error('El plan no está en progreso')
-    const updated: CyclicCountPlan = {
-      ...plan,
-      status: 'completed',
-      countedLocations: plan.totalLocations,
-      completedAt: new Date().toISOString(),
+    if (!canTransition(cyclicCountTransitions, plan.status, 'completed')) {
+      throw new Error('El plan no está en progreso')
     }
-    set({ cyclicCountPlans: state.cyclicCountPlans.map((p) => p.id === planId ? updated : p) })
+    const reasonId = state.reasons.find((r) => r.code === 'ADJ-CONTEO')?.id
+    const planLines = state.cyclicCountLines.filter((l) => l.planId === planId)
+
+    for (const line of planLines) {
+      if (line.countedQuantity === undefined || line.variance === 0) continue
+      const request = get().requestAdjustment(line.inventoryItemId, line.countedQuantity, reviewerName, reasonId)
+      set((s) => ({
+        cyclicCountLines: s.cyclicCountLines.map((l) =>
+          l.id === line.id ? { ...l, adjustmentRequestId: request.id } : l
+        ),
+      }))
+    }
+
+    const updated: CyclicCountPlan = { ...plan, status: 'completed', completedAt: new Date().toISOString() }
+    set({ cyclicCountPlans: get().cyclicCountPlans.map((p) => (p.id === planId ? updated : p)) })
     return updated
   },
 
   cancelCyclicCount: (planId) => {
     const state = get()
+    if (state.settings.cycleCountFreezeActive) throw new Error(CYCLE_COUNT_FROZEN_MSG)
     const plan = state.cyclicCountPlans.find((p) => p.id === planId)
     if (!plan) throw new Error('cyclic count plan not found')
-    if (plan.status === 'completed') throw new Error('No se puede cancelar un plan completado')
+    if (!canTransition(cyclicCountTransitions, plan.status, 'cancelled')) {
+      throw new Error('No se puede cancelar un plan completado')
+    }
     const updated: CyclicCountPlan = { ...plan, status: 'cancelled' }
     set({ cyclicCountPlans: state.cyclicCountPlans.map((p) => p.id === planId ? updated : p) })
     return updated
+  },
+
+  // ABC-frequency scheduler (Estándar): one auto plan per warehouse×class overdue
+  // combination, skipping any that already has an active (pending/in_progress) auto plan.
+  generateSuggestedCycleCounts: () => {
+    const state = get()
+    if (state.settings.cycleCountFreezeActive) throw new Error(CYCLE_COUNT_FROZEN_MSG)
+    const overdue = selectCycleCountSchedule(state)
+    const groups = new Map<string, { warehouseId: string; abcClass: string }>()
+    for (const entry of overdue) {
+      groups.set(`${entry.warehouseId}__${entry.abcClass}`, { warehouseId: entry.warehouseId, abcClass: entry.abcClass })
+    }
+
+    const created: CyclicCountPlan[] = []
+    for (const { warehouseId, abcClass } of groups.values()) {
+      const hasActivePlan = get().cyclicCountPlans.some(
+        (p) =>
+          p.warehouseId === warehouseId &&
+          p.method === 'by_abc' &&
+          p.filterValue === abcClass &&
+          (p.status === 'pending' || p.status === 'in_progress')
+      )
+      if (hasActivePlan) continue
+      try {
+        const plan = get().createCyclicCount({
+          name: `Conteo sugerido — clase ${abcClass}`,
+          method: 'by_abc',
+          filterValue: abcClass,
+          warehouseId,
+          scheduledDate: new Date().toISOString().slice(0, 10),
+          auto: true,
+        })
+        created.push(plan)
+      } catch {
+        // No matching stock for this warehouse×class combo (e.g. already fully counted) — skip it.
+      }
+    }
+    return created
   },
 
   createWarehouse: (data) => {
@@ -3424,6 +4328,197 @@ export const useWmsStore = create<WmsState>()(
     set({ warehouses: state.warehouses.map((w) => (w.id === id ? { ...w, deliveryWindows: windows } : w)) })
   },
 
+  // Yard / Dock management (#8)
+  createDock: (data) => {
+    const state = get()
+    const created: Dock = { ...data, id: `dock-${Date.now()}` }
+    set({ docks: [...state.docks, created] })
+    return created
+  },
+
+  updateDock: (id, data) => {
+    const state = get()
+    const dock = state.docks.find((d) => d.id === id)
+    if (!dock) throw new Error('Muelle no encontrado')
+    const updated: Dock = { ...dock, ...data }
+    set({ docks: state.docks.map((d) => (d.id === id ? updated : d)) })
+    return updated
+  },
+
+  setDockStatus: (id, status) => {
+    const state = get()
+    const dock = state.docks.find((d) => d.id === id)
+    if (!dock) throw new Error('Muelle no encontrado')
+    if (status !== 'active') {
+      const hasActiveAppointment = state.dockAppointments.some(
+        (a) => a.dockId === id && (a.status === 'arrived' || a.status === 'in_progress')
+      )
+      if (hasActiveAppointment)
+        throw new Error('No se puede bloquear un muelle con una cita en curso')
+    }
+    const updated: Dock = { ...dock, status }
+    set({ docks: state.docks.map((d) => (d.id === id ? updated : d)) })
+    return updated
+  },
+
+  createDockAppointment: (payload) => {
+    const state = get()
+    if (state.settings.yardFreezeActive) throw new Error(YARD_FROZEN_MSG)
+    if (payload.scheduledEnd <= payload.scheduledStart)
+      throw new Error('La hora de fin debe ser posterior a la de inicio')
+    if (!isWithinOperatingHours(payload.scheduledStart, payload.scheduledEnd, state.settings))
+      throw new Error(
+        `La cita debe estar dentro del horario operativo (${state.settings.yardOperatingHoursStart}–${state.settings.yardOperatingHoursEnd})`
+      )
+    if (!isWorkingDay(payload.scheduledStart, state.settings.yardWorkingDays))
+      throw new Error('El patio no opera ese día de la semana')
+
+    if (payload.dockId) {
+      const dock = state.docks.find((d) => d.id === payload.dockId)
+      if (!dock) throw new Error('Muelle no encontrado')
+      if (dock.warehouseId !== payload.warehouseId)
+        throw new Error('El muelle no pertenece a la bodega seleccionada')
+      if (dock.status !== 'active') throw new Error('El muelle no está activo')
+      if (!isDockCompatible(dock, payload.type))
+        throw new Error(
+          `El muelle ${dock.name} no admite citas de tipo ${APPOINTMENT_TYPE_LABELS[payload.type]}`
+        )
+      if (
+        !state.settings.yardAllowOverbooking &&
+        hasDockConflict(state.dockAppointments, payload.dockId, payload.scheduledStart, payload.scheduledEnd)
+      )
+        throw new Error('El muelle ya tiene una cita activa que se solapa con ese horario')
+    }
+
+    const { id, code } = nextDockAppointmentRef()
+    const appointment: DockAppointment = {
+      id,
+      code,
+      warehouseId: payload.warehouseId,
+      dockId: payload.dockId,
+      type: payload.type,
+      status: 'scheduled',
+      asnId: payload.asnId,
+      manifestId: payload.manifestId,
+      carrierName: payload.carrierName,
+      driverName: payload.driverName,
+      vehiclePlate: payload.vehiclePlate,
+      scheduledStart: payload.scheduledStart,
+      scheduledEnd: payload.scheduledEnd,
+      notes: payload.notes,
+    }
+    set({ dockAppointments: [...state.dockAppointments, appointment] })
+    return appointment
+  },
+
+  assignDock: (appointmentId, dockId) => {
+    const state = get()
+    if (state.settings.yardFreezeActive) throw new Error(YARD_FROZEN_MSG)
+    const appointment = state.dockAppointments.find((a) => a.id === appointmentId)
+    if (!appointment) throw new Error('Cita no encontrada')
+    if (appointment.status !== 'scheduled' && appointment.status !== 'arrived')
+      throw new Error(`No se puede asignar muelle desde el estado ${appointment.status}`)
+    const dock = state.docks.find((d) => d.id === dockId)
+    if (!dock) throw new Error('Muelle no encontrado')
+    if (dock.warehouseId !== appointment.warehouseId)
+      throw new Error('El muelle no pertenece a la bodega de la cita')
+    if (dock.status !== 'active') throw new Error('El muelle no está activo')
+    if (!isDockCompatible(dock, appointment.type))
+      throw new Error(
+        `El muelle ${dock.name} no admite citas de tipo ${APPOINTMENT_TYPE_LABELS[appointment.type]}`
+      )
+    if (
+      !state.settings.yardAllowOverbooking &&
+      hasDockConflict(
+        state.dockAppointments,
+        dockId,
+        appointment.scheduledStart,
+        appointment.scheduledEnd,
+        appointment.id
+      )
+    )
+      throw new Error('El muelle ya tiene una cita activa que se solapa con ese horario')
+
+    const updated: DockAppointment = { ...appointment, dockId }
+    set({ dockAppointments: state.dockAppointments.map((a) => (a.id === appointmentId ? updated : a)) })
+    return updated
+  },
+
+  checkInAppointment: (appointmentId, data) => {
+    const state = get()
+    if (state.settings.yardFreezeActive) throw new Error(YARD_FROZEN_MSG)
+    const appointment = state.dockAppointments.find((a) => a.id === appointmentId)
+    if (!appointment) throw new Error('Cita no encontrada')
+    if (!canTransition(dockAppointmentTransitions, appointment.status, 'arrived'))
+      throw new Error(`No se puede registrar la llegada desde el estado ${appointment.status}`)
+    const updated: DockAppointment = {
+      ...appointment,
+      status: 'arrived',
+      arrivedAt: new Date().toISOString(),
+      driverName: data?.driverName ?? appointment.driverName,
+      vehiclePlate: data?.vehiclePlate ?? appointment.vehiclePlate,
+    }
+    set({ dockAppointments: state.dockAppointments.map((a) => (a.id === appointmentId ? updated : a)) })
+    return updated
+  },
+
+  startAppointment: (appointmentId) => {
+    const state = get()
+    if (state.settings.yardFreezeActive) throw new Error(YARD_FROZEN_MSG)
+    const appointment = state.dockAppointments.find((a) => a.id === appointmentId)
+    if (!appointment) throw new Error('Cita no encontrada')
+    if (!canTransition(dockAppointmentTransitions, appointment.status, 'in_progress'))
+      throw new Error(`No se puede iniciar desde el estado ${appointment.status}`)
+    if (!appointment.dockId) throw new Error('Asigna un muelle antes de iniciar la cita')
+    const updated: DockAppointment = {
+      ...appointment,
+      status: 'in_progress',
+      startedAt: new Date().toISOString(),
+    }
+    set({ dockAppointments: state.dockAppointments.map((a) => (a.id === appointmentId ? updated : a)) })
+    return updated
+  },
+
+  completeAppointment: (appointmentId) => {
+    const state = get()
+    if (state.settings.yardFreezeActive) throw new Error(YARD_FROZEN_MSG)
+    const appointment = state.dockAppointments.find((a) => a.id === appointmentId)
+    if (!appointment) throw new Error('Cita no encontrada')
+    if (!canTransition(dockAppointmentTransitions, appointment.status, 'completed'))
+      throw new Error(`No se puede completar desde el estado ${appointment.status}`)
+    const updated: DockAppointment = {
+      ...appointment,
+      status: 'completed',
+      completedAt: new Date().toISOString(),
+    }
+    set({ dockAppointments: state.dockAppointments.map((a) => (a.id === appointmentId ? updated : a)) })
+    return updated
+  },
+
+  markAppointmentNoShow: (appointmentId) => {
+    const state = get()
+    if (state.settings.yardFreezeActive) throw new Error(YARD_FROZEN_MSG)
+    const appointment = state.dockAppointments.find((a) => a.id === appointmentId)
+    if (!appointment) throw new Error('Cita no encontrada')
+    if (!canTransition(dockAppointmentTransitions, appointment.status, 'no_show'))
+      throw new Error(`No se puede marcar no-show desde el estado ${appointment.status}`)
+    const updated: DockAppointment = { ...appointment, status: 'no_show' }
+    set({ dockAppointments: state.dockAppointments.map((a) => (a.id === appointmentId ? updated : a)) })
+    return updated
+  },
+
+  cancelAppointment: (appointmentId) => {
+    const state = get()
+    if (state.settings.yardFreezeActive) throw new Error(YARD_FROZEN_MSG)
+    const appointment = state.dockAppointments.find((a) => a.id === appointmentId)
+    if (!appointment) throw new Error('Cita no encontrada')
+    if (!canTransition(dockAppointmentTransitions, appointment.status, 'cancelled'))
+      throw new Error(`No se puede cancelar desde el estado ${appointment.status}`)
+    const updated: DockAppointment = { ...appointment, status: 'cancelled' }
+    set({ dockAppointments: state.dockAppointments.map((a) => (a.id === appointmentId ? updated : a)) })
+    return updated
+  },
+
   }),
   {
     name: 'wms-store-v3',
@@ -3440,7 +4535,21 @@ export const useWmsStore = create<WmsState>()(
     // progress survives reloads.
     // v2: warehouse-structure module (#4) — rackTypes slice, location hierarchy
     // fields and golden-zone/layout settings added to the seed.
-    version: 2,
+    // v3: slotting module (#10) — slottingRules slice (configurable placement
+    // directives) added to the seed.
+    // v4: slotting rules Fase 1 — rule action moved from a single `targetTier`
+    // to a `directives[]` array (soft preferTier + hard constraints).
+    // v5: slotting demo data — heavy-capacity pick-faces (PICK-HEAVY-01 golden,
+    // STD-HEAVY-01 standard) so línea blanca pesada participa en las recomendaciones.
+    // v6: replenishment module (#11) — store min/max policies + store tasks slices,
+    // per-pick-face and per-SKU min/max, store sales-floor locations + stock, and
+    // replenishment governance settings added to the seed.
+    // v7: cycle count module (#13) — cyclicCountLines slice, CyclicCountPlan
+    // reshaped (totalItems/countedItems, blindCount, auto, startedAt), and
+    // cycle-count governance settings + demo plans/lines/adjustment added to the seed.
+    // v8: yard/dock module (#8) — docks + dockAppointments slices, and yard
+    // governance settings (operating hours, working days, overbooking) added to the seed.
+    version: 8,
     migrate: () => buildSeedState() as Partial<WmsState>,
   }
 ))

@@ -1,12 +1,14 @@
 'use client'
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useForm, useFieldArray, Controller } from 'react-hook-form'
 import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Plus, Trash2, ArrowRight } from 'lucide-react'
 
 import { useWmsStore } from '@/store/wms-store'
+import { availableStock } from '@/lib/rules/inventory'
+import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import {
@@ -27,6 +29,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Field, FieldLabel, FieldError } from '@/components/ui/field'
+import { ProductStockCombobox, type ProductStockOption } from '@/components/shared/product-stock-combobox'
 
 const lineSchema = z.object({
   productId: z.string().min(1, 'Requerido'),
@@ -55,7 +58,7 @@ interface Props {
 }
 
 export const CreateTransferDialog = ({ open, onClose }: Props) => {
-  const { warehouses, products, createTransferOrder } = useWmsStore()
+  const { warehouses, products, inventoryItems, createTransferOrder } = useWmsStore()
   const [multiLeg, setMultiLeg] = useState(false)
 
   const transitWarehouses = warehouses.filter((w) => w.type === 'transit')
@@ -67,6 +70,7 @@ export const CreateTransferDialog = ({ open, onClose }: Props) => {
     reset,
     setValue,
     setError,
+    watch,
     formState: { errors },
   } = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -81,6 +85,41 @@ export const CreateTransferDialog = ({ open, onClose }: Props) => {
 
   const stopsArray = useFieldArray({ control, name: 'transitStops' })
   const itemsArray = useFieldArray({ control, name: 'items' })
+
+  const originId = watch('originId')
+  const watchedItems = watch('items')
+
+  // Solo productos con disponible > 0 en la bodega origen (de donde sale la carga:
+  // el primer tramo del itinerario). Es lo que el picker ofrece, con su disponible.
+  const stockOptions = useMemo<ProductStockOption[]>(() => {
+    if (!originId) return []
+    const byProduct = new Map<string, number>()
+    for (const it of inventoryItems) {
+      if (it.warehouseId !== originId) continue
+      const avail = availableStock(it)
+      if (avail <= 0) continue
+      byProduct.set(it.productId, (byProduct.get(it.productId) ?? 0) + avail)
+    }
+    return [...byProduct.entries()]
+      .map(([productId, available]) => {
+        const product = products.find((p) => p.id === productId)
+        return product ? { product, available } : null
+      })
+      .filter((o): o is ProductStockOption => o !== null)
+      .sort((a, b) => a.product.name.localeCompare(b.product.name))
+  }, [inventoryItems, products, originId])
+
+  const availableFor = (productId: string) =>
+    stockOptions.find((o) => o.product.id === productId)?.available ?? 0
+
+  // Origen cambiado ⇒ las selecciones anteriores ya no aplican: reinicia las líneas.
+  const handleOriginChange = (value: string, onChange: (v: string) => void) => {
+    onChange(value)
+    itemsArray.replace([{ productId: '', requestedQuantity: '1' }])
+  }
+
+  const selectedProductIds = (watchedItems ?? []).map((i) => i.productId).filter(Boolean)
+  const allStockUsed = stockOptions.length > 0 && selectedProductIds.length >= stockOptions.length
 
   const handleMultiLegToggle = (checked: boolean) => {
     setMultiLeg(checked)
@@ -117,11 +156,16 @@ export const CreateTransferDialog = ({ open, onClose }: Props) => {
           : []),
       ]
 
-      const items = values.items.map((item, i) => ({
-        id: `item-new-${i}`,
-        productId: item.productId,
-        requestedQuantity: Math.max(1, parseInt(item.requestedQuantity, 10) || 1),
-      }))
+      // Topa la cantidad al disponible en origen: nunca se despacha más de lo que hay.
+      const items = values.items.map((item, i) => {
+        const cap = availableFor(item.productId)
+        const raw = Math.max(1, parseInt(item.requestedQuantity, 10) || 1)
+        return {
+          id: `item-new-${i}`,
+          productId: item.productId,
+          requestedQuantity: cap > 0 ? Math.min(raw, cap) : raw,
+        }
+      })
 
       createTransferOrder({ legs, items, operatorName: 'Sistema' })
       reset()
@@ -149,7 +193,10 @@ export const CreateTransferDialog = ({ open, onClose }: Props) => {
               control={control}
               name="originId"
               render={({ field }) => (
-                <Select onValueChange={field.onChange} value={field.value}>
+                <Select
+                  onValueChange={(v) => handleOriginChange(v, field.onChange)}
+                  value={field.value}
+                >
                   <SelectTrigger id="originId">
                     <SelectValue placeholder="Seleccionar bodega origen" />
                   </SelectTrigger>
@@ -279,64 +326,106 @@ export const CreateTransferDialog = ({ open, onClose }: Props) => {
             <FieldError errors={[errors.estimatedArrivalDate]} />
           </Field>
 
-          {/* Productos */}
+          {/* Productos — picker consciente del stock del origen */}
           <div className="space-y-2">
-            <p className="text-sm font-medium">Productos</p>
-            {itemsArray.fields.map((field, i) => (
-              <div key={field.id} className="flex items-end gap-2">
-                <Field className="flex-1">
-                  <Controller
-                    control={control}
-                    name={`items.${i}.productId`}
-                    render={({ field: f }) => (
-                      <Select onValueChange={f.onChange} value={f.value}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Producto" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {products.map((p) => (
-                            <SelectItem key={p.id} value={p.id}>
-                              {p.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-medium">Productos</p>
+              {originId && (
+                <span className="text-muted-foreground text-xs">
+                  Solo con stock en el origen
+                </span>
+              )}
+            </div>
+
+            {!originId && (
+              <p className="text-muted-foreground rounded-md border border-dashed px-3 py-4 text-center text-xs">
+                Selecciona la bodega origen para elegir productos con stock disponible.
+              </p>
+            )}
+
+            {originId && stockOptions.length === 0 && (
+              <p className="text-muted-foreground rounded-md border border-dashed px-3 py-4 text-center text-xs">
+                La bodega origen no tiene stock disponible para trasladar.
+              </p>
+            )}
+
+            {originId &&
+              stockOptions.length > 0 &&
+              itemsArray.fields.map((field, i) => {
+                const currentProductId = watchedItems?.[i]?.productId ?? ''
+                const cap = availableFor(currentProductId)
+                const enteredQty = Math.max(1, parseInt(watchedItems?.[i]?.requestedQuantity ?? '1', 10) || 1)
+                const overCap = cap > 0 && enteredQty > cap
+                const otherSelected = selectedProductIds.filter((_, idx) => idx !== i)
+                return (
+                  <div key={field.id} className="space-y-1">
+                    <div className="flex items-end gap-2">
+                      <Field className="flex-1">
+                        <Controller
+                          control={control}
+                          name={`items.${i}.productId`}
+                          render={({ field: f }) => (
+                            <ProductStockCombobox
+                              options={stockOptions}
+                              value={f.value}
+                              onSelect={f.onChange}
+                              excludeIds={otherSelected}
+                            />
+                          )}
+                        />
+                        <FieldError errors={[errors.items?.[i]?.productId]} />
+                      </Field>
+                      <Field className="w-24">
+                        <Controller
+                          control={control}
+                          name={`items.${i}.requestedQuantity`}
+                          render={({ field: f }) => (
+                            <Input
+                              type="number"
+                              min={1}
+                              max={cap > 0 ? cap : undefined}
+                              placeholder="Cant."
+                              {...f}
+                            />
+                          )}
+                        />
+                        <FieldError errors={[errors.items?.[i]?.requestedQuantity]} />
+                      </Field>
+                      {itemsArray.fields.length > 1 && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="mb-0.5"
+                          onClick={() => itemsArray.remove(i)}
+                        >
+                          <Trash2 className="size-4" />
+                        </Button>
+                      )}
+                    </div>
+                    {currentProductId && (
+                      <p className={cn('text-xs', overCap ? 'text-amber-600' : 'text-muted-foreground')}>
+                        {overCap
+                          ? `Solo hay ${cap} disponibles en el origen — se ajustará a ${cap}.`
+                          : `Disponible en origen: ${cap}`}
+                      </p>
                     )}
-                  />
-                  <FieldError errors={[errors.items?.[i]?.productId]} />
-                </Field>
-                <Field className="w-24">
-                  <Controller
-                    control={control}
-                    name={`items.${i}.requestedQuantity`}
-                    render={({ field: f }) => (
-                      <Input type="number" min={1} placeholder="Cant." {...f} />
-                    )}
-                  />
-                  <FieldError errors={[errors.items?.[i]?.requestedQuantity]} />
-                </Field>
-                {itemsArray.fields.length > 1 && (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="mb-0.5"
-                    onClick={() => itemsArray.remove(i)}
-                  >
-                    <Trash2 className="size-4" />
-                  </Button>
-                )}
-              </div>
-            ))}
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => itemsArray.append({ productId: '', requestedQuantity: '1' })}
-            >
-              <Plus className="mr-1.5 size-3.5" />
-              Agregar producto
-            </Button>
+                  </div>
+                )
+              })}
+
+            {originId && stockOptions.length > 0 && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={allStockUsed}
+                onClick={() => itemsArray.append({ productId: '', requestedQuantity: '1' })}
+              >
+                <Plus className="mr-1.5 size-3.5" />
+                Agregar producto
+              </Button>
+            )}
             {errors.items?.root && (
               <p className="text-destructive text-xs">{errors.items.root.message}</p>
             )}
