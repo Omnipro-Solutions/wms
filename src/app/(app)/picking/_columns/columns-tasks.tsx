@@ -1,7 +1,7 @@
 'use client'
 
 import { type ColumnDef } from '@tanstack/react-table'
-import { CheckCircle2, PlayCircle, Scan, ThumbsDown, ThumbsUp } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, PlayCircle, Scan, ThumbsDown, ThumbsUp } from 'lucide-react'
 import Link from 'next/link'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -24,6 +24,8 @@ export type TaskAction =
   | { type: 'approve'; taskId: string }
   | { type: 'reject'; taskId: string }
   | { type: 'retry'; task: PickingTask }
+  | { type: 'report-issue'; task: PickingTask }
+  | { type: 'resolve-issue'; taskId: string }
 
 export const buildTaskColumns = (
   getProductName: (id: string) => string,
@@ -133,6 +135,21 @@ export const buildTaskColumns = (
           {task.status === 'partial_rejected' && (
             <Button size="sm" onClick={() => onAction({ type: 'retry', task })}>
               <PlayCircle className="mr-1 size-3" /> Reintentar
+            </Button>
+          )}
+          {['pending', 'assigned', 'in_progress'].includes(task.status) && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="border-amber-300 text-amber-700 hover:bg-amber-50"
+              onClick={() => onAction({ type: 'report-issue', task })}
+            >
+              <AlertTriangle className="size-3" />
+            </Button>
+          )}
+          {task.status === 'with_issue' && (
+            <Button size="sm" onClick={() => onAction({ type: 'resolve-issue', taskId: task.id })}>
+              <PlayCircle className="mr-1 size-3" /> Resolver
             </Button>
           )}
         </div>

@@ -138,9 +138,30 @@ export const stores: Store[] = warehouses
 // dock-1..dock-4 de Bogotá coinciden con los que ya usaba el diálogo de citas
 // de /receiving, así ambos módulos comparten el mismo catálogo real.
 export const docks: Dock[] = [
-  { id: 'dock-1', code: 'M-01', name: 'Muelle 1', warehouseId: 'wh-bog', type: 'inbound', status: 'active' },
-  { id: 'dock-2', code: 'M-02', name: 'Muelle 2', warehouseId: 'wh-bog', type: 'inbound', status: 'active' },
-  { id: 'dock-3', code: 'M-03', name: 'Muelle 3', warehouseId: 'wh-bog', type: 'mixed', status: 'active' },
+  {
+    id: 'dock-1',
+    code: 'M-01',
+    name: 'Muelle 1',
+    warehouseId: 'wh-bog',
+    type: 'inbound',
+    status: 'active',
+  },
+  {
+    id: 'dock-2',
+    code: 'M-02',
+    name: 'Muelle 2',
+    warehouseId: 'wh-bog',
+    type: 'inbound',
+    status: 'active',
+  },
+  {
+    id: 'dock-3',
+    code: 'M-03',
+    name: 'Muelle 3',
+    warehouseId: 'wh-bog',
+    type: 'mixed',
+    status: 'active',
+  },
   {
     id: 'dock-4',
     code: 'M-04',
@@ -150,8 +171,22 @@ export const docks: Dock[] = [
     status: 'maintenance',
     notes: 'Puerta hidráulica en reparación — reprogramada para el 25/07.',
   },
-  { id: 'dock-5', code: 'M-01', name: 'Muelle 1', warehouseId: 'wh-med', type: 'inbound', status: 'active' },
-  { id: 'dock-6', code: 'M-02', name: 'Muelle 2', warehouseId: 'wh-med', type: 'outbound', status: 'active' },
+  {
+    id: 'dock-5',
+    code: 'M-01',
+    name: 'Muelle 1',
+    warehouseId: 'wh-med',
+    type: 'inbound',
+    status: 'active',
+  },
+  {
+    id: 'dock-6',
+    code: 'M-02',
+    name: 'Muelle 2',
+    warehouseId: 'wh-med',
+    type: 'outbound',
+    status: 'active',
+  },
   {
     id: 'dock-7',
     code: 'M-03',
@@ -3002,12 +3037,47 @@ export const replenishmentTasks: ReplenishmentTask[] = [
 
 // ─── Store (retail) replenishment policies — min/max por tienda×SKU (#11 Estándar) ──
 export const storeReplenishmentPolicies: StoreReplenishmentPolicy[] = [
-  { id: 'srp-pol-1', storeWarehouseId: 'wh-andino', productId: 'p-licuadora', minStock: 10, maxStock: 40, active: true },
-  { id: 'srp-pol-2', storeWarehouseId: 'wh-andino', productId: 'p-cafetera', minStock: 8, maxStock: 30, active: true },
-  { id: 'srp-pol-3', storeWarehouseId: 'wh-santafe', productId: 'p-plancha', minStock: 12, maxStock: 40, active: true },
-  { id: 'srp-pol-4', storeWarehouseId: 'wh-viva', productId: 'p-sanduchera', minStock: 6, maxStock: 24, active: true },
+  {
+    id: 'srp-pol-1',
+    storeWarehouseId: 'wh-andino',
+    productId: 'p-licuadora',
+    minStock: 10,
+    maxStock: 40,
+    active: true,
+  },
+  {
+    id: 'srp-pol-2',
+    storeWarehouseId: 'wh-andino',
+    productId: 'p-cafetera',
+    minStock: 8,
+    maxStock: 30,
+    active: true,
+  },
+  {
+    id: 'srp-pol-3',
+    storeWarehouseId: 'wh-santafe',
+    productId: 'p-plancha',
+    minStock: 12,
+    maxStock: 40,
+    active: true,
+  },
+  {
+    id: 'srp-pol-4',
+    storeWarehouseId: 'wh-viva',
+    productId: 'p-sanduchera',
+    minStock: 6,
+    maxStock: 24,
+    active: true,
+  },
   // Política inactiva: la tienda tiene stock de sobra y el toggle está apagado → no genera necesidad.
-  { id: 'srp-pol-5', storeWarehouseId: 'wh-unicentro', productId: 'p-batidora', minStock: 10, maxStock: 30, active: false },
+  {
+    id: 'srp-pol-5',
+    storeWarehouseId: 'wh-unicentro',
+    productId: 'p-batidora',
+    minStock: 10,
+    maxStock: 30,
+    active: false,
+  },
 ]
 
 // Un ejemplo histórico ya completado (surtido DC→tienda) para poblar la pestaña Tiendas.
@@ -3294,6 +3364,28 @@ export const reasons: Reason[] = [
     code: 'TR-AVERIA',
     label: 'Avería en tránsito',
     context: 'transfer_discrepancy',
+    active: true,
+  },
+  // ─── Incidencias de picking (context: 'picking_issue') ──────────────────────────
+  {
+    id: 'rs-23',
+    code: 'PICK_NO_STOCK',
+    label: 'Sin stock físico en la ubicación',
+    context: 'picking_issue',
+    active: true,
+  },
+  {
+    id: 'rs-24',
+    code: 'PICK_DAMAGED',
+    label: 'Producto dañado en ubicación',
+    context: 'picking_issue',
+    active: true,
+  },
+  {
+    id: 'rs-25',
+    code: 'PICK_LOCATION_EMPTY',
+    label: 'Ubicación vacía / mal etiquetada',
+    context: 'picking_issue',
     active: true,
   },
 ]
@@ -3599,6 +3691,20 @@ export const settings: WmsSettings = {
   laborInterleavingEnabled: true,
   laborInterleavingMaxDistanceM: 20,
   laborTargetUnitsPerHour: 60,
+  // Picking module (#5)
+  pickingFreezeActive: false,
+  pickingSlaUrgentHours: 4,
+  pickingSlaWarningHours: 12,
+  pickingWaveMinOrders: 5,
+  pickingBatchMinOrders: 2,
+  pickingClusterMaxContainers: 8,
+  pickingRequireIssuePhoto: false,
+  pickingAllowSubstitution: true,
+  pickingZones: [
+    { id: 'pz-1', name: 'Zona A — Picking rápido', sequenceOrder: 1, active: true },
+    { id: 'pz-2', name: 'Zona B — Reserva', sequenceOrder: 2, active: true },
+    { id: 'pz-3', name: 'Zona C — Voluminosos', sequenceOrder: 3, active: true },
+  ],
   slaConfigs: [
     {
       id: 'sla-1',

@@ -99,6 +99,12 @@ interface PickDialogData {
   requiresSerial: boolean
 }
 
+interface IssueDialogData {
+  taskId: string
+  code: string
+  productName: string
+}
+
 interface ReleaseDialogData {
   waveId: string
   code: string
@@ -139,6 +145,7 @@ const PickingPage = () => {
   const { startBatchTask, completeBatchTask } = useWmsStore()
   const { startClusterTask, depositToSlot, completeClusterTask } = useWmsStore()
   const { startPutToStore, distributeToStore, completePutToStore } = useWmsStore()
+  const { reportIssue, resolveIssue, products: allProducts } = useWmsStore()
   const helpers = useStoreHelpers()
   const searchParams = useSearchParams()
 
@@ -150,8 +157,14 @@ const PickingPage = () => {
   const [capturedSerial, setCapturedSerial] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const pickDialog = useDialogState<PickDialogData>()
+  const issueDialog = useDialogState<IssueDialogData>()
+  const [issueReasonId, setIssueReasonId] = useState('')
+  const [issueNote, setIssueNote] = useState('')
+  const [issuePhotoUrl, setIssuePhotoUrl] = useState<string | undefined>(undefined)
+  const [issueSubstituteId, setIssueSubstituteId] = useState('')
 
   const partialReasons = state.reasons.filter((r) => r.context === 'partial_picking' && r.active)
+  const issueReasons = state.reasons.filter((r) => r.context === 'picking_issue' && r.active)
 
   const openPickDialog = useCallback(
     (task: PickingTask) => {
@@ -195,10 +208,60 @@ const PickingPage = () => {
         } catch (e) {
           console.error(e)
         }
+      } else if (action.type === 'report-issue') {
+        issueDialog.open({
+          taskId: action.task.id,
+          code: action.task.code,
+          productName: helpers.productName(action.task.productId),
+        })
+        setIssueReasonId('')
+        setIssueNote('')
+        setIssuePhotoUrl(undefined)
+        setIssueSubstituteId('')
+      } else if (action.type === 'resolve-issue') {
+        try {
+          resolveIssue(action.taskId)
+        } catch (e) {
+          console.error(e)
+        }
       }
     },
-    [state.pickingTasks, startPicking, openPickDialog, approvePart, rejectPart]
+    [state.pickingTasks, startPicking, openPickDialog, approvePart, rejectPart, issueDialog, helpers, resolveIssue]
   )
+
+  const handlePhotoSelected = useCallback((file: File | undefined) => {
+    if (!file) {
+      setIssuePhotoUrl(undefined)
+      return
+    }
+    const reader = new FileReader()
+    reader.onload = () => setIssuePhotoUrl(reader.result as string)
+    reader.readAsDataURL(file)
+  }, [])
+
+  const handleSubmitIssue = useCallback(() => {
+    if (!issueDialog.data) return
+    if (!issueReasonId) {
+      issueDialog.setError('Selecciona un motivo.')
+      return
+    }
+    if (state.settings.pickingRequireIssuePhoto && !issuePhotoUrl) {
+      issueDialog.setError('Este almacén exige foto para reportar una incidencia.')
+      return
+    }
+    try {
+      reportIssue(
+        issueDialog.data.taskId,
+        issueReasonId,
+        issueNote.trim(),
+        issuePhotoUrl,
+        issueSubstituteId || undefined
+      )
+      issueDialog.close()
+    } catch (e: unknown) {
+      issueDialog.setError(e instanceof Error ? e.message : 'Error al reportar incidencia')
+    }
+  }, [issueDialog, issueReasonId, issueNote, issuePhotoUrl, issueSubstituteId, reportIssue, state.settings.pickingRequireIssuePhoto])
 
   const handleCompletePick = useCallback(() => {
     if (!pickDialog.data) return
@@ -953,6 +1016,88 @@ const PickingPage = () => {
             <Button onClick={handleCompletePick}>
               <CheckCircle2 className="mr-1 size-4" /> Confirmar
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Report issue dialog ───────────────────────────────────────────── */}
+      <Dialog open={!!issueDialog.data} onOpenChange={(o) => { if (!o) issueDialog.close() }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Reportar incidencia</DialogTitle>
+          </DialogHeader>
+          {issueDialog.data && (
+            <div className="space-y-4 py-2">
+              <div className="bg-muted/40 space-y-1 rounded-lg p-3 text-sm">
+                <p className="text-muted-foreground">
+                  Tarea: <span className="text-foreground font-mono font-semibold">{issueDialog.data.code}</span>
+                </p>
+                <p className="text-muted-foreground">
+                  Producto: <span className="text-foreground font-medium">{issueDialog.data.productName}</span>
+                </p>
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="issue-reason">Motivo</Label>
+                <Select value={issueReasonId} onValueChange={setIssueReasonId}>
+                  <SelectTrigger id="issue-reason" className="w-full">
+                    <SelectValue placeholder="Seleccionar motivo…" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {issueReasons.map((r) => (
+                      <SelectItem key={r.id} value={r.id}>{r.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="issue-note">Nota</Label>
+                <Input
+                  id="issue-note"
+                  placeholder="Detalle adicional…"
+                  value={issueNote}
+                  onChange={(e) => setIssueNote(e.target.value)}
+                />
+              </div>
+              {state.settings.pickingAllowSubstitution && (
+                <div className="space-y-1">
+                  <Label htmlFor="issue-substitute">Producto sustituto (opcional)</Label>
+                  <Select value={issueSubstituteId} onValueChange={setIssueSubstituteId}>
+                    <SelectTrigger id="issue-substitute" className="w-full">
+                      <SelectValue placeholder="Sin sustituto" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {allProducts.map((p) => (
+                        <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+              <div className="space-y-1">
+                <Label htmlFor="issue-photo">
+                  Foto {state.settings.pickingRequireIssuePhoto && <span className="text-destructive">*</span>}
+                </Label>
+                <input
+                  id="issue-photo"
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => handlePhotoSelected(e.target.files?.[0])}
+                  className="block w-full text-sm"
+                />
+                {issuePhotoUrl && (
+                  <img src={issuePhotoUrl} alt="Foto de incidencia" className="mt-2 h-24 w-24 rounded-lg object-cover" />
+                )}
+              </div>
+              {issueDialog.error && (
+                <p className="text-destructive flex items-center gap-1 text-sm">
+                  <TriangleAlert className="size-3" /> {issueDialog.error}
+                </p>
+              )}
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={issueDialog.close}>Cancelar</Button>
+            <Button onClick={handleSubmitIssue}>Reportar incidencia</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
