@@ -1,4 +1,5 @@
 import type { Asn, LaborQueueItem, PickingTask, ReplenishmentTask } from '@/types/wms'
+import type { ProductivityRow } from '@/types/wms'
 
 const PICKING_ACTIVE_STATUSES: PickingTask['status'][] = [
   'pending',
@@ -105,4 +106,42 @@ export function suggestInterleavedRoutes(
   return items.map((item) =>
     routeIdByItemId.has(item.id) ? { ...item, suggestedRouteId: routeIdByItemId.get(item.id) } : item
   )
+}
+
+export function productivityByAllSources(
+  pickingTasks: PickingTask[],
+  replenishmentTasks: ReplenishmentTask[],
+  asns: Asn[]
+): ProductivityRow[] {
+  const byOperator = new Map<string, ProductivityRow>()
+
+  const getRow = (operatorName: string): ProductivityRow => {
+    const existing = byOperator.get(operatorName)
+    if (existing) return existing
+    const row: ProductivityRow = { operatorName, picksCompleted: 0, unitsPicked: 0, partialCount: 0, issueCount: 0 }
+    byOperator.set(operatorName, row)
+    return row
+  }
+
+  for (const t of pickingTasks) {
+    if (t.status !== 'completed' || !t.operatorName) continue
+    const row = getRow(t.operatorName)
+    row.picksCompleted += 1
+    row.unitsPicked += t.pickedQuantity
+  }
+
+  for (const t of replenishmentTasks) {
+    if (t.status !== 'completed' || !t.operatorName) continue
+    const row = getRow(t.operatorName)
+    row.unitsPicked += t.suggestedQuantity
+  }
+
+  for (const a of asns) {
+    if (a.status !== 'putaway_done' || !a.assignedOperatorName) continue
+    const row = getRow(a.assignedOperatorName)
+    row.picksCompleted += 1
+    row.unitsPicked += a.receivedQuantity
+  }
+
+  return Array.from(byOperator.values())
 }

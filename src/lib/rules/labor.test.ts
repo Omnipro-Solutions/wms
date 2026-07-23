@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { buildLaborQueue, suggestInterleavedRoutes } from './labor'
+import { buildLaborQueue, suggestInterleavedRoutes, productivityByAllSources } from './labor'
 import type { PickingTask, ReplenishmentTask, Asn } from '@/types/wms'
 
 const pickingTask = (overrides: Partial<PickingTask> = {}): PickingTask => ({
@@ -191,5 +191,34 @@ describe('suggestInterleavedRoutes', () => {
     ]
     const result = suggestInterleavedRoutes(items, getLocation, 20)
     expect(result.every((i) => i.suggestedRouteId === undefined)).toBe(true)
+  })
+})
+
+describe('productivityByAllSources', () => {
+  it('returns an empty array when nothing is completed', () => {
+    expect(productivityByAllSources([], [], [])).toEqual([])
+  })
+
+  it('counts completed picking tasks per operator', () => {
+    const tasks = [
+      pickingTask({ id: 'p1', status: 'completed', operatorName: 'Juan', pickedQuantity: 10 }),
+      pickingTask({ id: 'p2', status: 'completed', operatorName: 'Juan', pickedQuantity: 5 }),
+    ]
+    const result = productivityByAllSources(tasks, [], [])
+    expect(result).toEqual([
+      { operatorName: 'Juan', picksCompleted: 2, unitsPicked: 15, partialCount: 0, issueCount: 0 },
+    ])
+  })
+
+  it('adds completed replenishment and putaway counts to the same operator row as extra units', () => {
+    const tasks = [pickingTask({ id: 'p1', status: 'completed', operatorName: 'Juan', pickedQuantity: 10 })]
+    const repl = [
+      replenishmentTask({ id: 'r1', status: 'completed', operatorName: 'Juan', suggestedQuantity: 20 }),
+    ]
+    const asnsCompleted = [asn({ id: 'a1', status: 'putaway_done', assignedOperatorName: 'Juan', receivedQuantity: 30 })]
+    const result = productivityByAllSources(tasks, repl, asnsCompleted)
+    expect(result).toEqual([
+      { operatorName: 'Juan', picksCompleted: 2, unitsPicked: 60, partialCount: 0, issueCount: 0 },
+    ])
   })
 })
