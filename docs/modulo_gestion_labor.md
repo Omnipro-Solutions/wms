@@ -27,19 +27,18 @@ Mide, asigna y optimiza el trabajo humano del almacén. Unifica en una sola cola
 
 ### `/labor` — Cola de tareas, Productividad, Turnos y operarios
 - **Cola de tareas:** tabla unificada de tareas pendientes de picking, putaway y reposición. KPIs de total pendientes, sin asignar, con ruta combinada sugerida, y operarios activos. Asignación/reasignación vía diálogo, filtrado por tipo de operario compatible con cada tarea (picker → picking/reposición, receiver → putaway).
-- **Productividad:** picks/hora y unidades/hora por operario, coloreado contra la meta configurada, y vista agregada por rol.
+- **Productividad:** picks completados y unidades procesadas por operario, coloreado contra la meta de unidades/hora configurada, y vista agregada por rol.
 - **Turnos y operarios:** operarios activos/inactivos con su carga actual (# de tareas asignadas ahora mismo). Edición de datos del operario redirige a `/admin`.
 
 ### `/labor-settings` — Sistema → Configuraciones
-- Umbrales de SLA para prioridad alta/media de la cola.
 - Habilitar/deshabilitar interleaving y su distancia máxima de agrupación.
-- Metas de productividad (picks/hora, unidades/hora) usadas para colorear KPIs.
+- Meta de unidades/hora usada para colorear el KPI de productividad.
 
 ## Modelo de datos
 
-No se creó ninguna tabla/entidad nueva de "tarea de labor". `/labor` es una **proyección de solo lectura** (`src/lib/rules/labor.ts`) sobre `PickingTask`, `ReplenishmentTask` y `Asn` (putaway) ya existentes — la fuente de verdad de cada tarea sigue viviendo en su módulo original. Se añadió:
+No se creó ninguna tabla/entidad nueva de "tarea de labor". `/labor` es una **proyección de solo lectura** (`src/lib/rules/labor.ts`) sobre `PickingTask`, `ReplenishmentTask` y `Asn` (putaway) ya existentes — la fuente de verdad de cada tarea sigue viviendo en su módulo original. La prioridad mostrada en la cola es la que ya trae cada tarea de su módulo de origen (no se deriva de un SLA propio de Labor). Se añadió:
 - `Asn.assignedOperatorName?: string` — el único de los tres dominios sin paso de pre-asignación.
-- Seis campos nuevos en `WmsSettings` (prefijo `labor*`) para gobernar prioridad, interleaving y metas.
+- Tres campos nuevos en `WmsSettings` (prefijo `labor*`): `laborInterleavingEnabled`, `laborInterleavingMaxDistanceM`, `laborTargetUnitsPerHour`.
 
 ## Persistencia
 

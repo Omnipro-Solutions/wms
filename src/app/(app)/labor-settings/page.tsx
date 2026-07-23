@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { Gauge, Route, Timer } from 'lucide-react'
+import { Gauge, Route } from 'lucide-react'
 
 import { useWmsStore } from '@/store/wms-store'
 import { buildLaborQueue, productivityByAllSources } from '@/lib/rules/labor'
@@ -162,18 +162,6 @@ const LaborSettingsPage = () => {
         </CardHeader>
         <CardContent className="divide-y divide-zinc-200 dark:divide-zinc-800">
           <section className="pb-5">
-            <SectionHeading icon={Timer} title="Cola y prioridad" description="Umbrales de SLA que determinan la prioridad mostrada en la cola de /labor." />
-            <div className="mt-2 divide-y divide-zinc-100 dark:divide-zinc-800/60">
-              <SettingRow label="SLA prioridad alta (horas)" description="Tareas con más de esta antigüedad se marcan prioridad alta.">
-                <InlineSlider value={localSettings.laborSlaHighPriorityHours} min={1} max={48} step={1} onChange={(v) => handleSettingChange('laborSlaHighPriorityHours', v)} />
-              </SettingRow>
-              <SettingRow label="SLA prioridad media (horas)" description="Tareas con más de esta antigüedad (y menos que la alta) se marcan prioridad media.">
-                <InlineSlider value={localSettings.laborSlaMediumPriorityHours} min={1} max={72} step={1} onChange={(v) => handleSettingChange('laborSlaMediumPriorityHours', v)} />
-              </SettingRow>
-            </div>
-          </section>
-
-          <section className="py-5">
             <SectionHeading icon={Route} title="Interleaving" description="Sugerencia de ruta combinada cuando un operario tiene tareas de distinto tipo cerca entre sí." />
             <div className="mt-2 divide-y divide-zinc-100 dark:divide-zinc-800/60">
               <SettingRow label="Habilitar sugerencia de ruta combinada" description="Agrupa tareas de picking/putaway/reposición del mismo operario cuando están cerca.">
@@ -191,12 +179,9 @@ const LaborSettingsPage = () => {
           </section>
 
           <section className="pt-5">
-            <SectionHeading icon={Gauge} title="Metas de productividad" description="Solo colorean los KPIs de la pestaña Productividad — no generan incentivos reales." />
+            <SectionHeading icon={Gauge} title="Meta de productividad" description="Solo colorea el KPI de unidades/hora en la pestaña Productividad — no genera incentivos reales." />
             <div className="mt-2 divide-y divide-zinc-100 dark:divide-zinc-800/60">
-              <SettingRow label="Picks/hora objetivo (picker)" description="Meta usada para colorear la fila de cada picker.">
-                <InlineSlider value={localSettings.laborTargetPicksPerHour} min={5} max={150} step={5} onChange={(v) => handleSettingChange('laborTargetPicksPerHour', v)} />
-              </SettingRow>
-              <SettingRow label="Unidades/hora objetivo (packer)" description="Meta usada para colorear la fila de cada packer.">
+              <SettingRow label="Unidades/hora objetivo" description="Meta usada para colorear la fila de cada operario en la tabla de productividad.">
                 <InlineSlider value={localSettings.laborTargetUnitsPerHour} min={5} max={200} step={5} onChange={(v) => handleSettingChange('laborTargetUnitsPerHour', v)} />
               </SettingRow>
             </div>

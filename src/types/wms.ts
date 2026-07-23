@@ -1178,16 +1178,10 @@ export interface WmsSettings {
   // en horarios que se solapan (excepción a la validación de conflicto de agenda).
   yardAllowOverbooking: boolean
   // Labor module (#9) — task queue, productivity, interleaving. Configured in /labor-settings.
-  // Congela asignación/reasignación de tareas desde /labor (no afecta acciones nativas de cada módulo).
-  laborFreezeActive: boolean
-  // Horas desde creación de la tarea fuente por encima de las cuales la cola la marca prioridad ALTA / MEDIA.
-  laborSlaHighPriorityHours: number
-  laborSlaMediumPriorityHours: number
   // Si está activo, la cola agrupa tareas de distinto tipo del mismo operario dentro de laborInterleavingMaxDistanceM.
   laborInterleavingEnabled: boolean
   laborInterleavingMaxDistanceM: number
-  // Metas usadas solo para colorear KPIs en /labor (Productividad) — sin lógica de incentivos.
-  laborTargetPicksPerHour: number
+  // Meta usada solo para colorear KPIs en /labor (Productividad) — sin lógica de incentivos.
   laborTargetUnitsPerHour: number
 }
 
