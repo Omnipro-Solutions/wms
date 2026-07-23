@@ -47,3 +47,18 @@ describe('startReplenishment — operator id wiring', () => {
     expect(task?.assignedOperatorId).toBeUndefined()
   })
 })
+
+describe('assignPutaway — operator id wiring', () => {
+  it('sets assignedOperatorId and assignedOperatorName when a 3rd argument is passed', () => {
+    useWmsStore.getState().assignPutaway('asn-1', 'María Recepcionista', 'op-receiver-1')
+    const asn = useWmsStore.getState().asnRecords.find((a) => a.id === 'asn-1')
+    expect(asn?.assignedOperatorName).toBe('María Recepcionista')
+    expect(asn?.assignedOperatorId).toBe('op-receiver-1')
+  })
+
+  it('leaves assignedOperatorId undefined when the 3rd argument is omitted', () => {
+    useWmsStore.getState().assignPutaway('asn-1', 'María Recepcionista')
+    const asn = useWmsStore.getState().asnRecords.find((a) => a.id === 'asn-1')
+    expect(asn?.assignedOperatorId).toBeUndefined()
+  })
+})

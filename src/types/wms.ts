@@ -261,6 +261,7 @@ export interface Asn {
   // Labor module (#9) — operator assigned to putaway before it's executed via putawayItem().
   // Display-only until putawayItem() runs; does not gate the action.
   assignedOperatorName?: string
+  assignedOperatorId?: string
   // Populated when ASN is closed with short_received — reason for the discrepancy.
   closeReason?: string
   // Number of individual GR (Goods Receipt) deliveries registered against this ASN.
