@@ -45,6 +45,9 @@ const schema = z.object({
   rackTypeId: z.string(),
   isPickFace: z.boolean(),
   golden: z.boolean(),
+  hazardApproved: z.boolean(),
+  temperatureZone: z.string(),
+  allowsLotMixing: z.boolean(),
   // ponytail: strings in form, parsed to numbers on submit
   accessibilityScore: z.string().min(1, 'Requerido'),
   distanceToDispatchM: z.string().min(1, 'Requerido'),
@@ -66,6 +69,9 @@ const toDefaults = (loc: StorageLocation | null, defaultWarehouseId: string): Fo
   rackTypeId: loc?.rackTypeId ?? NONE_RACK,
   isPickFace: loc?.isPickFace ?? true,
   golden: loc?.golden ?? false,
+  hazardApproved: loc?.hazardApproved ?? false,
+  temperatureZone: loc?.temperatureZone ?? 'ambient',
+  allowsLotMixing: loc?.allowsLotMixing ?? true,
   accessibilityScore: String(loc?.accessibilityScore ?? 50),
   distanceToDispatchM: String(loc?.distanceToDispatchM ?? 20),
   maxWeightKg: String(loc?.maxWeightKg ?? 25),
@@ -141,6 +147,9 @@ export const LocationFormDialog = ({ open, location, onClose }: Props) => {
         type: values.type as LocationType,
         isPickFace: values.isPickFace,
         golden: values.golden,
+        hazardApproved: values.hazardApproved,
+        temperatureZone: values.temperatureZone as 'ambient' | 'refrigerated' | 'frozen',
+        allowsLotMixing: values.allowsLotMixing,
         isBlocked: location?.isBlocked ?? false,
         blockReasonId: location?.blockReasonId,
         accessibilityScore: Math.max(0, Math.min(100, parseInt(values.accessibilityScore, 10) || 0)),
@@ -312,6 +321,54 @@ export const LocationFormDialog = ({ open, location, onClose }: Props) => {
                   </label>
                 )}
               />
+            </div>
+          </div>
+
+          {/* Restricciones de putaway (módulo #3) */}
+          <div className="rounded-lg border p-3">
+            <p className="text-muted-foreground mb-2 text-xs font-medium uppercase tracking-wide">
+              Restricciones de putaway
+            </p>
+            <div className="grid grid-cols-3 gap-3">
+              <Controller
+                control={control}
+                name="hazardApproved"
+                render={({ field }) => (
+                  <label className="flex cursor-pointer items-center gap-2 text-sm">
+                    <Switch checked={field.value} onCheckedChange={field.onChange} />
+                    Aprobada hazmat
+                  </label>
+                )}
+              />
+              <Controller
+                control={control}
+                name="allowsLotMixing"
+                render={({ field }) => (
+                  <label className="flex cursor-pointer items-center gap-2 text-sm">
+                    <Switch checked={field.value} onCheckedChange={field.onChange} />
+                    Permite mezcla de lotes
+                  </label>
+                )}
+              />
+              <Field>
+                <FieldLabel htmlFor="loc-temp" className="text-xs">Zona de temperatura</FieldLabel>
+                <Controller
+                  control={control}
+                  name="temperatureZone"
+                  render={({ field }) => (
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <SelectTrigger id="loc-temp">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="ambient">Ambiente</SelectItem>
+                        <SelectItem value="refrigerated">Refrigerado</SelectItem>
+                        <SelectItem value="frozen">Congelado</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  )}
+                />
+              </Field>
             </div>
           </div>
 

@@ -33,6 +33,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
+import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
 import {
   Select,
@@ -87,7 +88,13 @@ const ADMIN_TABS: SubNavItem[] = [
   { value: 'almacenes', label: 'Almacenes' },
 ]
 
-const PRODUCT_BLANK = { rotationStrategy: undefined as Product['rotationStrategy'], minStockUnits: '' as number | '', maxStockUnits: '' as number | '' }
+const PRODUCT_BLANK = {
+  rotationStrategy: undefined as Product['rotationStrategy'],
+  minStockUnits: '' as number | '',
+  maxStockUnits: '' as number | '',
+  isHazardous: false,
+  requiresColdChain: false,
+}
 
 const DAY_LABELS = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb']
 
@@ -213,6 +220,8 @@ const AdminPage = () => {
       rotationStrategy: product.rotationStrategy,
       minStockUnits: product.minStockUnits ?? '',
       maxStockUnits: product.maxStockUnits ?? '',
+      isHazardous: product.isHazardous ?? false,
+      requiresColdChain: product.requiresColdChain ?? false,
     })
     setProductEditOpen(true)
   }
@@ -223,6 +232,8 @@ const AdminPage = () => {
       rotationStrategy: productForm.rotationStrategy,
       minStockUnits: productForm.minStockUnits === '' ? undefined : Number(productForm.minStockUnits),
       maxStockUnits: productForm.maxStockUnits === '' ? undefined : Number(productForm.maxStockUnits),
+      isHazardous: productForm.isHazardous,
+      requiresColdChain: productForm.requiresColdChain,
     })
     setProductEditOpen(false)
   }
@@ -652,6 +663,23 @@ const AdminPage = () => {
                       onChange={(e) => setProductForm((f) => ({ ...f, maxStockUnits: e.target.value === '' ? '' : Number(e.target.value) }))}
                     />
                   </div>
+                </div>
+                <div className="space-y-2 border-t pt-3">
+                  <p className="text-xs font-medium text-muted-foreground">Restricciones de putaway</p>
+                  <label className="flex items-center justify-between gap-3 text-sm">
+                    Material peligroso (hazmat)
+                    <Switch
+                      checked={productForm.isHazardous}
+                      onCheckedChange={(v) => setProductForm((f) => ({ ...f, isHazardous: v }))}
+                    />
+                  </label>
+                  <label className="flex items-center justify-between gap-3 text-sm">
+                    Requiere cadena de frío
+                    <Switch
+                      checked={productForm.requiresColdChain}
+                      onCheckedChange={(v) => setProductForm((f) => ({ ...f, requiresColdChain: v }))}
+                    />
+                  </label>
                 </div>
               </div>
               <DialogFooter>
