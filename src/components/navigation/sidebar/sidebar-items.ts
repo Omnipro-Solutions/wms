@@ -12,6 +12,7 @@ import {
   MapPinned,
   Package,
   PackageCheck,
+  Warehouse,
   Repeat,
   Route,
   Settings2,
@@ -265,6 +266,7 @@ export const sidebarItems: NavGroup[] = [
             url: '/location-settings',
             icon: MapPinned,
           },
+          { id: 'config-putaway', title: 'Putaway', url: '/putaway-settings', icon: Warehouse },
           { id: 'config-slotting', title: 'Slotting', url: '/slotting-settings', icon: Grid3x3 },
           { id: 'config-picking', title: 'Picking', url: '/picking-settings', icon: ClipboardList },
           {
