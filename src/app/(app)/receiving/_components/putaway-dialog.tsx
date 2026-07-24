@@ -1,6 +1,6 @@
 'use client'
 
-import { ArrowRight, CheckCircle2, ClipboardCheck, MapPin, Zap } from 'lucide-react'
+import { ArrowRight, CheckCircle2, ClipboardCheck, MapPin, Snowflake, TriangleAlert, Zap } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -154,19 +154,33 @@ export const PutawayDialog = ({ state }: Props) => {
                 <SelectContent>
                   {allLocations.map((l) => {
                     const isSuggested = l.id === dialog.data?.suggestedLocationId
+                    const compat = dialog.data?.locationCompat[l.id]
+                    const isInvalid = compat ? !compat.compatible : false
                     return (
-                      <SelectItem key={l.id} value={l.id}>
-                        <span className="flex items-center gap-2">
-                          {isSuggested && <span className="font-bold text-emerald-500">★</span>}
-                          <span className="font-mono">{l.code}</span>
-                          <span className="text-muted-foreground">— Zona {l.zone}</span>
-                          {l.golden && (
-                            <Badge
-                              variant="outline"
-                              className="border-amber-300 px-1 py-0 text-[10px] text-amber-600"
-                            >
-                              Golden
-                            </Badge>
+                      <SelectItem key={l.id} value={l.id} disabled={isInvalid}>
+                        <span className="flex flex-col gap-0.5">
+                          <span className="flex items-center gap-2">
+                            {isSuggested && <span className="font-bold text-emerald-500">★</span>}
+                            <span className="font-mono">{l.code}</span>
+                            <span className="text-muted-foreground">— Zona {l.zone}</span>
+                            {l.golden && (
+                              <Badge
+                                variant="outline"
+                                className="border-amber-300 px-1 py-0 text-[10px] text-amber-600"
+                              >
+                                Golden
+                              </Badge>
+                            )}
+                            {l.temperatureZone && l.temperatureZone !== 'ambient' && (
+                              <Snowflake className="size-3 text-sky-500" />
+                            )}
+                            {l.hazardApproved && <Zap className="size-3 text-amber-500" />}
+                          </span>
+                          {isInvalid && (
+                            <span className="flex items-center gap-1 text-[11px] text-destructive">
+                              <TriangleAlert className="size-3" />
+                              {compat?.reasons.join('. ')}
+                            </span>
                           )}
                         </span>
                       </SelectItem>
