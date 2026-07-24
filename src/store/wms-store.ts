@@ -116,6 +116,7 @@ import { buildLaborQueue, distributeQueueByLoad } from '@/lib/rules/labor'
 import { deriveOtifStatus } from '@/lib/rules/shipping'
 import { canCrossDock } from '@/lib/rules/crossdock'
 import { isGoldenEligible } from '@/lib/rules/locations'
+import { validatePutawayDestination } from '@/lib/rules/putaway'
 import { toBaseQty } from '@/lib/rules/uom'
 import { nextReturnStatus, TERMINAL_RETURN_STATUSES } from '@/lib/returns'
 
@@ -141,6 +142,9 @@ const PACKING_FROZEN_MSG = 'Packing en modo congelado. No se permiten operacione
 
 // Shipping module (#7) — guarda de gobierno, ver /shipping-settings.
 const SHIPPING_FROZEN_MSG = 'Despacho en modo congelado. No se permiten operaciones.'
+
+// Putaway module (#3) — guarda de gobierno, ver /putaway-settings.
+const PUTAWAY_FROZEN_MSG = 'Almacenamiento y putaway en modo congelado. No se permiten operaciones.'
 
 const nextMovementId = (): string => {
   movementCounter += 1
@@ -1329,13 +1333,42 @@ export const useWmsStore = create<WmsState>()(
 
       putawayItem: (asnId, locationId, operatorName) => {
         const state = get()
+        if (state.settings.putawayFreezeActive) throw new Error(PUTAWAY_FROZEN_MSG)
         const asn = state.asnRecords.find((a) => a.id === asnId)
         if (!asn) throw new Error('ASN not found')
         if (!canTransition(asnTransitions, asn.status, 'putaway_done'))
           throw new Error(`No se puede hacer putaway desde el estado ${asn.status}`)
 
         const product = state.products.find((p) => p.id === asn.productId)
-        const isSerialTracked = product?.trackBy === 'serial'
+        if (!product) throw new Error('Producto no encontrado')
+        const isSerialTracked = product.trackBy === 'serial'
+
+        const destination = state.locations.find((l) => l.id === locationId)
+        if (!destination) throw new Error('Ubicación de destino no encontrada')
+        const rackType = destination.rackTypeId
+          ? state.rackTypes.find((r) => r.id === destination.rackTypeId)
+          : undefined
+        const hasOtherLotAtLocation =
+          product.trackBy === 'lot' &&
+          state.inventoryItems.some(
+            (i) =>
+              i.locationId === locationId &&
+              i.productId === product.id &&
+              i.onHandQuantity > 0 &&
+              i.lot !== undefined
+          )
+        const abcClass = abcByProduct(state)[product.id] ?? 'C'
+        const verdict = validatePutawayDestination({
+          product,
+          destination,
+          rackType,
+          hasOtherLotAtLocation,
+          rules: state.putawayRules,
+          abcClass,
+        })
+        if (!verdict.compatible) {
+          throw new Error(`Ubicación no compatible: ${verdict.reasons.join('. ')}.`)
+        }
 
         // After QC approval, stock moves from loc-qc → loc-stageout, so always check
         // loc-stageout first; fall back to loc-qc for ASNs mid-QC (not yet approved).
@@ -1444,6 +1477,7 @@ export const useWmsStore = create<WmsState>()(
       },
 
       assignPutaway: (asnId, operatorName, operatorId) => {
+        if (get().settings.putawayFreezeActive) throw new Error(PUTAWAY_FROZEN_MSG)
         set((state) => ({
           asnRecords: state.asnRecords.map((a) =>
             a.id === asnId

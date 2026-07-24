@@ -7,6 +7,7 @@ import { useStoreHelpers } from '@/hooks/use-store-helpers'
 import { selectSlottingRecommendations, abcByProduct, xyzByProduct } from '@/store/selectors'
 import { idealLocationTier } from '@/lib/rules/slotting'
 import { suggestPutawayLocation } from '@/lib/rules/putaway'
+import { useCurrentOperator } from '@/hooks/use-current-operator'
 import type { AbcClass, XyzClass } from '@/types/wms'
 
 export interface PutawayDialogData {
@@ -31,6 +32,7 @@ export const usePutawayDialog = () => {
   const state = useWmsStore()
   const { putawayItem } = state
   const { locationCode } = useStoreHelpers()
+  const { operator } = useCurrentOperator()
 
   const dialog = useDialogState<PutawayDialogData>()
   const [selectedLocation, setSelectedLocation] = useState('')
@@ -126,7 +128,7 @@ export const usePutawayDialog = () => {
       return
     }
     try {
-      putawayItem(dialog.data.asnId, selectedLocation, 'Operador')
+      putawayItem(dialog.data.asnId, selectedLocation, operator?.name ?? 'Operador')
       dialog.close()
       setSelectedLocation('')
     } catch (e: unknown) {
