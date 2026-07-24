@@ -4,6 +4,8 @@ import { useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { CheckCircle2, Printer } from 'lucide-react'
 import { useWmsStore } from '@/store/wms-store'
+import { abcByProduct, xyzByProduct } from '@/store/selectors'
+import { suggestPutawayLocation } from '@/lib/rules/putaway'
 import { useCurrentOperator } from '@/hooks/use-current-operator'
 import { WorkerStepper } from '@/components/worker/worker-stepper'
 import { QuantityStepper } from '@/components/worker/quantity-stepper'
@@ -23,17 +25,45 @@ export default function WorkerReceivingAsnPage() {
   const { asnId } = useParams<{ asnId: string }>()
   const router = useRouter()
   const { operator } = useCurrentOperator()
-  const { asnRecords, products, locations, labels, receiveAsn, approveQc, rejectQc, putawayItem, printReceiptLabel } =
-    useWmsStore()
+  const state = useWmsStore()
+  const {
+    asnRecords,
+    products,
+    locations,
+    labels,
+    putawayRules,
+    rackTypes,
+    inventoryItems,
+    receiveAsn,
+    approveQc,
+    rejectQc,
+    putawayItem,
+    printReceiptLabel,
+  } = state
 
   const asn = asnRecords.find((a) => a.id === asnId)
   const product = products.find((p) => p.id === asn?.productId)
-  const suggestedLocation = locations.find((l) => l.id === asn?.suggestedPutawayLocationId)
+
+  const abc = abcByProduct(state)
+  const xyz = xyzByProduct(state)
+  const suggestedLocation = product
+    ? suggestPutawayLocation({
+        product,
+        abcClass: abc[product.id] ?? 'C',
+        xyzClass: xyz[product.id] ?? 'Z',
+        locations,
+        inventoryItems,
+        rules: putawayRules,
+        rackTypes,
+        warehouseId: 'wh-bog',
+      })?.location
+    : undefined
 
   const [step, setStep] = useState<Step>('summary')
   const [recQty, setRecQty] = useState(asn?.expectedQuantity ?? 0)
   const [dmgQty, setDmgQty] = useState(0)
   const [receiveError, setReceiveError] = useState<string | null>(null)
+  const [putawayError, setPutawayError] = useState<string | null>(null)
   const [serialsRaw, setSerialsRaw] = useState('')
   const [printedLabelIds, setPrintedLabelIds] = useState<string[]>([])
 
@@ -101,10 +131,14 @@ export default function WorkerReceivingAsnPage() {
   }
 
   const handlePutaway = () => {
-    if (suggestedLocation) {
+    setPutawayError(null)
+    if (!suggestedLocation) return
+    try {
       putawayItem(asn.id, suggestedLocation.id, opName)
+      setStep('print-label')
+    } catch (e: unknown) {
+      setPutawayError(e instanceof Error ? e.message : 'Error al confirmar ubicación')
     }
-    setStep('print-label')
   }
 
   const pendingReceiptLabels = labels.filter(
@@ -376,10 +410,11 @@ export default function WorkerReceivingAsnPage() {
             </div>
           ) : (
             <p className="text-muted-foreground text-sm">
-              Sin ubicación sugerida — ubicar manualmente.
+              Sin ubicación sugerida — completa este putaway desde el escritorio.
             </p>
           )}
-          <Button className="h-12 text-base" onClick={handlePutaway}>
+          {putawayError && <ErrorBanner message={putawayError} />}
+          <Button className="h-12 text-base" onClick={handlePutaway} disabled={!suggestedLocation}>
             Confirmar ubicación y finalizar
           </Button>
         </div>
