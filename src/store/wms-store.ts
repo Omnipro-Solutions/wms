@@ -83,6 +83,7 @@ import type {
   ProductDemandStat,
   PurchaseOrder,
   PutToStoreTask,
+  PutawayRule,
   RackType,
   Reason,
   ReentryBatch,
@@ -232,6 +233,7 @@ export interface WmsState {
   crossDockTasks: CrossDockTask[]
   slottingSnapshots: SlottingSnapshot[]
   slottingRules: SlottingRule[]
+  putawayRules: PutawayRule[]
   operators: Operator[]
   reasons: Reason[]
   carriers: Carrier[]
@@ -480,6 +482,11 @@ export interface WmsState {
   updateSlottingRule: (id: string, data: Partial<Omit<SlottingRule, 'id'>>) => SlottingRule
   toggleSlottingRule: (id: string) => SlottingRule
   deleteSlottingRule: (id: string) => void
+  // Putaway rules (gobierno de destino en recepción — independiente de slotting)
+  createPutawayRule: (data: Omit<PutawayRule, 'id'>) => PutawayRule
+  updatePutawayRule: (id: string, data: Partial<Omit<PutawayRule, 'id'>>) => PutawayRule
+  togglePutawayRule: (id: string) => PutawayRule
+  deletePutawayRule: (id: string) => void
   // Admin — Operators
   createOperator: (data: Omit<Operator, 'id'>) => Operator
   updateOperator: (id: string, data: Partial<Omit<Operator, 'id'>>) => Operator
@@ -679,6 +686,7 @@ const buildSeedState = () => ({
   crossDockTasks: [] as CrossDockTask[],
   slottingSnapshots: [] as SlottingSnapshot[],
   slottingRules: seed.slottingRules,
+  putawayRules: seed.putawayRules,
   operators: seed.operators,
   reasons: seed.reasons,
   carriers: seed.carriers,
@@ -4082,6 +4090,38 @@ export const useWmsStore = create<WmsState>()(
         set({ slottingRules: state.slottingRules.filter((r) => r.id !== id) })
       },
 
+      // ─── Putaway rules ──────────────────────────────────────────────────────────
+
+      createPutawayRule: (data) => {
+        const state = get()
+        const created: PutawayRule = { ...data, id: `pwr-${Date.now()}` }
+        set({ putawayRules: [...state.putawayRules, created] })
+        return created
+      },
+
+      updatePutawayRule: (id, data) => {
+        const state = get()
+        const rule = state.putawayRules.find((r) => r.id === id)
+        if (!rule) throw new Error('putaway rule not found')
+        const updated: PutawayRule = { ...rule, ...data }
+        set({ putawayRules: state.putawayRules.map((r) => (r.id === id ? updated : r)) })
+        return updated
+      },
+
+      togglePutawayRule: (id) => {
+        const state = get()
+        const rule = state.putawayRules.find((r) => r.id === id)
+        if (!rule) throw new Error('putaway rule not found')
+        const updated: PutawayRule = { ...rule, active: !rule.active }
+        set({ putawayRules: state.putawayRules.map((r) => (r.id === id ? updated : r)) })
+        return updated
+      },
+
+      deletePutawayRule: (id) => {
+        const state = get()
+        set({ putawayRules: state.putawayRules.filter((r) => r.id !== id) })
+      },
+
       // ─── Admin ────────────────────────────────────────────────────────────────
 
       createOperator: (data) => {
@@ -5068,7 +5108,10 @@ export const useWmsStore = create<WmsState>()(
       // cycle-count governance settings + demo plans/lines/adjustment added to the seed.
       // v8: yard/dock module (#8) — docks + dockAppointments slices, and yard
       // governance settings (operating hours, working days, overbooking) added to the seed.
-      version: 8,
+      // v9: putaway module (#3) — putawayRules slice, hazard/cold-chain/lot-mixing
+      // fields on Product/StorageLocation, and putawayFreezeActive governance added
+      // to the seed.
+      version: 9,
       migrate: () => buildSeedState() as Partial<WmsState>,
     }
   )
