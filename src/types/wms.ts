@@ -125,6 +125,12 @@ export interface StorageLocation {
   // (see selectReplenishmentNeeds). Only meaningful for pick faces.
   minStockUnits?: number
   maxStockUnits?: number
+  // Putaway module (#3) — restricciones siempre activas (no configurables), ver
+  // lib/rules/putaway.ts:checkPutawayCompatibility. hazardApproved/allowsLotMixing
+  // por defecto false/true respectivamente cuando están ausentes.
+  hazardApproved?: boolean
+  temperatureZone?: 'ambient' | 'refrigerated' | 'frozen'
+  allowsLotMixing?: boolean
 }
 
 export interface Product {
@@ -152,6 +158,9 @@ export interface Product {
   // Replenishment stock limits (replaces derived proxy from demand stats)
   minStockUnits?: number // if set, overrides selector's demand-based minStock
   maxStockUnits?: number // if set, overrides selector's demand-based maxStock
+  // Putaway module (#3) — restricciones siempre activas de destino.
+  isHazardous?: boolean
+  requiresColdChain?: boolean
 }
 
 export interface InventoryItem {
@@ -1043,6 +1052,49 @@ export interface SlottingRule {
   active: boolean
 }
 
+// --- Putaway rules (motor paralelo e independiente de SlottingRule) ---
+//
+// Mismo shape que SlottingRule (matchType + directives + priority), declarado por
+// separado a propósito: gobierna DÓNDE ATERRIZA la mercancía recién recibida, no
+// dónde debería reubicarse stock ya existente (eso es SlottingRule). Ajustar una
+// regla de slotting nunca debe cambiar el comportamiento de putaway, y viceversa.
+// Las funciones de evaluación de lib/rules/slotting.ts (activeMatchingRules,
+// candidateAllowedByRules, resolvePreferredTier) son genéricas sobre la forma de
+// las directivas, así que lib/rules/putaway.ts las reutiliza vía un cast interno
+// en vez de duplicar la lógica de matching.
+
+export type PutawayRuleMatchType = 'category' | 'abcClass' | 'weightAboveKg' | 'trackBy'
+
+export type PutawayDirectiveKind =
+  | 'preferTier'
+  | 'requireLocationType'
+  | 'requireZone'
+  | 'requireGolden'
+  | 'forbidGolden'
+  | 'maxLevel'
+  | 'requireRackCompatible'
+
+export type PutawayDirective =
+  | { kind: 'preferTier'; tier: SlottingTier }
+  | { kind: 'requireLocationType'; locationType: LocationType }
+  | { kind: 'requireZone'; zone: string }
+  | { kind: 'requireGolden' }
+  | { kind: 'forbidGolden' }
+  | { kind: 'maxLevel'; level: number }
+  | { kind: 'requireRackCompatible' }
+
+export interface PutawayRule {
+  id: string
+  code: string
+  name: string
+  description?: string
+  matchType: PutawayRuleMatchType
+  matchValue: string
+  directives: PutawayDirective[]
+  priority: number
+  active: boolean
+}
+
 // --- Administration domain ---
 
 export interface Operator {
@@ -1220,13 +1272,6 @@ export interface WmsSettings {
   // Catálogo independiente de zonas de picking (pick-and-pass), desacoplado de
   // StorageLocation.zone para permitir renombrar/reordenar sin tocar ubicaciones.
   pickingZones: PickingZoneConfig[]
-}
-
-export interface PickingZoneConfig {
-  id: string
-  name: string
-  sequenceOrder: number // orden de paso en pick-and-pass, ascendente
-  active: boolean
   // Packing module (#6) — embalaje. Configured in /packing-settings.
   // Congela iniciar/escanear/completar/aplicar reglas/seleccionar caja/generar etiqueta/enviar a despacho.
   packingFreezeActive: boolean
@@ -1267,6 +1312,16 @@ export interface PickingZoneConfig {
   shippingOtifTargetPct: number
   // Si está activo, los envíos con el mismo destino se sugieren para consolidar en una ruta.
   shippingConsolidateByDestination: boolean
+  // Putaway module (#3) — almacenamiento y putaway. Configured in /putaway-settings.
+  // Congela putawayItem/assignPutaway. Las reglas (PutawayRule) y sus CRUD NO se congelan.
+  putawayFreezeActive: boolean
+}
+
+export interface PickingZoneConfig {
+  id: string
+  name: string
+  sequenceOrder: number // orden de paso en pick-and-pass, ascendente
+  active: boolean
 }
 
 // --- Inventory adjustment requests (Sprint 2 — #56) ---

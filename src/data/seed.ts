@@ -3832,6 +3832,8 @@ export const settings: WmsSettings = {
       label: 'B2B (48h)',
     },
   ],
+  // Putaway module (#3)
+  putawayFreezeActive: false,
 }
 
 // ─── Additional commerce orders (zone B, put-to-store, waveless) ─────────────
