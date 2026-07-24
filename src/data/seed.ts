@@ -787,7 +787,10 @@ export const locations: StorageLocation[] = [
     barcode: 'LOC-HZ-HZ0101',
     warehouseId: 'wh-bog',
     zone: 'HZ',
-    rackTypeId: 'rack-floor',
+    // rack-sel-std (not rack-floor): compatibleLocationTypes includes 'reserve' and
+    // compatibleCategories is universal ([]) — rack-floor only admits staging/returns/QC
+    // and would make this location permanently rack-incompatible regardless of hazmat status.
+    rackTypeId: 'rack-sel-std',
     type: 'reserve',
     isPickFace: false,
     golden: false,
@@ -805,7 +808,8 @@ export const locations: StorageLocation[] = [
     barcode: 'LOC-CC-CC0101',
     warehouseId: 'wh-bog',
     zone: 'CC',
-    rackTypeId: 'rack-floor',
+    // See loc-hazmat-01 comment: rack-sel-std admits 'reserve' + any category.
+    rackTypeId: 'rack-sel-std',
     type: 'reserve',
     isPickFace: false,
     golden: false,
