@@ -1,8 +1,10 @@
 'use client'
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
+import { Sparkles } from 'lucide-react'
 import { useWmsStore } from '@/store/wms-store'
-import { isDockCompatible } from '@/lib/rules/yard'
+import { isDockCompatible, suggestDock } from '@/lib/rules/yard'
+import { Badge } from '@/components/ui/badge'
 import {
   Dialog,
   DialogContent,
@@ -36,7 +38,7 @@ const AssignDockForm = ({
   appointment: AppointmentRow
   onClose: () => void
 }) => {
-  const { docks, assignDock } = useWmsStore()
+  const { docks, assignDock, dockAppointments, asnRecords, locations } = useWmsStore()
   const [dockId, setDockId] = useState(appointment.dockId ?? '')
   const [error, setError] = useState('')
 
@@ -46,6 +48,15 @@ const AssignDockForm = ({
       d.status === 'active' &&
       isDockCompatible(d, appointment.type)
   )
+
+  // Ranking por tipo de tráfico, conflicto de agenda y cercanía al despacho.
+  const ranked = useMemo(() => {
+    const source = dockAppointments.find((a) => a.id === appointment.id)
+    const asn = source?.asnId ? asnRecords.find((a) => a.id === source.asnId) : undefined
+    return suggestDock(appointment, docks, dockAppointments, asn, locations)
+  }, [appointment, docks, dockAppointments, asnRecords, locations])
+
+  const best = ranked.find((r) => r.score > 0)
 
   const handleSubmit = () => {
     if (!dockId) {
@@ -65,6 +76,33 @@ const AssignDockForm = ({
       <DialogHeader>
         <DialogTitle>Asignar muelle — {appointment.code}</DialogTitle>
       </DialogHeader>
+      {best && (
+        <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 dark:border-blue-900/50 dark:bg-blue-950/30">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <Sparkles className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+              <span className="text-sm font-medium">
+                Sugerido: {best.dock.code} — {best.dock.name}
+              </span>
+            </div>
+            <Badge variant="outline">{best.score}/100</Badge>
+          </div>
+          <p className="text-muted-foreground mt-1 text-xs">{best.reasons.join(' · ')}</p>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="mt-2 w-full"
+            onClick={() => {
+              setDockId(best.dock.id)
+              setError('')
+            }}
+          >
+            Usar sugerencia
+          </Button>
+        </div>
+      )}
+
       <div className="space-y-1.5">
         <Label htmlFor="assign-dock-select">Muelle</Label>
         <Select

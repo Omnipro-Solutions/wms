@@ -6,6 +6,7 @@ import {
   Cable,
   ClipboardCheck,
   ClipboardList,
+  Container,
   Grid3x3,
   Layers,
   ListChecks,
@@ -22,6 +23,7 @@ import {
   Truck,
   Undo2,
   Users,
+  Warehouse,
 } from 'lucide-react'
 import type { NavGroup } from '@/types/navigation'
 
@@ -32,6 +34,8 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { label: 'Dashboard', href: '/', icon: BarChart3 },
       { label: 'Recepción', href: '/receiving', icon: PackageCheck },
+      { label: 'Patio y muelles', href: '/yard', icon: Warehouse },
+      { label: 'Unidades de carga', href: '/lpn', icon: Container },
       { label: 'Inventario', href: '/inventory', icon: Boxes },
       { label: 'Trazabilidad lotes', href: '/inventory/lot-trace', icon: Layers },
       { label: 'Trazabilidad N/S', href: '/serial-trace', icon: ScanLine },
@@ -71,6 +75,9 @@ export const NAV_GROUPS: NavGroup[] = [
       { label: 'Config. Inventario', href: '/inventory-settings', icon: SlidersHorizontal },
       { label: 'Config. Conteo cíclico', href: '/cycle-count-settings', icon: ClipboardCheck },
       { label: 'Config. Mano de obra', href: '/labor-settings', icon: Users },
+      { label: 'Config. Control de calidad', href: '/qc-settings', icon: ClipboardCheck },
+      { label: 'Config. Putaway', href: '/putaway-settings', icon: MapPinned },
+      { label: 'Config. Patio', href: '/yard-settings', icon: Warehouse },
       { label: 'Administración', href: '/admin', icon: Settings2 },
     ],
   },

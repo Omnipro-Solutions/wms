@@ -1,7 +1,7 @@
 // ZPL II label builder — generates Zebra Programming Language templates
 // Compatible with Zebra ZD410/ZD420/ZT410/ZT610 and compatible printers.
 
-export type ZplLabelType = 'product' | 'location' | 'box' | 'pallet' | 'shipping' | 'return' | 'receipt'
+export type ZplLabelType = 'product' | 'location' | 'box' | 'pallet' | 'shipping' | 'return' | 'receipt' | 'lpn'
 
 export interface ZplLabelData {
   code: string
@@ -25,6 +25,7 @@ const TYPE_ES: Record<ZplLabelType, string> = {
   shipping: 'DESPACHO',
   return: 'DEVOLUCIÓN',
   receipt: 'RECEPCIÓN',
+  lpn: 'LPN',
 }
 
 /**

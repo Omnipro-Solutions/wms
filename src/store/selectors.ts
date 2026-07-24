@@ -17,6 +17,10 @@ import type { ProductAffinityPair } from '@/lib/rules/slotting'
 import { otifPercentage } from '@/lib/rules/shipping'
 import { productivityByOperator } from '@/lib/rules/picking'
 import { isAppointmentAtRisk } from '@/lib/rules/yard'
+import { findCrossDockOpportunities } from '@/lib/rules/crossdock'
+import type { CrossDockOpportunity } from '@/lib/rules/crossdock'
+import { syncHealthByConnection } from '@/lib/rules/stock-sync'
+import type { SyncHealth } from '@/lib/rules/stock-sync'
 import { dashboardHistory } from '@/data/seed'
 import { statusLabel } from '@/lib/status'
 import type { WmsState } from './wms-store'
@@ -1345,3 +1349,19 @@ export const selectYardKpis = (state: WmsState, nowMs = 0): YardKpis => {
     ).length,
   }
 }
+
+// ─── Cross-dock proactivo ─────────────────────────────────────────────────────
+// Oportunidades donde la mercancía que está entrando desbloquea un pedido.
+// Los backorders (pedidos sin stock que los cubra) van primero.
+export const selectCrossDockOpportunities = (state: WmsState): CrossDockOpportunity[] => {
+  if (!state.settings.crossDockAlertsEnabled) return []
+  return findCrossDockOpportunities(
+    state.asnRecords,
+    state.commerceOrders,
+    state.inventoryItems
+  )
+}
+
+// ─── Salud de la sincronización con ERP/OMS ───────────────────────────────────
+export const selectSyncHealth = (state: WmsState): SyncHealth[] =>
+  syncHealthByConnection(state.stockSyncLog)

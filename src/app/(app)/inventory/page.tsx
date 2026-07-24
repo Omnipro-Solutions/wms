@@ -171,6 +171,7 @@ export default function InventoryPage() {
             status: i.status,
             computedStatus: resolveStockState(i, location?.type),
             baseUomAbbr: unitsOfMeasure.find((u) => u.id === product?.baseUomId)?.abbreviation,
+            lpnCode: i.lpnId ? state.lpns.find((l) => l.id === i.lpnId)?.code : undefined,
           }
         }),
     // eslint-disable-next-line react-hooks/exhaustive-deps

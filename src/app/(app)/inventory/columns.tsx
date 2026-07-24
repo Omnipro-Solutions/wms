@@ -42,6 +42,8 @@ export interface InventoryRow {
   // Computed via resolveStockState — what's actually shown/filtered (see lib/rules/inventory.ts).
   computedStatus: StockStateCode
   baseUomAbbr?: string
+  // Unidad de carga que contiene este stock, si fue paletizado.
+  lpnCode?: string
 }
 
 // ── ABC styles ────────────────────────────────────────────────────────────────
@@ -310,6 +312,20 @@ export const buildInventoryColumns = (onAction: ActionHandler): ColumnDef<Invent
       return (
         <Badge variant="outline" className="font-mono text-[11px]">
           {lot ? `L: ${lot}` : `S: ${serial}`}
+        </Badge>
+      )
+    },
+    enableSorting: false,
+  },
+  {
+    accessorKey: 'lpnCode',
+    header: 'LPN',
+    cell: ({ row }) => {
+      const code = row.original.lpnCode
+      if (!code) return <span className="text-muted-foreground text-xs">—</span>
+      return (
+        <Badge variant="outline" className="font-mono text-[11px]">
+          {code}
         </Badge>
       )
     },

@@ -34,6 +34,7 @@ import {
   isDockCompatible,
   isWithinOperatingHours,
   isWorkingDay,
+  suggestDock,
 } from '@/lib/rules/yard'
 import {
   abcByProduct,
@@ -48,6 +49,7 @@ import {
 import type { SlottingRecommendation, SlottingSnapshot } from '@/types/wms'
 import type {
   Asn,
+  AsnLine,
   BatchTask,
   OperationalStatus,
   Carrier,
@@ -84,6 +86,12 @@ import type {
   PurchaseOrder,
   PutToStoreTask,
   PutawayRule,
+  QcRule,
+  Lpn,
+  LpnLine,
+  LpnType,
+  StockSyncEntry,
+  StockSyncTrigger,
   RackType,
   Reason,
   ReentryBatch,
@@ -117,6 +125,10 @@ import { deriveOtifStatus } from '@/lib/rules/shipping'
 import { canCrossDock } from '@/lib/rules/crossdock'
 import { isGoldenEligible } from '@/lib/rules/locations'
 import { validatePutawayDestination } from '@/lib/rules/putaway'
+import { applyLineReceipt, ensureAsnLines, isAsnFullyReceived, linesOf, syncAsnAggregates } from '@/lib/rules/asn'
+import { canCloseLpn, canMoveLpn, lpnLinesOf, nextLpnCode } from '@/lib/rules/lpn'
+import { evaluateQcRules } from '@/lib/rules/qc'
+import { buildStockSyncPayload, buildSyncEntries, syncTargets } from '@/lib/rules/stock-sync'
 import { toBaseQty } from '@/lib/rules/uom'
 import { nextReturnStatus, TERMINAL_RETURN_STATUSES } from '@/lib/returns'
 
@@ -238,6 +250,10 @@ export interface WmsState {
   slottingSnapshots: SlottingSnapshot[]
   slottingRules: SlottingRule[]
   putawayRules: PutawayRule[]
+  qcRules: QcRule[]
+  lpns: Lpn[]
+  lpnLines: LpnLine[]
+  stockSyncLog: StockSyncEntry[]
   operators: Operator[]
   reasons: Reason[]
   carriers: Carrier[]
@@ -293,6 +309,43 @@ export interface WmsState {
   autoDistributeLaborQueue: (sourceTypes?: LaborSourceType[]) => { assigned: number; skipped: number }
   approveQc: (asnId: string, operatorName: string) => void
   rejectQc: (asnId: string, operatorName: string) => void
+  // ASN multi-línea — recepción contra una línea concreta del ASN.
+  receiveAsnLine: (
+    asnId: string,
+    productId: string,
+    receivedQty: number,
+    operatorName: string,
+    damagedQty?: number,
+    serials?: string[],
+    uomId?: string
+  ) => Asn
+  // LPN (unidad de carga)
+  createLpn: (
+    type: LpnType,
+    warehouseId: string,
+    sourceType: Lpn['sourceType'],
+    operatorName: string,
+    asnId?: string
+  ) => Lpn
+  addToLpn: (
+    lpnId: string,
+    productId: string,
+    quantity: number,
+    lot?: string,
+    serial?: string
+  ) => LpnLine
+  closeLpn: (lpnId: string) => Lpn
+  moveLpn: (lpnId: string, toLocationId: string, operatorName: string) => Lpn
+  consumeLpn: (lpnId: string, operatorName: string) => Lpn
+  generateLpnLabel: (lpnId: string, operatorName: string) => WmsLabel
+  // Sync ERP/OMS
+  publishStockSync: (itemIds: string[], trigger: StockSyncTrigger) => StockSyncEntry[]
+  // QC rules CRUD
+  addQcRule: (rule: Omit<QcRule, 'id'>) => QcRule
+  updateQcRule: (id: string, patch: Partial<Omit<QcRule, 'id'>>) => QcRule
+  deleteQcRule: (id: string) => void
+  // Yard — sugerencia automática de muelle
+  autoAssignDock: (appointmentId: string) => DockAppointment
   // Inventory
   adjustInventory: (
     itemId: string,
@@ -661,7 +714,9 @@ const buildSeedState = () => ({
   inventoryItems: seed.inventoryItems,
   stockMovements: seed.stockMovements,
   purchaseOrders: seed.purchaseOrders,
-  asnRecords: [...seed.asnRecords, seed.demoAsnInbound, seed.demoAsn2],
+  // ensureAsnLines hidrata lines[] desde los campos legacy — así el código nuevo
+  // siempre puede leer lines[] sin comprobar si el ASN es anterior al multi-SKU.
+  asnRecords: [...seed.asnRecords, seed.demoAsnInbound, seed.demoAsn2].map(ensureAsnLines),
   transfers: seed.transfers,
   returnOrders: [...seed.returnOrders, seed.demoReturnOrder, seed.demoReturnOrder2],
   returnInspections: seed.returnInspections,
@@ -691,6 +746,10 @@ const buildSeedState = () => ({
   slottingSnapshots: [] as SlottingSnapshot[],
   slottingRules: seed.slottingRules,
   putawayRules: seed.putawayRules,
+  qcRules: seed.qcRules,
+  lpns: [] as Lpn[],
+  lpnLines: [] as LpnLine[],
+  stockSyncLog: [] as StockSyncEntry[],
   operators: seed.operators,
   reasons: seed.reasons,
   carriers: seed.carriers,
@@ -744,37 +803,75 @@ export const useWmsStore = create<WmsState>()(
           throw new Error(`No se puede crear recepción desde el estado ${po.status}`)
         }
 
-        const newAsns: Asn[] = []
+        // ASN multi-línea: una entrega agrupa TODOS los SKU seleccionados de la PO,
+        // en vez de generar un ASN por línea (un camión = un ASN).
         const asnCounter = state.asnRecords.length
+        const abcMap = abcByProduct(state)
 
-        lines.forEach((entry, idx) => {
-          if (entry.qty <= 0) return
+        const asnLines: AsnLine[] = []
+        for (const entry of lines) {
+          if (entry.qty <= 0) continue
           const poLine = po.lines.find((l) => l.id === entry.lineId)
-          if (!poLine) return
-          const product = state.products.find((p) => p.id === poLine.productId)
-          const code = `ASN-${appointmentDate.slice(2, 4)}${appointmentDate.slice(5, 7)}-${String(asnCounter + idx + 1).padStart(3, '0')}`
-          newAsns.push({
-            id: `asn-new-${poId}-${entry.lineId}`,
-            code,
-            supplierName: po.supplierName,
-            appointmentDate,
+          if (!poLine) continue
+          asnLines.push({
+            productId: poLine.productId,
             expectedQuantity: entry.qty,
             receivedQuantity: 0,
             damagedQuantity: 0,
+          })
+        }
+
+        if (asnLines.length === 0)
+          throw new Error('Selecciona al menos una línea con cantidad mayor a 0')
+
+        // QC automático: si alguna línea dispara una regla, todo el ASN se desvía.
+        // La regla ganadora (menor priority) queda registrada en el ASN.
+        let qcRuleId: string | undefined
+        let qcSampled = 0
+        let autoQc = false
+        if (state.settings.qcRulesEnabled) {
+          for (const line of asnLines) {
+            const product = state.products.find((p) => p.id === line.productId)
+            if (!product) continue
+            const verdict = evaluateQcRules(
+              product,
+              po.supplierName,
+              abcMap[product.id] ?? 'C',
+              line.expectedQuantity,
+              state.qcRules
+            )
+            if (verdict.requiresQc) {
+              autoQc = true
+              qcSampled += verdict.sampledQuantity
+              if (!qcRuleId) qcRuleId = verdict.rule?.id
+            }
+          }
+        }
+
+        const code = `ASN-${appointmentDate.slice(2, 4)}${appointmentDate.slice(5, 7)}-${String(asnCounter + 1).padStart(3, '0')}`
+        const newAsns: Asn[] = [
+          syncAsnAggregates({
+            id: `asn-new-${poId}-${Date.now()}`,
+            code,
+            supplierName: po.supplierName,
+            appointmentDate,
+            expectedQuantity: 0,
+            receivedQuantity: 0,
+            damagedQuantity: 0,
             status: 'pending',
-            requiresQualityControl: requiresQc,
+            // El flag manual sigue mandando; las reglas solo pueden activarlo.
+            requiresQualityControl: requiresQc || autoQc,
             crossDocking: false,
-            productId: poLine.productId,
+            productId: asnLines[0].productId,
             deliveryCount: 0,
             purchaseOrderId: poId,
             sourceType: 'purchase',
             receptionNotes: notes,
-            ...(product ? {} : {}),
-          })
-        })
-
-        if (newAsns.length === 0)
-          throw new Error('Selecciona al menos una línea con cantidad mayor a 0')
+            lines: asnLines,
+            qcRuleId,
+            qcSampledQuantity: qcSampled > 0 ? qcSampled : undefined,
+          }),
+        ]
 
         // Update PO lines receivedQty and recalculate PO status
         const updatedLines = po.lines.map((l) => {
@@ -1474,6 +1571,13 @@ export const useWmsStore = create<WmsState>()(
           stockMovements: [...state.stockMovements, ...movements],
           asnRecords: state.asnRecords.map((a) => (a.id === asnId ? updatedAsn : a)),
         })
+
+        // Paso 7 del flujo inbound: el stock recién ubicado se publica hacia
+        // ERP/OMS, quedando disponible para pedidos de cualquier canal.
+        const storedIds = updatedItems
+          .filter((i) => i.locationId === locationId && i.productId === asn.productId)
+          .map((i) => i.id)
+        get().publishStockSync(storedIds, 'putaway')
       },
 
       assignPutaway: (asnId, operatorName, operatorId) => {
@@ -1581,6 +1685,12 @@ export const useWmsStore = create<WmsState>()(
           stockMovements: [...state.stockMovements, movement],
           asnRecords: state.asnRecords.map((a) => (a.id === asnId ? updatedAsn : a)),
         })
+
+        // El stock liberado de cuarentena cambia de disponible: hay que publicarlo.
+        get().publishStockSync(
+          updatedItems.filter((i) => i.productId === asn.productId).map((i) => i.id),
+          'qc_approved'
+        )
       },
 
       rejectQc: (asnId, operatorName) => {
@@ -1606,6 +1716,327 @@ export const useWmsStore = create<WmsState>()(
           asnRecords: state.asnRecords.map((a) => (a.id === asnId ? updatedAsn : a)),
           stockMovements: [...state.stockMovements, movement],
         })
+      },
+
+      // ─── ASN multi-línea ────────────────────────────────────────────────────
+      // Recibe contra una línea concreta. Delega el movimiento de stock en
+      // receiveAsn (mismo motor: UoM, seriales, QC, staging) y luego actualiza
+      // lines[] + los campos espejo vía syncAsnAggregates.
+      receiveAsnLine: (asnId, productId, receivedQty, operatorName, damagedQty = 0, serials, uomId) => {
+        const state = get()
+        const asn = state.asnRecords.find((a) => a.id === asnId)
+        if (!asn) throw new Error('ASN not found')
+
+        const lines = linesOf(asn)
+        if (!lines.some((l) => l.productId === productId))
+          throw new Error('El producto no pertenece a este ASN')
+
+        // El motor de stock trabaja sobre asn.productId. Para líneas que no son
+        // la primera, se apunta temporalmente el ASN a ese SKU, se recibe y se
+        // restaura — así no se duplica la lógica de UoM/seriales/QC/staging.
+        const needsPointerSwap = asn.productId !== productId
+        if (needsPointerSwap) {
+          set({
+            asnRecords: state.asnRecords.map((a) =>
+              a.id === asnId ? { ...a, productId } : a
+            ),
+          })
+        }
+
+        get().receiveAsn(asnId, receivedQty, operatorName, damagedQty, serials, uomId)
+
+        const after = get()
+        const current = after.asnRecords.find((a) => a.id === asnId)
+        if (!current) throw new Error('ASN not found')
+
+        const nextLines = applyLineReceipt(linesOf(current), productId, receivedQty, damagedQty)
+        // El estado global del ASN depende de TODAS las líneas, no solo de la recibida.
+        const nextStatus = isAsnFullyReceived(nextLines) ? 'completed' : 'partial'
+        const updated = syncAsnAggregates({ ...current, lines: nextLines, status: nextStatus })
+
+        set({ asnRecords: after.asnRecords.map((a) => (a.id === asnId ? updated : a)) })
+        return updated
+      },
+
+      // ─── LPN / unidad de carga ──────────────────────────────────────────────
+      createLpn: (type, warehouseId, sourceType, operatorName, asnId) => {
+        const state = get()
+        const lpn: Lpn = {
+          id: `lpn-${Date.now()}-${state.lpns.length}`,
+          code: nextLpnCode(state.lpns, state.settings.lpnCodePrefix),
+          type,
+          status: 'open',
+          warehouseId,
+          sourceType,
+          asnId,
+          createdAt: new Date().toISOString(),
+          operatorName,
+        }
+        set({ lpns: [...state.lpns, lpn] })
+        return lpn
+      },
+
+      addToLpn: (lpnId, productId, quantity, lot, serial) => {
+        const state = get()
+        const lpn = state.lpns.find((l) => l.id === lpnId)
+        if (!lpn) throw new Error('LPN no encontrado')
+        if (lpn.status !== 'open')
+          throw new Error('El LPN está cerrado — no admite más contenido')
+        if (quantity <= 0) throw new Error('Ingresa una cantidad válida.')
+
+        const line: LpnLine = {
+          id: `lpnl-${lpnId}-${state.lpnLines.length}`,
+          lpnId,
+          productId,
+          quantity,
+          lot,
+          serial,
+        }
+
+        // Vincula el stock físico en staging con el LPN. Sin esto el LPN sería una
+        // etiqueta suelta: moveLpn no encontraría qué mover y /inventory no
+        // mostraría a qué unidad de carga pertenece cada registro.
+        const stagingIdx = state.inventoryItems.findIndex(
+          (i) =>
+            i.productId === productId &&
+            i.warehouseId === lpn.warehouseId &&
+            !i.lpnId &&
+            i.onHandQuantity > 0 &&
+            (i.locationId === 'loc-stageout' || i.locationId === 'loc-qc') &&
+            (serial ? i.serial === serial : true) &&
+            (lot ? i.lot === lot : true)
+        )
+        const updatedItems =
+          stagingIdx >= 0
+            ? state.inventoryItems.map((item, idx) =>
+                idx === stagingIdx ? { ...item, lpnId } : item
+              )
+            : state.inventoryItems
+
+        set({ lpnLines: [...state.lpnLines, line], inventoryItems: updatedItems })
+        return line
+      },
+
+      closeLpn: (lpnId) => {
+        const state = get()
+        const lpn = state.lpns.find((l) => l.id === lpnId)
+        if (!lpn) throw new Error('LPN no encontrado')
+        const verdict = canCloseLpn(lpn, state.lpnLines)
+        if (!verdict.valid) throw new Error(`No se puede cerrar: ${verdict.reasons.join('. ')}.`)
+
+        const updated: Lpn = { ...lpn, status: 'closed', closedAt: new Date().toISOString() }
+        set({ lpns: state.lpns.map((l) => (l.id === lpnId ? updated : l)) })
+        return updated
+      },
+
+      // Mueve la unidad completa: un escaneo, N StockMovement (uno por línea).
+      moveLpn: (lpnId, toLocationId, operatorName) => {
+        const state = get()
+        const lpn = state.lpns.find((l) => l.id === lpnId)
+        if (!lpn) throw new Error('LPN no encontrado')
+        const verdict = canMoveLpn(lpn)
+        if (!verdict.valid) throw new Error(`No se puede mover: ${verdict.reasons.join('. ')}.`)
+
+        const destination = state.locations.find((l) => l.id === toLocationId)
+        if (!destination) throw new Error('Ubicación de destino no encontrada')
+        if (destination.isBlocked) throw new Error('La ubicación de destino está bloqueada')
+
+        const contents = lpnLinesOf(lpnId, state.lpnLines)
+        if (contents.length === 0) throw new Error('El LPN está vacío')
+
+        // Valida cada SKU del LPN contra la ubicación destino — un pallet mixto
+        // solo entra donde TODOS sus productos son compatibles.
+        const abcMap = abcByProduct(state)
+        const rackType = destination.rackTypeId
+          ? state.rackTypes.find((r) => r.id === destination.rackTypeId)
+          : undefined
+        for (const line of contents) {
+          const product = state.products.find((p) => p.id === line.productId)
+          if (!product) throw new Error('Producto del LPN no encontrado')
+          const check = validatePutawayDestination({
+            product,
+            destination,
+            rackType,
+            hasOtherLotAtLocation: false,
+            rules: state.putawayRules,
+            abcClass: abcMap[product.id] ?? 'C',
+          })
+          if (!check.compatible)
+            throw new Error(`${product.sku}: ${check.reasons.join('. ')}.`)
+        }
+
+        const movements: StockMovement[] = []
+        let updatedItems = [...state.inventoryItems]
+
+        for (const line of contents) {
+          const idx = updatedItems.findIndex((i) => i.lpnId === lpnId && i.productId === line.productId)
+          const fromLocationId = idx >= 0 ? updatedItems[idx].locationId : 'loc-stageout'
+          if (idx >= 0) {
+            updatedItems[idx] = { ...updatedItems[idx], locationId: toLocationId, status: 'available' }
+          }
+          movements.push(
+            recordMovement({
+              productId: line.productId,
+              warehouseId: lpn.warehouseId,
+              fromLocationId,
+              toLocationId,
+              type: 'putaway',
+              quantity: line.quantity,
+              lot: line.lot,
+              serial: line.serial,
+              referenceType: 'lpn',
+              referenceId: lpnId,
+              operatorName,
+            })
+          )
+        }
+
+        const updated: Lpn = { ...lpn, status: 'stored', locationId: toLocationId }
+        set({
+          lpns: state.lpns.map((l) => (l.id === lpnId ? updated : l)),
+          inventoryItems: updatedItems,
+          stockMovements: [...state.stockMovements, ...movements],
+        })
+        return updated
+      },
+
+      consumeLpn: (lpnId, operatorName) => {
+        const state = get()
+        const lpn = state.lpns.find((l) => l.id === lpnId)
+        if (!lpn) throw new Error('LPN no encontrado')
+        if (lpn.status === 'consumed') throw new Error('El LPN ya fue consumido')
+
+        const contents = lpnLinesOf(lpnId, state.lpnLines)
+        const movements = contents.map((line) =>
+          recordMovement({
+            productId: line.productId,
+            warehouseId: lpn.warehouseId,
+            fromLocationId: lpn.locationId ?? 'loc-stageout',
+            type: 'pick',
+            quantity: line.quantity,
+            lot: line.lot,
+            serial: line.serial,
+            referenceType: 'lpn',
+            referenceId: lpnId,
+            operatorName,
+          })
+        )
+
+        const updated: Lpn = { ...lpn, status: 'consumed' }
+        set({
+          lpns: state.lpns.map((l) => (l.id === lpnId ? updated : l)),
+          // El stock deja de pertenecer al LPN, pero sigue existiendo como suelto.
+          inventoryItems: state.inventoryItems.map((i) =>
+            i.lpnId === lpnId ? { ...i, lpnId: undefined } : i
+          ),
+          stockMovements: [...state.stockMovements, ...movements],
+        })
+        return updated
+      },
+
+      generateLpnLabel: (lpnId, operatorName) => {
+        const state = get()
+        const lpn = state.lpns.find((l) => l.id === lpnId)
+        if (!lpn) throw new Error('LPN no encontrado')
+
+        const label: WmsLabel = {
+          id: `lbl-lpn-${lpnId}`,
+          code: lpn.code,
+          type: 'lpn',
+          reference: lpn.code,
+          status: 'pending',
+          createdAt: new Date().toISOString(),
+          createdBy: operatorName,
+          asnId: lpn.asnId,
+        }
+        set({ labels: [...state.labels, label] })
+        return label
+      },
+
+      // ─── Publicación de inventario hacia ERP/OMS ────────────────────────────
+      publishStockSync: (itemIds, trigger) => {
+        const state = get()
+        if (!state.settings.stockSyncEnabled) return []
+
+        const targets = syncTargets(state.integrations, state.settings.stockSyncConnectionIds)
+        if (targets.length === 0) return []
+
+        const entries: StockSyncEntry[] = []
+        for (const itemId of itemIds) {
+          const item = state.inventoryItems.find((i) => i.id === itemId)
+          if (!item) continue
+          const product = state.products.find((p) => p.id === item.productId)
+          if (!product) continue
+          const payload = buildStockSyncPayload(item, product)
+          entries.push(...buildSyncEntries(payload, targets, trigger, `${itemId}-${Date.now()}`))
+        }
+        if (entries.length === 0) return []
+
+        const syncedAt = new Date().toISOString()
+        const targetIds = new Set(targets.map((t) => t.id))
+        set({
+          stockSyncLog: [...state.stockSyncLog, ...entries],
+          // La salud de /integrations deja de ser decorativa: cada publicación
+          // mueve lastSyncAt y processedMessages de la conexión destino.
+          integrations: state.integrations.map((c) =>
+            targetIds.has(c.id)
+              ? {
+                  ...c,
+                  lastSyncAt: syncedAt,
+                  processedMessages:
+                    c.processedMessages + entries.filter((e) => e.connectionId === c.id).length,
+                }
+              : c
+          ),
+        })
+        return entries
+      },
+
+      // ─── QC rules CRUD ──────────────────────────────────────────────────────
+      addQcRule: (rule) => {
+        const state = get()
+        const created: QcRule = { ...rule, id: `qcr-${Date.now()}` }
+        set({ qcRules: [...state.qcRules, created] })
+        return created
+      },
+
+      updateQcRule: (id, patch) => {
+        const state = get()
+        const existing = state.qcRules.find((r) => r.id === id)
+        if (!existing) throw new Error('Regla de QC no encontrada')
+        const updated: QcRule = { ...existing, ...patch }
+        set({ qcRules: state.qcRules.map((r) => (r.id === id ? updated : r)) })
+        return updated
+      },
+
+      deleteQcRule: (id) => {
+        const state = get()
+        set({ qcRules: state.qcRules.filter((r) => r.id !== id) })
+      },
+
+      // ─── Yard — asignación automática de muelle ─────────────────────────────
+      autoAssignDock: (appointmentId) => {
+        const state = get()
+        if (state.settings.yardFreezeActive) throw new Error('Patio en modo congelado.')
+        const appointment = state.dockAppointments.find((a) => a.id === appointmentId)
+        if (!appointment) throw new Error('Cita no encontrada')
+
+        const asn = appointment.asnId
+          ? state.asnRecords.find((a) => a.id === appointment.asnId)
+          : undefined
+
+        const ranked = suggestDock(
+          appointment,
+          state.docks,
+          state.dockAppointments,
+          asn,
+          state.locations
+        )
+        const best = ranked[0]
+        if (!best || best.score === 0)
+          throw new Error('No hay muelles disponibles compatibles con esta cita')
+
+        return get().assignDock(appointmentId, best.dock.id)
       },
 
       adjustInventory: (itemId, countedQty, operatorName, uomId) => {

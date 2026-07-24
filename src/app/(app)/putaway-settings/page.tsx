@@ -163,6 +163,40 @@ export default function PutawaySettingsPage() {
       </Card>
 
       <Card>
+        <CardContent className="flex flex-col gap-4 py-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-sm font-semibold">Recepción ciega</p>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                Oculta la cantidad esperada al operario mientras cuenta y arranca el contador en
+                cero. Evita el sesgo de confirmación. La validación contra lo esperado no cambia.
+              </p>
+            </div>
+            <Switch
+              checked={settings.receivingBlindEnabled}
+              onCheckedChange={(v) => updateSettings({ receivingBlindEnabled: v })}
+              aria-label="Activar recepción ciega"
+            />
+          </div>
+
+          <div className="flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-sm font-semibold">Unidades de carga (LPN)</p>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                Agrega el paso de paletizado al flujo de recepción móvil. Con LPN, un escaneo mueve
+                toda la unidad; sin él, el putaway opera sobre stock suelto.
+              </p>
+            </div>
+            <Switch
+              checked={settings.lpnEnabled}
+              onCheckedChange={(v) => updateSettings({ lpnEnabled: v })}
+              aria-label="Activar unidades de carga"
+            />
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
         <CardHeader>
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>

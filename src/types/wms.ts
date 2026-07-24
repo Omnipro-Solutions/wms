@@ -183,6 +183,9 @@ export interface InventoryItem {
   // TTL for the current reservation on this item — see reserveInventory/releaseExpiredReservations.
   // Simplification: one expiry per item (latest reservation wins), not a per-order ledger.
   reservationExpiresAt?: string
+  // LPN (unidad de carga) que contiene este stock, si fue paletizado. Opcional: el
+  // stock suelto sigue siendo válido. Ver types §LPN y lib/rules/lpn.ts.
+  lpnId?: string
 }
 
 // The audit log. Every receipt, putaway, pick, transfer, adjustment,
@@ -215,6 +218,7 @@ export interface StockMovement {
     | 'commerce_order'
     | 'replenishment'
     | 'slotting'
+    | 'lpn'
     | 'manual'
   referenceId: string
   operatorName: string
@@ -252,11 +256,26 @@ export interface PurchaseOrder {
   createdAt: string
 }
 
+// Una línea de ASN — un SKU dentro de la entrega. Un camión trae N líneas.
+export interface AsnLine {
+  productId: string
+  expectedQuantity: number
+  receivedQuantity: number
+  damagedQuantity: number
+  lot?: string
+  // Sugerencia de putaway por línea (viene del motor de slotting).
+  suggestedPutawayLocationId?: string
+}
+
 export interface Asn {
   id: string
   code: string
   supplierName: string
   appointmentDate: string
+  // COMPAT: productId/expectedQuantity/receivedQuantity/damagedQuantity son espejo
+  // de lines[0] y de los agregados de lines[]. Se mantienen para que el código y los
+  // tests existentes (29 archivos) no se rompan. Código nuevo debe leer lines[].
+  // syncAsnAggregates() en lib/rules/asn.ts mantiene la coherencia.
   expectedQuantity: number
   receivedQuantity: number
   // Units counted as damaged/rejected — tracked on ASN but not put to available stock.
@@ -283,6 +302,15 @@ export interface Asn {
   dockId?: string // muelle asignado, e.g. 'dock-1'
   timeSlot?: string // ventana horaria, e.g. '08:00-10:00'
   carrierConfirmed?: boolean // transportista confirmó la cita
+  // Líneas de la entrega — fuente de verdad para ASN multi-SKU. Los campos
+  // productId/expectedQuantity de arriba reflejan lines[0] y los agregados.
+  // Opcional para no romper ASNs legacy/seed: ensureAsnLines() los hidrata al
+  // cargar el store, así que en runtime siempre está poblado.
+  lines?: AsnLine[]
+  // QC module — regla que disparó el desvío automático a control de calidad,
+  // cuando requiresQualityControl fue seteado por evaluateQcRules() y no a mano.
+  qcRuleId?: string
+  qcSampledQuantity?: number // unidades desviadas a QC por muestreo
 }
 
 export interface TransferOrder {
@@ -360,6 +388,81 @@ export interface InternalMoveTask {
   createdAt: string
   pickedAt?: string
   droppedAt?: string
+}
+
+// --- LPN / License Plate Number — unidad de carga ------------------------------
+// Un LPN agrupa stock físico (pallet, caja, tote) bajo un único código escaneable.
+// Es una CAPA sobre InventoryItem, no un reemplazo: InventoryItem.lpnId es opcional
+// y availableStock() se sigue calculando igual. Ver lib/rules/lpn.ts.
+
+export type LpnType = 'pallet' | 'case' | 'tote' | 'container'
+
+// FSM: open → closed → stored → consumed, con in_transit entre ubicaciones.
+// 'open' admite addToLpn; 'closed' en adelante el contenido queda sellado.
+export type LpnStatus = 'open' | 'closed' | 'in_transit' | 'stored' | 'consumed'
+
+export interface Lpn {
+  id: string
+  code: string // SSCC o interno, e.g. 'LPN-000123'
+  type: LpnType
+  status: LpnStatus
+  warehouseId: string
+  locationId?: string // ubicación actual; undefined mientras está en tránsito
+  sourceType: 'inbound' | 'outbound' | 'internal'
+  asnId?: string // ASN de origen cuando nació en el muelle de recepción
+  createdAt: string
+  closedAt?: string
+  operatorName?: string
+}
+
+// Contenido de un LPN. Un LPN puede ser mixto (varios SKU) si el ASN es multi-línea.
+export interface LpnLine {
+  id: string
+  lpnId: string
+  productId: string
+  quantity: number
+  lot?: string
+  serial?: string
+  expirationDate?: string
+}
+
+// --- QC rules — desvío automático a control de calidad -------------------------
+// Evaluadas al crear el ASN para setear requiresQualityControl sin intervención.
+// Misma forma que PutawayRule para reutilizar el motor de matching existente.
+
+export type QcMatchType = 'category' | 'supplier' | 'product' | 'abc_class' | 'all'
+
+export interface QcRule {
+  id: string
+  name: string
+  matchType: QcMatchType
+  matchValue: string // categoría, nombre de proveedor, productId, clase ABC; '' si matchType='all'
+  // % del lote desviado a QC (0–100). 100 = todo el ASN va a cuarentena.
+  samplingPercent: number
+  active: boolean
+  priority: number // menor gana cuando varias reglas aplican
+  reason: string // texto mostrado al operario
+}
+
+// --- Sync ERP/OMS — publicación de inventario ----------------------------------
+// Registro de lo que se publicó hacia sistemas externos. Sin backend real: el
+// payload se arma y se registra, alimentando la salud mostrada en /integrations.
+
+export type StockSyncTrigger = 'putaway' | 'qc_approved' | 'adjustment' | 'pick' | 'manual'
+
+export interface StockSyncEntry {
+  id: string
+  connectionId: string // IntegrationConnection destino (erp / oms)
+  trigger: StockSyncTrigger
+  sku: string
+  warehouseId: string
+  locationId: string
+  quantityAvailable: number
+  lot?: string
+  serial?: string
+  status: 'sent' | 'failed'
+  error?: string
+  createdAt: string
 }
 
 // --- Cross-docking (Sprint 9 — #7) ---
@@ -663,7 +766,7 @@ export interface PackingOrder {
 export interface WmsLabel {
   id: string
   code: string
-  type: 'product' | 'location' | 'box' | 'pallet' | 'shipping' | 'return' | 'receipt'
+  type: 'product' | 'location' | 'box' | 'pallet' | 'shipping' | 'return' | 'receipt' | 'lpn'
   reference: string
   status: OperationalStatus
   createdAt: string
@@ -1315,6 +1418,25 @@ export interface WmsSettings {
   // Putaway module (#3) — almacenamiento y putaway. Configured in /putaway-settings.
   // Congela putawayItem/assignPutaway. Las reglas (PutawayRule) y sus CRUD NO se congelan.
   putawayFreezeActive: boolean
+  // Recepción ciega: oculta la cantidad esperada al operario mientras cuenta,
+  // para evitar el sesgo de confirmación. Solo afecta la UI — receiveAsn sigue
+  // validando contra expectedQuantity igual.
+  receivingBlindEnabled: boolean
+  // QC module — si está activo, evaluateQcRules() corre al crear el ASN y setea
+  // requiresQualityControl automáticamente. Configurado en /qc-settings.
+  qcRulesEnabled: boolean
+  // Sync ERP/OMS — si está activo, cada movimiento relevante publica hacia las
+  // conexiones integradas y alimenta el log visible en /integrations.
+  stockSyncEnabled: boolean
+  // Conexiones destino de la publicación de stock (ids de IntegrationConnection).
+  stockSyncConnectionIds: string[]
+  // Cross-dock proactivo: muestra alertas cuando llega mercancía que un pedido espera.
+  crossDockAlertsEnabled: boolean
+  // LPN — si está activo, el flujo de recepción exige paletizar (crear LPN) antes
+  // del putaway. Si está inactivo, el putaway de stock suelto sigue funcionando.
+  lpnEnabled: boolean
+  // Prefijo de los códigos LPN generados internamente.
+  lpnCodePrefix: string
 }
 
 export interface PickingZoneConfig {

@@ -6,6 +6,7 @@ import { PageHeader } from '@/components/shared/page-header'
 import { KpiCard } from '@/components/shared/kpi-card'
 import { IntegrationCard } from './_components/integration-card'
 import { IntegrationSummaryTable } from './_components/integration-summary-table'
+import { StockSyncPanel } from './_components/stock-sync-panel'
 
 export default function IntegrationsPage() {
   const integrations = useWmsStore((s) => s.integrations)
@@ -79,6 +80,8 @@ export default function IntegrationsPage() {
           />
         ))}
       </div>
+
+      <StockSyncPanel />
 
       <IntegrationSummaryTable integrations={integrations} />
     </div>

@@ -12,7 +12,16 @@ import { QuantityStepper } from '@/components/worker/quantity-stepper'
 import { Button } from '@/components/ui/button'
 import { BarcodeScanner } from '@/components/shared/barcode-scanner'
 
-type Step = 'summary' | 'scan-product' | 'receive' | 'serials' | 'qc' | 'putaway' | 'print-label' | 'done'
+type Step =
+  | 'summary'
+  | 'scan-product'
+  | 'receive'
+  | 'serials'
+  | 'qc'
+  | 'palletize'
+  | 'putaway'
+  | 'print-label'
+  | 'done'
 
 const ErrorBanner = ({ message }: { message: string }) => (
   <div className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
@@ -39,6 +48,12 @@ export default function WorkerReceivingAsnPage() {
     rejectQc,
     putawayItem,
     printReceiptLabel,
+    settings,
+    createLpn,
+    addToLpn,
+    closeLpn,
+    moveLpn,
+    generateLpnLabel,
   } = state
 
   const asn = asnRecords.find((a) => a.id === asnId)
@@ -60,12 +75,19 @@ export default function WorkerReceivingAsnPage() {
     : undefined
 
   const [step, setStep] = useState<Step>('summary')
-  const [recQty, setRecQty] = useState(asn?.expectedQuantity ?? 0)
+  // En recepción ciega el contador arranca en 0: prellenarlo con lo esperado
+  // reintroduciría el sesgo que el modo ciego busca evitar.
+  const [recQty, setRecQty] = useState(
+    state.settings.receivingBlindEnabled ? 0 : (asn?.expectedQuantity ?? 0)
+  )
   const [dmgQty, setDmgQty] = useState(0)
   const [receiveError, setReceiveError] = useState<string | null>(null)
   const [putawayError, setPutawayError] = useState<string | null>(null)
   const [serialsRaw, setSerialsRaw] = useState('')
   const [printedLabelIds, setPrintedLabelIds] = useState<string[]>([])
+  // LPN armado en este flujo — se usa en el paso de putaway para mover la unidad completa.
+  const [builtLpnId, setBuiltLpnId] = useState<string | null>(null)
+  const [lpnError, setLpnError] = useState<string | null>(null)
 
   if (!asn) {
     return (
@@ -78,11 +100,20 @@ export default function WorkerReceivingAsnPage() {
   const opName = operator?.name ?? 'Operador'
   const hasQc = asn.requiresQualityControl
   const requiresSerial = product?.trackBy === 'serial'
+  // Paletizado: paso extra solo cuando el módulo LPN está activo.
+  const hasLpn = settings.lpnEnabled
+  // Recepción ciega: se oculta la cantidad esperada para no sesgar el conteo.
+  const blindReceiving = settings.receivingBlindEnabled
 
   const stepIndex: Record<Step, number> = hasQc
-    ? { summary: 1, 'scan-product': 2, receive: 3, serials: 4, qc: 5, putaway: 6, 'print-label': 7, done: 8 }
-    : { summary: 1, 'scan-product': 2, receive: 3, serials: 4, qc: 4, putaway: 5, 'print-label': 6, done: 7 }
-  const totalSteps = hasQc ? 7 : 6
+    ? { summary: 1, 'scan-product': 2, receive: 3, serials: 4, qc: 5, palletize: 6, putaway: 7, 'print-label': 8, done: 9 }
+    : { summary: 1, 'scan-product': 2, receive: 3, serials: 4, qc: 4, palletize: 5, putaway: 6, 'print-label': 7, done: 8 }
+  const totalSteps = (hasQc ? 7 : 6) + (hasLpn ? 1 : 0)
+
+  // Tras recibir (y aprobar QC si aplica), el siguiente paso es paletizar cuando
+  // el módulo LPN está activo; si no, se va directo a ubicar stock suelto.
+  const afterReceiveStep = (): Step => (hasQc ? 'qc' : hasLpn ? 'palletize' : 'putaway')
+  const afterQcStep = (): Step => (hasLpn ? 'palletize' : 'putaway')
 
   const parsedSerials = serialsRaw
     .split(/[\n,]+/)
@@ -97,11 +128,7 @@ export default function WorkerReceivingAsnPage() {
     }
     try {
       receiveAsn(asn.id, recQty, opName, dmgQty)
-      if (asn.requiresQualityControl) {
-        setStep('qc')
-      } else {
-        setStep('putaway')
-      }
+      setStep(afterReceiveStep())
     } catch (e: unknown) {
       setReceiveError(e instanceof Error ? e.message : 'Error al registrar recepción')
     }
@@ -111,11 +138,7 @@ export default function WorkerReceivingAsnPage() {
     setReceiveError(null)
     try {
       receiveAsn(asn.id, recQty, opName, dmgQty, parsedSerials)
-      if (asn.requiresQualityControl) {
-        setStep('qc')
-      } else {
-        setStep('putaway')
-      }
+      setStep(afterReceiveStep())
     } catch (e: unknown) {
       setReceiveError(e instanceof Error ? e.message : 'Error al registrar recepción')
     }
@@ -123,7 +146,23 @@ export default function WorkerReceivingAsnPage() {
 
   const handleApproveQc = () => {
     approveQc(asn.id, opName)
-    setStep('putaway')
+    setStep(afterQcStep())
+  }
+
+  // Arma la unidad de carga: crea el LPN, le carga lo recibido, lo cierra e
+  // imprime su etiqueta. A partir de aquí la mercancía se mueve por LPN.
+  const handlePalletize = (type: 'pallet' | 'case' | 'tote') => {
+    setLpnError(null)
+    try {
+      const lpn = createLpn(type, 'wh-bog', 'inbound', opName, asn.id)
+      addToLpn(lpn.id, asn.productId, recQty)
+      closeLpn(lpn.id)
+      generateLpnLabel(lpn.id, opName)
+      setBuiltLpnId(lpn.id)
+      setStep('putaway')
+    } catch (e: unknown) {
+      setLpnError(e instanceof Error ? e.message : 'Error al armar la unidad de carga')
+    }
   }
   const handleRejectQc = () => {
     rejectQc(asn.id, opName)
@@ -134,7 +173,10 @@ export default function WorkerReceivingAsnPage() {
     setPutawayError(null)
     if (!suggestedLocation) return
     try {
+      // Con LPN armado se mueve la unidad completa (un escaneo, todo el contenido).
+      // El putaway del ASN se ejecuta igual para cerrar su FSM y publicar el stock.
       putawayItem(asn.id, suggestedLocation.id, opName)
+      if (builtLpnId) moveLpn(builtLpnId, suggestedLocation.id, opName)
       setStep('print-label')
     } catch (e: unknown) {
       setPutawayError(e instanceof Error ? e.message : 'Error al confirmar ubicación')
@@ -258,9 +300,13 @@ export default function WorkerReceivingAsnPage() {
             <p className="text-muted-foreground text-sm">SKU: {product?.sku ?? 'N/A'}</p>
             <div className="mt-2 flex items-center justify-between">
               <span className="text-muted-foreground text-sm">Esperado</span>
-              <span className="text-xl font-black">{asn.expectedQuantity} uds</span>
+              {blindReceiving ? (
+                <span className="text-muted-foreground text-sm font-medium">Conteo ciego</span>
+              ) : (
+                <span className="text-xl font-black">{asn.expectedQuantity} uds</span>
+              )}
             </div>
-            {asn.receivedQuantity > 0 && (
+            {!blindReceiving && asn.receivedQuantity > 0 && (
               <div className="flex items-center justify-between">
                 <span className="text-muted-foreground text-sm">Ya recibido</span>
                 <span className="font-semibold">{asn.receivedQuantity} uds</span>
@@ -399,9 +445,70 @@ export default function WorkerReceivingAsnPage() {
         </div>
       )}
 
+      {step === 'palletize' && (
+        <div className="flex flex-col gap-4">
+          <h2 className="text-lg font-bold">Armar unidad de carga</h2>
+          <div className="bg-muted rounded-xl p-4">
+            <p className="text-muted-foreground text-sm">
+              Agrupa lo recibido en una unidad con su propio código. A partir de aquí un solo
+              escaneo mueve toda la carga.
+            </p>
+            <div className="mt-3 flex items-center justify-between">
+              <span className="text-muted-foreground text-sm">A paletizar</span>
+              <span className="text-xl font-black">{recQty} uds</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-muted-foreground text-sm">Producto</span>
+              <span className="font-semibold">{product?.sku ?? asn.productId}</span>
+            </div>
+          </div>
+
+          {lpnError && <ErrorBanner message={lpnError} />}
+
+          <p className="text-sm font-semibold">Tipo de unidad</p>
+          <div className="grid grid-cols-3 gap-2">
+            <Button className="h-16 flex-col text-sm" onClick={() => handlePalletize('pallet')}>
+              📦
+              <span>Pallet</span>
+            </Button>
+            <Button
+              variant="outline"
+              className="h-16 flex-col text-sm"
+              onClick={() => handlePalletize('case')}
+            >
+              📥
+              <span>Caja</span>
+            </Button>
+            <Button
+              variant="outline"
+              className="h-16 flex-col text-sm"
+              onClick={() => handlePalletize('tote')}
+            >
+              🧺
+              <span>Cubeta</span>
+            </Button>
+          </div>
+
+          <Button variant="ghost" className="h-10 text-sm" onClick={() => setStep('putaway')}>
+            Omitir — ubicar como stock suelto →
+          </Button>
+        </div>
+      )}
+
       {step === 'putaway' && (
         <div className="flex flex-col gap-4">
           <h2 className="text-lg font-bold">Ubicar mercancía</h2>
+          {builtLpnId && (
+            <div className="rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3 dark:border-indigo-800/50 dark:bg-indigo-950/30">
+              <p className="text-xs text-muted-foreground">Unidad de carga</p>
+              <p className="font-mono text-lg font-bold">
+                {state.lpns.find((l) => l.id === builtLpnId)?.code}
+              </p>
+              <p className="text-muted-foreground text-xs">
+                Escanea el LPN, no cada producto — un movimiento arrastra todo el contenido.
+              </p>
+            </div>
+          )}
           {suggestedLocation ? (
             <div className="bg-muted rounded-xl p-4 text-center">
               <p className="text-muted-foreground text-xs tracking-wide uppercase">Llevar a</p>

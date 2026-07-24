@@ -23,6 +23,7 @@ import type {
   ProductDemandStat,
   PurchaseOrder,
   PutawayRule,
+  QcRule,
   PutToStoreTask,
   RackType,
   Reason,
@@ -1295,6 +1296,40 @@ export const putawayRules: PutawayRule[] = [
     directives: [{ kind: 'requireRackCompatible' }],
     priority: 30,
     active: true,
+  },
+]
+
+// Reglas de desvío automático a control de calidad (#QC). Menor priority gana.
+export const qcRules: QcRule[] = [
+  {
+    id: 'qcr-1',
+    name: 'Electrónica — muestreo 20%',
+    matchType: 'category',
+    matchValue: 'Electrónica',
+    samplingPercent: 20,
+    active: true,
+    priority: 10,
+    reason: 'Categoría con historial de daño en transporte.',
+  },
+  {
+    id: 'qcr-2',
+    name: 'Proveedor Importadora Andina — inspección total',
+    matchType: 'supplier',
+    matchValue: 'Importadora Andina',
+    samplingPercent: 100,
+    active: true,
+    priority: 5,
+    reason: 'Proveedor en período de vigilancia por discrepancias reiteradas.',
+  },
+  {
+    id: 'qcr-3',
+    name: 'Clase A — muestreo 10%',
+    matchType: 'abc_class',
+    matchValue: 'A',
+    samplingPercent: 10,
+    active: true,
+    priority: 30,
+    reason: 'Alta rotación: un defecto impacta muchos pedidos.',
   },
 ]
 
@@ -3943,6 +3978,18 @@ export const settings: WmsSettings = {
   ],
   // Putaway module (#3)
   putawayFreezeActive: false,
+  // Receiving — recepción ciega (anti-sesgo de conteo)
+  receivingBlindEnabled: false,
+  // QC module — desvío automático a control de calidad
+  qcRulesEnabled: true,
+  // Sync ERP/OMS — publicación de inventario
+  stockSyncEnabled: true,
+  stockSyncConnectionIds: [],
+  // Cross-dock proactivo
+  crossDockAlertsEnabled: true,
+  // LPN — unidad de carga
+  lpnEnabled: true,
+  lpnCodePrefix: 'LPN',
 }
 
 // ─── Additional commerce orders (zone B, put-to-store, waveless) ─────────────

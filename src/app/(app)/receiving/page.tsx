@@ -33,6 +33,7 @@ import { ReceptionSheet } from './_components/reception-sheet'
 import { EmptyState } from './_components/empty-state'
 import { TabPanel } from './_components/tab-panel'
 import { CrossDockDialog } from './_components/cross-dock-dialog'
+import { CrossDockAlert } from './_components/cross-dock-alert'
 import { AppointmentDialog } from './_components/appointment-dialog'
 import { useDialogState } from '@/hooks/use-dialog-state'
 import type { Asn } from '@/types/wms'
@@ -352,6 +353,13 @@ const ReceivingPage = () => {
           tone={qcRows.length > 0 ? 'amber' : 'neutral'}
         />
       </div>
+
+      <CrossDockAlert
+        onOpenCrossDock={(asn) => {
+          setCrossDockAsn(asn)
+          setCrossDockOpen(true)
+        }}
+      />
 
       <SubNav items={RECEIVING_TABS} defaultValue="ordenes" />
 
