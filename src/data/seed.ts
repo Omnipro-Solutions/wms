@@ -12,6 +12,7 @@ import type {
   InternalMoveTask,
   InventoryAdjustmentRequest,
   InventoryItem,
+  LabelTemplate,
   LoadManifest,
   Operator,
   PackingBoxType,
@@ -45,6 +46,7 @@ import type {
   WmsSettings,
   WavelessOrder,
 } from '@/types/wms'
+import { defaultFieldsForType } from '@/lib/rules/label-templates'
 
 export const warehouses: Warehouse[] = [
   {
@@ -2906,6 +2908,117 @@ export const labels: WmsLabel[] = [
   },
 ]
 
+// Configurable label templates — one global default per label type.
+// Per-warehouse overrides are created at runtime via /admin.
+const labelTemplateStamp = '2026-06-01T08:00:00.000Z'
+
+export const labelTemplates: LabelTemplate[] = [
+  {
+    id: 'lt-product',
+    name: 'Producto — estándar',
+    type: 'product',
+    sizePreset: '2x1',
+    dpi: 203,
+    symbology: 'code128',
+    fields: defaultFieldsForType('product'),
+    autoPrint: false,
+    isDefault: true,
+    createdAt: labelTemplateStamp,
+    updatedAt: labelTemplateStamp,
+  },
+  {
+    id: 'lt-location',
+    name: 'Ubicación — estándar',
+    type: 'location',
+    sizePreset: '2x1',
+    dpi: 203,
+    symbology: 'code128',
+    fields: defaultFieldsForType('location'),
+    autoPrint: false,
+    isDefault: true,
+    createdAt: labelTemplateStamp,
+    updatedAt: labelTemplateStamp,
+  },
+  {
+    id: 'lt-box',
+    name: 'Caja — estándar',
+    type: 'box',
+    sizePreset: '4x2',
+    dpi: 203,
+    symbology: 'code128',
+    fields: defaultFieldsForType('box'),
+    autoPrint: false,
+    isDefault: true,
+    createdAt: labelTemplateStamp,
+    updatedAt: labelTemplateStamp,
+  },
+  {
+    id: 'lt-pallet',
+    name: 'Pallet — etiqueta logística GS1',
+    type: 'pallet',
+    sizePreset: '4x6',
+    dpi: 203,
+    symbology: 'gs1-128',
+    fields: defaultFieldsForType('pallet'),
+    autoPrint: false,
+    isDefault: true,
+    createdAt: labelTemplateStamp,
+    updatedAt: labelTemplateStamp,
+  },
+  {
+    id: 'lt-shipping',
+    name: 'Despacho — guía transportador',
+    type: 'shipping',
+    sizePreset: '4x6',
+    dpi: 203,
+    symbology: 'code128',
+    fields: defaultFieldsForType('shipping'),
+    autoPrint: true,
+    isDefault: true,
+    createdAt: labelTemplateStamp,
+    updatedAt: labelTemplateStamp,
+  },
+  {
+    id: 'lt-return',
+    name: 'Devolución — RMA',
+    type: 'return',
+    sizePreset: '4x2',
+    dpi: 203,
+    symbology: 'qr',
+    fields: defaultFieldsForType('return'),
+    autoPrint: false,
+    isDefault: true,
+    createdAt: labelTemplateStamp,
+    updatedAt: labelTemplateStamp,
+  },
+  {
+    id: 'lt-receipt',
+    name: 'Recepción — estándar',
+    type: 'receipt',
+    sizePreset: '4x2',
+    dpi: 203,
+    symbology: 'code128',
+    fields: defaultFieldsForType('receipt'),
+    autoPrint: true,
+    isDefault: true,
+    createdAt: labelTemplateStamp,
+    updatedAt: labelTemplateStamp,
+  },
+  {
+    id: 'lt-lpn',
+    name: 'LPN — matrícula de contenedor',
+    type: 'lpn',
+    sizePreset: '4x2',
+    dpi: 203,
+    symbology: 'code128',
+    fields: defaultFieldsForType('lpn'),
+    autoPrint: false,
+    isDefault: true,
+    createdAt: labelTemplateStamp,
+    updatedAt: labelTemplateStamp,
+  },
+]
+
 export const shipments: Shipment[] = [
   {
     id: 'sh-b2b-1',
@@ -3977,6 +4090,8 @@ export const settings: WmsSettings = {
   pickingClusterMaxContainers: 8,
   pickingRequireIssuePhoto: false,
   pickingAllowSubstitution: true,
+  pickingBlindMode: 'operator_choice',
+  pickingBlindVarianceTolerancePct: 10,
   pickingZones: [
     { id: 'pz-1', name: 'Zona A — Picking rápido', sequenceOrder: 1, active: true },
     { id: 'pz-2', name: 'Zona B — Reserva', sequenceOrder: 2, active: true },
@@ -4417,8 +4532,46 @@ export const demoAsn2: Asn = {
   sourceType: 'purchase',
 }
 
+// ─── Escenario de demo: Cross-docking ─────────────────────────────────────────
+// ASN recién recibido, elegible para cross-dock (crossDocking + sin QC), con
+// mercancía que un pedido pendiente (demo-co-crossdock) está esperando. El CD
+// solo tiene 1 lavaplatos disponible frente a 4 que necesita el pedido, así que
+// la oportunidad aparece marcada como BACKORDER en la alerta proactiva de /receiving.
+export const demoAsnCrossDock: Asn = {
+  id: 'demo-asn-crossdock',
+  code: 'ASN-DEMO-XDOCK',
+  supplierName: 'Distribuidora LG Andina',
+  appointmentDate: '2026-07-24',
+  expectedQuantity: 6,
+  receivedQuantity: 6,
+  damagedQuantity: 0,
+  status: 'in_progress',
+  requiresQualityControl: false,
+  crossDocking: true,
+  productId: 'p-lavaplatos',
+  suggestedPutawayLocationId: 'loc-a0101',
+  deliveryCount: 1,
+  purchaseOrderId: 'po-3',
+  sourceType: 'purchase',
+}
+
 // Flujo 2: Outbound — órdenes listas para wave demo
 export const demoCommerceOrders: CommerceOrder[] = [
+  // Pedido en espera de cross-docking: necesita 4 lavaplatos y el CD solo tiene 1.
+  // La mercancía del ASN demo-asn-crossdock lo desbloquea (aparece como Backorder).
+  {
+    id: 'demo-co-crossdock',
+    orderNumber: 'PED-XDOCK-001',
+    channel: 'ecommerce',
+    customerName: 'Homecenter Calle 80',
+    status: 'pending',
+    createdAt: '2026-07-24T07:30:00.000Z',
+    promisedDeliveryDate: '2026-07-25',
+    fulfillmentType: 'cross_docking',
+    items: [
+      { id: 'demo-col-xd-1', productId: 'p-lavaplatos', requestedQuantity: 4, pickedQuantity: 0 },
+    ],
+  },
   {
     id: 'demo-co-1',
     orderNumber: 'PED-DEMO-001',

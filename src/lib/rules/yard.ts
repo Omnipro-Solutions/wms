@@ -3,6 +3,7 @@ import type {
   Asn,
   Dock,
   DockAppointment,
+  DockAppointmentStatus,
   DockAppointmentType,
   DockType,
   StorageLocation,
@@ -189,3 +190,51 @@ export const suggestDock = (
     .filter((d) => d.warehouseId === appointment.warehouseId)
     .map((d) => scoreDock(d, appointment, appointments, asn, locations))
     .sort((a, b) => b.score - a.score)
+
+// ─── Geometría del tablero de línea de tiempo (/yard) ─────────────────────────
+
+// Minutos desde medianoche. Acepta 'HH:mm' o un ISO datetime (troza la hora).
+export const minutesOfDay = (value: string): number => {
+  const hhmm = value.length > 5 ? value.slice(11, 16) : value
+  const [h, m] = hhmm.split(':').map(Number)
+  return h * 60 + m
+}
+
+// Posición (left) y ancho de un bloque en el eje [openMin, closeMin], en %.
+// Recorta a los bordes: una cita que empieza antes de abrir o termina después
+// de cerrar nunca desborda la pista. widthPct nunca es negativo.
+export const blockGeometry = (
+  startMin: number,
+  endMin: number,
+  openMin: number,
+  closeMin: number
+): { leftPct: number; widthPct: number } => {
+  const span = Math.max(1, closeMin - openMin)
+  const clampedStart = Math.max(openMin, Math.min(startMin, closeMin))
+  const clampedEnd = Math.max(openMin, Math.min(endMin, closeMin))
+  const leftPct = ((clampedStart - openMin) / span) * 100
+  const widthPct = Math.max(0, ((clampedEnd - clampedStart) / span) * 100)
+  return { leftPct, widthPct }
+}
+
+// ─── Acciones disponibles por estado de la cita ───────────────────────────────
+// Única fuente de verdad para qué botones mostrar; la consumen la tabla de
+// /yard (ActionsCell) y el popover del tablero. Coincide con la FSM.
+
+export interface AppointmentActionFlags {
+  canAssignDock: boolean
+  canCheckIn: boolean
+  canStart: boolean
+  canComplete: boolean
+  canNoShow: boolean
+  canCancel: boolean
+}
+
+export const appointmentActionFlags = (status: DockAppointmentStatus): AppointmentActionFlags => ({
+  canAssignDock: status === 'scheduled' || status === 'arrived',
+  canCheckIn: status === 'scheduled',
+  canStart: status === 'arrived',
+  canComplete: status === 'in_progress',
+  canNoShow: status === 'scheduled',
+  canCancel: status === 'scheduled' || status === 'arrived',
+})

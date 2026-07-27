@@ -63,6 +63,9 @@ const todayStr = () => {
 export interface CreateAppointmentInitial {
   warehouseId?: string
   type?: DockAppointmentType
+  dockId?: string
+  date?: string // 'YYYY-MM-DD'
+  startTime?: string // 'HH:mm'
 }
 
 interface Props {
@@ -81,16 +84,16 @@ export const CreateAppointmentDialog = ({ open, onClose, initial }: Props) => {
   const openManifests = loadManifests.filter((m) => m.status !== 'completed' && m.status !== 'cancelled')
 
   const buildDefaults = (): FormValues => {
-    const start = '08:00'
+    const start = initial?.startTime ?? '08:00'
     return {
       warehouseId: initial?.warehouseId ?? regularWarehouses[0]?.id ?? '',
       type: initial?.type ?? 'inbound',
       referenceId: NONE,
-      dockId: NONE,
+      dockId: initial?.dockId ?? NONE,
       carrierName: NONE,
       driverName: '',
       vehiclePlate: '',
-      date: todayStr(),
+      date: initial?.date ?? todayStr(),
       startTime: start,
       endTime: addMinutes(start, settings.yardDefaultSlotMinutes),
       notes: '',

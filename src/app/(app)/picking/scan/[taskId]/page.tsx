@@ -45,8 +45,8 @@ const ScanPickingPage = () => {
     setPhase('quantity')
   }
 
-  const handleQuantityConfirm = (qty: number) => {
-    completePick(task.id, qty)
+  const handleQuantityConfirm = (qty: number, serials?: string[]) => {
+    completePick(task.id, qty, undefined, serials, undefined, 'visible')
     if (qty < task.requestedQuantity) approvePart(task.id)
     setPhase('done')
   }
@@ -110,6 +110,7 @@ const ScanPickingPage = () => {
   return (
     <QuantityStep
       requestedQty={task.requestedQuantity}
+      requiresSerial={product.trackBy === 'serial'}
       onConfirm={handleQuantityConfirm}
     />
   )

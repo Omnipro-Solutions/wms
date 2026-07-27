@@ -799,8 +799,8 @@ const SlottingPage = () => {
           if (!o) setSimulation(null)
         }}
       >
-        <DialogContent className="max-w-5xl! gap-0 overflow-hidden p-0">
-          <DialogHeader className="border-b bg-linear-to-r from-blue-50 to-indigo-50 px-6 py-5 dark:from-blue-950/40 dark:to-indigo-950/40">
+        <DialogContent className="flex max-h-[90vh] max-w-5xl! flex-col gap-0 overflow-hidden p-0">
+          <DialogHeader className="shrink-0 border-b bg-linear-to-r from-blue-50 to-indigo-50 px-6 py-5 dark:from-blue-950/40 dark:to-indigo-950/40">
             <DialogTitle className="flex items-center gap-2 text-base">
               <FlaskConical className="size-4 text-blue-600" />
               Simulación de impacto — {simulation?.rows.length ?? 0} reubicaciones
@@ -813,7 +813,7 @@ const SlottingPage = () => {
 
           {simulation && (
             <>
-              <div className="grid grid-cols-2 divide-x border-b sm:grid-cols-4">
+              <div className="grid shrink-0 grid-cols-2 divide-x border-b sm:grid-cols-4">
                 {[
                   {
                     label: 'Distancia ahorrada',
@@ -830,7 +830,7 @@ const SlottingPage = () => {
                 ))}
               </div>
 
-              <div className="max-h-auto overflow-y-auto p-6">
+              <div className="min-h-0 flex-1 overflow-y-auto p-6">
                 <DataTable
                   columns={simulationCols}
                   data={simulation.rows}
@@ -842,7 +842,7 @@ const SlottingPage = () => {
             </>
           )}
 
-          <DialogFooter className="bg-muted/20 mb-0! border-t p-6">
+          <DialogFooter className="bg-muted/20 mb-0! shrink-0 border-t p-6">
             <Button variant="outline" onClick={() => setSimulation(null)}>
               Cancelar
             </Button>

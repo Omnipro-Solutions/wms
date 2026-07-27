@@ -672,6 +672,8 @@ export interface PickingTask {
   issueReasonId?: string // references a Reason (context: "picking_issue")
   issuePhotoUrl?: string // dataURL captured via <input type="file" capture="environment">
   substituteProductId?: string // product suggested as replacement when out of stock
+  // Cómo se contó al completar el pick — auditoría del control a ciegas (módulo #5).
+  countMode?: 'blind' | 'visible'
 }
 
 export interface PickingWave {
@@ -777,6 +779,51 @@ export interface WmsLabel {
   expirationDate?: string
   receivedQty?: number
   poNumber?: string
+}
+
+export type LabelType = WmsLabel['type']
+
+// ── Configurable label templates ─────────────────────────────────────────────
+// A template drives how a WmsLabel of a given type is rendered: physical size,
+// print density, symbology, which fields are printed, and whether it prints
+// automatically on its triggering event. One global default per type, with an
+// optional per-warehouse override for that same type.
+
+export type LabelSymbology = 'code128' | 'gs1-128' | 'qr' | 'datamatrix'
+export type LabelSizePreset = '4x2' | '4x6' | '3x2' | '2x1' // inches (width x height)
+export type LabelDpi = 203 | 300
+
+// Superset of fields a label can print; each template enables a subset per type.
+export type LabelFieldKey =
+  | 'reference'
+  | 'lot'
+  | 'expirationDate'
+  | 'quantity'
+  | 'poNumber'
+  | 'operator'
+  | 'date'
+  | 'warehouse'
+  | 'logo'
+
+export interface LabelField {
+  key: LabelFieldKey
+  enabled: boolean
+  order: number
+}
+
+export interface LabelTemplate {
+  id: string
+  name: string
+  type: LabelType
+  warehouseId?: string // undefined = global template; set = per-warehouse override
+  sizePreset: LabelSizePreset
+  dpi: LabelDpi
+  symbology: LabelSymbology
+  fields: LabelField[]
+  autoPrint: boolean // generated automatically on its triggering event
+  isDefault: boolean // the global default for its type; protected from deletion
+  createdAt: string
+  updatedAt: string
 }
 
 export type CarrierServiceLevel = 'same_day' | 'next_day' | 'two_day' | 'ground' | 'economy'
@@ -1372,6 +1419,12 @@ export interface WmsSettings {
   // Gobierna el dialog de reporte de incidencia.
   pickingRequireIssuePhoto: boolean
   pickingAllowSubstitution: boolean
+  // Conteo a ciegas (anti-sesgo) en la app del operario. 'operator_choice': el operario
+  // elige; 'forced': siempre a ciegas (control obligatorio); 'disabled': siempre visible.
+  pickingBlindMode: 'operator_choice' | 'forced' | 'disabled'
+  // Tolerancia de varianza (%) de un pick a ciegas antes de exigir un motivo de
+  // reconciliación (|solicitado − contado| / solicitado × 100 > tolerancia → motivo).
+  pickingBlindVarianceTolerancePct: number
   // Catálogo independiente de zonas de picking (pick-and-pass), desacoplado de
   // StorageLocation.zone para permitir renombrar/reordenar sin tocar ubicaciones.
   pickingZones: PickingZoneConfig[]

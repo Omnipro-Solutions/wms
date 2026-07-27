@@ -185,13 +185,25 @@ const AdminPage = () => {
 
   const handleSaveUom = () => {
     setUomFormError('')
-    if (!uomForm.code.trim()) { setUomFormError('El código es obligatorio'); return }
-    if (!uomForm.name.trim()) { setUomFormError('El nombre es obligatorio'); return }
-    if (!uomForm.abbreviation.trim()) { setUomFormError('La abreviatura es obligatoria'); return }
+    if (!uomForm.code.trim()) {
+      setUomFormError('El código es obligatorio')
+      return
+    }
+    if (!uomForm.name.trim()) {
+      setUomFormError('El nombre es obligatorio')
+      return
+    }
+    if (!uomForm.abbreviation.trim()) {
+      setUomFormError('La abreviatura es obligatoria')
+      return
+    }
     const duplicate = unitsOfMeasure.find(
       (u) => u.code.toUpperCase() === uomForm.code.trim().toUpperCase() && u.id !== uomEditId
     )
-    if (duplicate) { setUomFormError('Ya existe una UM con ese código'); return }
+    if (duplicate) {
+      setUomFormError('Ya existe una UM con ese código')
+      return
+    }
     if (uomEditId) {
       updateUom(uomEditId, {
         code: uomForm.code.trim().toUpperCase(),
@@ -230,8 +242,10 @@ const AdminPage = () => {
     if (!productEditId) return
     updateProduct(productEditId, {
       rotationStrategy: productForm.rotationStrategy,
-      minStockUnits: productForm.minStockUnits === '' ? undefined : Number(productForm.minStockUnits),
-      maxStockUnits: productForm.maxStockUnits === '' ? undefined : Number(productForm.maxStockUnits),
+      minStockUnits:
+        productForm.minStockUnits === '' ? undefined : Number(productForm.minStockUnits),
+      maxStockUnits:
+        productForm.maxStockUnits === '' ? undefined : Number(productForm.maxStockUnits),
       isHazardous: productForm.isHazardous,
       requiresColdChain: productForm.requiresColdChain,
     })
@@ -271,15 +285,22 @@ const AdminPage = () => {
             <Database className="size-4 text-blue-500" />
             Estado del almacén local (IndexedDB)
           </CardTitle>
-          <CardDescription>Datos persistidos en el navegador; se conservan al recargar.</CardDescription>
+          <CardDescription>
+            Datos persistidos en el navegador; se conservan al recargar.
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             {storeStats.map(({ label, value, icon: Icon }) => (
-              <div key={label} className="flex items-center gap-3 rounded-lg border dark:border-zinc-700/50 bg-zinc-50 dark:bg-zinc-800/50 p-3">
+              <div
+                key={label}
+                className="flex items-center gap-3 rounded-lg border bg-zinc-50 p-3 dark:border-zinc-700/50 dark:bg-zinc-800/50"
+              >
                 <Icon className="size-5 shrink-0 text-zinc-400" />
                 <div>
-                  <p className="text-lg font-bold tabular-nums text-zinc-800 dark:text-zinc-300">{value}</p>
+                  <p className="text-lg font-bold text-zinc-800 tabular-nums dark:text-zinc-300">
+                    {value}
+                  </p>
                   <p className="text-xs text-zinc-500">{label}</p>
                 </div>
               </div>
@@ -292,142 +313,143 @@ const AdminPage = () => {
 
       {/* ── Operators ── */}
       {activeTab === 'operators' && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-sm">
-                <Users className="size-4" /> Operadores ({operators.length})
-              </CardTitle>
-              <CardDescription>Usuarios operativos registrados en el sistema.</CardDescription>
-            </CardHeader>
-            <CardContent className="p-0">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Nombre</TableHead>
-                    <TableHead>Rol</TableHead>
-                    <TableHead>Código</TableHead>
-                    <TableHead>Estado</TableHead>
-                    <TableHead />
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-sm">
+              <Users className="size-4" /> Operadores ({operators.length})
+            </CardTitle>
+            <CardDescription>Usuarios operativos registrados en el sistema.</CardDescription>
+          </CardHeader>
+          <CardContent className="p-0">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Nombre</TableHead>
+                  <TableHead>Rol</TableHead>
+                  <TableHead>Código</TableHead>
+                  <TableHead>Estado</TableHead>
+                  <TableHead />
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {operators.map((op) => (
+                  <TableRow key={op.id}>
+                    <TableCell className="font-medium">{op.name}</TableCell>
+                    <TableCell>
+                      <Badge variant="outline">{ROLE_LABELS[op.role] ?? op.role}</Badge>
+                    </TableCell>
+                    <TableCell className="text-muted-foreground text-sm">{op.code}</TableCell>
+                    <TableCell>
+                      <Badge variant={op.active ? 'default' : 'secondary'}>
+                        {op.active ? 'Activo' : 'Inactivo'}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button variant="ghost" size="sm" onClick={() => toggleOperator(op.id)}>
+                        {op.active ? 'Desactivar' : 'Activar'}
+                      </Button>
+                    </TableCell>
                   </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {operators.map((op) => (
-                    <TableRow key={op.id}>
-                      <TableCell className="font-medium">{op.name}</TableCell>
-                      <TableCell>
-                        <Badge variant="outline">{ROLE_LABELS[op.role] ?? op.role}</Badge>
-                      </TableCell>
-                      <TableCell className="text-muted-foreground text-sm">{op.code}</TableCell>
-                      <TableCell>
-                        <Badge variant={op.active ? 'default' : 'secondary'}>
-                          {op.active ? 'Activo' : 'Inactivo'}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Button variant="ghost" size="sm" onClick={() => toggleOperator(op.id)}>
-                          {op.active ? 'Desactivar' : 'Activar'}
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
       )}
 
       {/* ── Reasons ── */}
       {activeTab === 'reasons' && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-sm">
-                <AlertTriangle className="size-4" /> Razones ({reasons.length})
-              </CardTitle>
-              <CardDescription>Catálogo de razones para ajustes, bloqueos, devoluciones y bajas.</CardDescription>
-            </CardHeader>
-            <CardContent className="p-0">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Descripción</TableHead>
-                    <TableHead>Contexto</TableHead>
-                    <TableHead>Estado</TableHead>
-                    <TableHead />
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-sm">
+              <AlertTriangle className="size-4" /> Razones ({reasons.length})
+            </CardTitle>
+            <CardDescription>
+              Catálogo de razones para ajustes, bloqueos, devoluciones y bajas.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="p-0">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Descripción</TableHead>
+                  <TableHead>Contexto</TableHead>
+                  <TableHead>Estado</TableHead>
+                  <TableHead />
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {reasons.map((r) => (
+                  <TableRow key={r.id}>
+                    <TableCell className="font-medium">{r.label}</TableCell>
+                    <TableCell>
+                      <Badge variant="outline">{CONTEXT_LABELS[r.context] ?? r.context}</Badge>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant={r.active ? 'default' : 'secondary'}>
+                        {r.active ? 'Activo' : 'Inactivo'}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button variant="ghost" size="sm" onClick={() => toggleReason(r.id)}>
+                        {r.active ? 'Desactivar' : 'Activar'}
+                      </Button>
+                    </TableCell>
                   </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {reasons.map((r) => (
-                    <TableRow key={r.id}>
-                      <TableCell className="font-medium">{r.label}</TableCell>
-                      <TableCell>
-                        <Badge variant="outline">{CONTEXT_LABELS[r.context] ?? r.context}</Badge>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={r.active ? 'default' : 'secondary'}>
-                          {r.active ? 'Activo' : 'Inactivo'}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Button variant="ghost" size="sm" onClick={() => toggleReason(r.id)}>
-                          {r.active ? 'Desactivar' : 'Activar'}
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
       )}
 
       {/* ── Carriers ── */}
       {activeTab === 'carriers' && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-sm">
-                <Truck className="size-4" /> Transportistas ({carriers.length})
-              </CardTitle>
-              <CardDescription>Carriers y niveles de servicio configurados.</CardDescription>
-            </CardHeader>
-            <CardContent className="p-0">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Transportista</TableHead>
-                    <TableHead>Servicios</TableHead>
-                    <TableHead>Zonas</TableHead>
-                    <TableHead>Estado</TableHead>
-                    <TableHead />
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-sm">
+              <Truck className="size-4" /> Transportistas ({carriers.length})
+            </CardTitle>
+            <CardDescription>Carriers y niveles de servicio configurados.</CardDescription>
+          </CardHeader>
+          <CardContent className="p-0">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Transportista</TableHead>
+                  <TableHead>Servicios</TableHead>
+                  <TableHead>Zonas</TableHead>
+                  <TableHead>Estado</TableHead>
+                  <TableHead />
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {carriers.map((c) => (
+                  <TableRow key={c.id}>
+                    <TableCell className="font-medium">{c.name}</TableCell>
+                    <TableCell className="text-muted-foreground text-sm">
+                      {c.services.length} servicio{c.services.length !== 1 ? 's' : ''}
+                    </TableCell>
+                    <TableCell className="text-muted-foreground text-sm">
+                      {c.zones.length} zona{c.zones.length !== 1 ? 's' : ''}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant={c.active ? 'default' : 'secondary'}>
+                        {c.active ? 'Activo' : 'Inactivo'}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button variant="ghost" size="sm" onClick={() => toggleCarrier(c.id)}>
+                        {c.active ? 'Desactivar' : 'Activar'}
+                      </Button>
+                    </TableCell>
                   </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {carriers.map((c) => (
-                    <TableRow key={c.id}>
-                      <TableCell className="font-medium">{c.name}</TableCell>
-                      <TableCell className="text-muted-foreground text-sm">
-                        {c.services.length} servicio{c.services.length !== 1 ? 's' : ''}
-                      </TableCell>
-                      <TableCell className="text-muted-foreground text-sm">
-                        {c.zones.length} zona{c.zones.length !== 1 ? 's' : ''}
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={c.active ? 'default' : 'secondary'}>
-                          {c.active ? 'Activo' : 'Inactivo'}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Button variant="ghost" size="sm" onClick={() => toggleCarrier(c.id)}>
-                          {c.active ? 'Desactivar' : 'Activar'}
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
       )}
-
 
       {/* ── Units of Measure ── */}
       {activeTab === 'uom' && (
@@ -440,7 +462,8 @@ const AdminPage = () => {
                     <Ruler className="size-4" /> Unidades de medida ({unitsOfMeasure.length})
                   </CardTitle>
                   <CardDescription>
-                    Definición de UM base y reglas de conversión. Las cantidades en stock siempre se almacenan en la UM base del producto.
+                    Definición de UM base y reglas de conversión. Las cantidades en stock siempre se
+                    almacenan en la UM base del producto.
                   </CardDescription>
                 </div>
                 <Button size="sm" onClick={handleOpenUomCreate}>
@@ -464,14 +487,16 @@ const AdminPage = () => {
                     <TableRow key={uom.id}>
                       <TableCell className="font-mono font-semibold">{uom.code}</TableCell>
                       <TableCell>{uom.name}</TableCell>
-                      <TableCell className="font-mono text-muted-foreground">{uom.abbreviation}</TableCell>
+                      <TableCell className="text-muted-foreground font-mono">
+                        {uom.abbreviation}
+                      </TableCell>
                       <TableCell>
                         <Badge
                           variant="outline"
                           className={cn(
                             uom.active
-                              ? 'border-emerald-200 dark:border-emerald-900/50 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300'
-                              : 'border-zinc-200 dark:border-zinc-700/50 bg-zinc-50 dark:bg-zinc-800/50 text-zinc-400 dark:text-zinc-300'
+                              ? 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/50 dark:bg-emerald-950/40 dark:text-emerald-300'
+                              : 'border-zinc-200 bg-zinc-50 text-zinc-400 dark:border-zinc-700/50 dark:bg-zinc-800/50 dark:text-zinc-300'
                           )}
                         >
                           {uom.active ? 'Activa' : 'Inactiva'}
@@ -490,7 +515,12 @@ const AdminPage = () => {
                           <Button
                             size="sm"
                             variant="ghost"
-                            className={cn('h-7 px-2 text-xs', uom.active ? 'text-red-500 hover:text-red-700' : 'text-emerald-600 hover:text-emerald-800')}
+                            className={cn(
+                              'h-7 px-2 text-xs',
+                              uom.active
+                                ? 'text-red-500 hover:text-red-700'
+                                : 'text-emerald-600 hover:text-emerald-800'
+                            )}
                             onClick={() => toggleUom(uom.id)}
                           >
                             {uom.active ? 'Desactivar' : 'Activar'}
@@ -505,7 +535,12 @@ const AdminPage = () => {
           </Card>
 
           {/* UoM create / edit dialog */}
-          <Dialog open={uomFormOpen} onOpenChange={(o) => { if (!o) setUomFormOpen(false) }}>
+          <Dialog
+            open={uomFormOpen}
+            onOpenChange={(o) => {
+              if (!o) setUomFormOpen(false)
+            }}
+          >
             <DialogContent className="max-w-sm">
               <DialogHeader>
                 <DialogTitle className="flex items-center gap-2">
@@ -518,7 +553,9 @@ const AdminPage = () => {
               </DialogHeader>
               <div className="space-y-4 py-1">
                 <div className="space-y-1.5">
-                  <Label htmlFor="uom-code">Código <span className="text-destructive">*</span></Label>
+                  <Label htmlFor="uom-code">
+                    Código <span className="text-destructive">*</span>
+                  </Label>
                   <Input
                     id="uom-code"
                     placeholder="Ej: CAJ12"
@@ -528,7 +565,9 @@ const AdminPage = () => {
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label htmlFor="uom-name">Nombre <span className="text-destructive">*</span></Label>
+                  <Label htmlFor="uom-name">
+                    Nombre <span className="text-destructive">*</span>
+                  </Label>
                   <Input
                     id="uom-name"
                     placeholder="Ej: Caja x12"
@@ -537,7 +576,9 @@ const AdminPage = () => {
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label htmlFor="uom-abbr">Abreviatura <span className="text-destructive">*</span></Label>
+                  <Label htmlFor="uom-abbr">
+                    Abreviatura <span className="text-destructive">*</span>
+                  </Label>
                   <Input
                     id="uom-abbr"
                     placeholder="Ej: caj×12"
@@ -547,13 +588,15 @@ const AdminPage = () => {
                   />
                 </div>
                 {uomFormError && (
-                  <p className="flex items-center gap-1 text-sm text-destructive">
+                  <p className="text-destructive flex items-center gap-1 text-sm">
                     <AlertTriangle className="size-3" /> {uomFormError}
                   </p>
                 )}
               </div>
               <DialogFooter>
-                <Button variant="outline" onClick={() => setUomFormOpen(false)}>Cancelar</Button>
+                <Button variant="outline" onClick={() => setUomFormOpen(false)}>
+                  Cancelar
+                </Button>
                 <Button onClick={handleSaveUom}>
                   {uomEditId ? 'Guardar cambios' : 'Crear UM'}
                 </Button>
@@ -591,16 +634,25 @@ const AdminPage = () => {
                       <TableCell className="font-mono text-xs font-semibold">{p.sku}</TableCell>
                       <TableCell className="max-w-48 truncate font-medium">{p.name}</TableCell>
                       <TableCell className="text-muted-foreground text-sm">
-                        {p.rotationStrategy ? ROTATION_LABELS[p.rotationStrategy] : <span className="text-zinc-400">Auto</span>}
+                        {p.rotationStrategy ? (
+                          ROTATION_LABELS[p.rotationStrategy]
+                        ) : (
+                          <span className="text-zinc-400">Auto</span>
+                        )}
                       </TableCell>
-                      <TableCell className="text-right tabular-nums text-sm">
+                      <TableCell className="text-right text-sm tabular-nums">
                         {p.minStockUnits ?? <span className="text-zinc-400">—</span>}
                       </TableCell>
-                      <TableCell className="text-right tabular-nums text-sm">
+                      <TableCell className="text-right text-sm tabular-nums">
                         {p.maxStockUnits ?? <span className="text-zinc-400">—</span>}
                       </TableCell>
                       <TableCell className="text-right">
-                        <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => handleOpenProductEdit(p)}>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-7 w-7 p-0"
+                          onClick={() => handleOpenProductEdit(p)}
+                        >
                           <Pencil className="size-3" />
                         </Button>
                       </TableCell>
@@ -612,7 +664,12 @@ const AdminPage = () => {
           </Card>
 
           {/* Product edit dialog */}
-          <Dialog open={productEditOpen} onOpenChange={(o) => { if (!o) setProductEditOpen(false) }}>
+          <Dialog
+            open={productEditOpen}
+            onOpenChange={(o) => {
+              if (!o) setProductEditOpen(false)
+            }}
+          >
             <DialogContent className="max-w-sm">
               <DialogHeader>
                 <DialogTitle className="flex items-center gap-2">
@@ -628,15 +685,26 @@ const AdminPage = () => {
                   <Label>Estrategia de rotación</Label>
                   <Select
                     value={productForm.rotationStrategy ?? ''}
-                    onValueChange={(v) => setProductForm((f) => ({ ...f, rotationStrategy: (v || undefined) as Product['rotationStrategy'] }))}
+                    onValueChange={(v) =>
+                      setProductForm((f) => ({
+                        ...f,
+                        rotationStrategy: (v || undefined) as Product['rotationStrategy'],
+                      }))
+                    }
                   >
                     <SelectTrigger className="w-full">
                       <SelectValue placeholder="Auto (sin estrategia explícita)" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="fefo">FEFO — Primero en vencer, primero en salir</SelectItem>
-                      <SelectItem value="fifo">FIFO — Primero en entrar, primero en salir</SelectItem>
-                      <SelectItem value="lifo">LIFO — Último en entrar, primero en salir</SelectItem>
+                      <SelectItem value="fefo">
+                        FEFO — Primero en vencer, primero en salir
+                      </SelectItem>
+                      <SelectItem value="fifo">
+                        FIFO — Primero en entrar, primero en salir
+                      </SelectItem>
+                      <SelectItem value="lifo">
+                        LIFO — Último en entrar, primero en salir
+                      </SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -649,7 +717,12 @@ const AdminPage = () => {
                       min={0}
                       placeholder="Auto"
                       value={productForm.minStockUnits}
-                      onChange={(e) => setProductForm((f) => ({ ...f, minStockUnits: e.target.value === '' ? '' : Number(e.target.value) }))}
+                      onChange={(e) =>
+                        setProductForm((f) => ({
+                          ...f,
+                          minStockUnits: e.target.value === '' ? '' : Number(e.target.value),
+                        }))
+                      }
                     />
                   </div>
                   <div className="space-y-1.5">
@@ -660,12 +733,19 @@ const AdminPage = () => {
                       min={0}
                       placeholder="Auto"
                       value={productForm.maxStockUnits}
-                      onChange={(e) => setProductForm((f) => ({ ...f, maxStockUnits: e.target.value === '' ? '' : Number(e.target.value) }))}
+                      onChange={(e) =>
+                        setProductForm((f) => ({
+                          ...f,
+                          maxStockUnits: e.target.value === '' ? '' : Number(e.target.value),
+                        }))
+                      }
                     />
                   </div>
                 </div>
                 <div className="space-y-2 border-t pt-3">
-                  <p className="text-xs font-medium text-muted-foreground">Restricciones de putaway</p>
+                  <p className="text-muted-foreground text-xs font-medium">
+                    Restricciones de putaway
+                  </p>
                   <label className="flex items-center justify-between gap-3 text-sm">
                     Material peligroso (hazmat)
                     <Switch
@@ -677,13 +757,17 @@ const AdminPage = () => {
                     Requiere cadena de frío
                     <Switch
                       checked={productForm.requiresColdChain}
-                      onCheckedChange={(v) => setProductForm((f) => ({ ...f, requiresColdChain: v }))}
+                      onCheckedChange={(v) =>
+                        setProductForm((f) => ({ ...f, requiresColdChain: v }))
+                      }
                     />
                   </label>
                 </div>
               </div>
               <DialogFooter>
-                <Button variant="outline" onClick={() => setProductEditOpen(false)}>Cancelar</Button>
+                <Button variant="outline" onClick={() => setProductEditOpen(false)}>
+                  Cancelar
+                </Button>
                 <Button onClick={handleSaveProduct}>Guardar cambios</Button>
               </DialogFooter>
             </DialogContent>
@@ -693,57 +777,106 @@ const AdminPage = () => {
 
       {/* ── Settings ── */}
       {activeTab === 'settings' && (
-          <Card>
-            <CardHeader>
-              <div className="flex items-start justify-between">
-                <div>
-                  <CardTitle className="flex items-center gap-2 text-sm">
-                    <Settings className="size-4" /> Parámetros del sistema
-                  </CardTitle>
-                  <CardDescription>Umbrales para clasificación ABC/XYZ, reabastecimiento y control de inventario.</CardDescription>
-                </div>
-                <Button size="sm" disabled={!settingsChanged} onClick={handleSaveSettings}>
-                  Guardar cambios
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent className="flex flex-col gap-6">
+        <Card>
+          <CardHeader>
+            <div className="flex items-start justify-between">
               <div>
-                <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-300">Clasificación ABC</p>
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <SettingField label="Umbral clase A" description="% acumulado de pickeos que define la clase A (ej. 0.80 = 80%)." value={localSettings.abcThresholdA} min={0.5} max={0.95} step={0.05} onChange={(v) => handleSettingChange('abcThresholdA', v)} />
-                  <SettingField label="Umbral clase B" description="% acumulado que separa B de C (debe ser > umbral A)." value={localSettings.abcThresholdB} min={0.6} max={0.99} step={0.05} onChange={(v) => handleSettingChange('abcThresholdB', v)} />
-                </div>
+                <CardTitle className="flex items-center gap-2 text-sm">
+                  <Settings className="size-4" /> Parámetros del sistema
+                </CardTitle>
+                <CardDescription>
+                  Umbrales para clasificación ABC/XYZ, reabastecimiento y control de inventario.
+                </CardDescription>
               </div>
-
-              <Separator />
-
-              <div>
-                <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-300">Clasificación XYZ</p>
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <SettingField label="CV límite X/Y" description="Coeficiente de variación máximo para clase X (demanda estable)." value={localSettings.xyzCvX} min={0.1} max={0.8} step={0.1} onChange={(v) => handleSettingChange('xyzCvX', v)} />
-                  <SettingField label="CV límite Y/Z" description="Coeficiente de variación máximo para clase Y (demanda media)." value={localSettings.xyzCvY} min={0.5} max={2.0} step={0.1} onChange={(v) => handleSettingChange('xyzCvY', v)} />
-                </div>
+              <Button size="sm" disabled={!settingsChanged} onClick={handleSaveSettings}>
+                Guardar cambios
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-6">
+            <div>
+              <p className="mb-3 text-xs font-semibold tracking-wide text-zinc-500 uppercase dark:text-zinc-300">
+                Clasificación ABC
+              </p>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <SettingField
+                  label="Umbral clase A"
+                  description="% acumulado de pickeos que define la clase A (ej. 0.80 = 80%)."
+                  value={localSettings.abcThresholdA}
+                  min={0.5}
+                  max={0.95}
+                  step={0.05}
+                  onChange={(v) => handleSettingChange('abcThresholdA', v)}
+                />
+                <SettingField
+                  label="Umbral clase B"
+                  description="% acumulado que separa B de C (debe ser > umbral A)."
+                  value={localSettings.abcThresholdB}
+                  min={0.6}
+                  max={0.99}
+                  step={0.05}
+                  onChange={(v) => handleSettingChange('abcThresholdB', v)}
+                />
               </div>
+            </div>
 
-              <Separator />
+            <Separator />
 
-              <div>
-                <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-300">Reabastecimiento</p>
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <SettingField label="Factor prioridad alta" description="Si stock < minStock × factor → prioridad alta. Ej. 0.5 = por debajo del 50% del mínimo." value={localSettings.replenishmentHighFactor} min={0.1} max={0.9} step={0.1} onChange={(v) => handleSettingChange('replenishmentHighFactor', v)} />
-                </div>
+            <div>
+              <p className="mb-3 text-xs font-semibold tracking-wide text-zinc-500 uppercase dark:text-zinc-300">
+                Clasificación XYZ
+              </p>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <SettingField
+                  label="CV límite X/Y"
+                  description="Coeficiente de variación máximo para clase X (demanda estable)."
+                  value={localSettings.xyzCvX}
+                  min={0.1}
+                  max={0.8}
+                  step={0.1}
+                  onChange={(v) => handleSettingChange('xyzCvX', v)}
+                />
+                <SettingField
+                  label="CV límite Y/Z"
+                  description="Coeficiente de variación máximo para clase Y (demanda media)."
+                  value={localSettings.xyzCvY}
+                  min={0.5}
+                  max={2.0}
+                  step={0.1}
+                  onChange={(v) => handleSettingChange('xyzCvY', v)}
+                />
               </div>
+            </div>
 
-              <Separator />
+            <Separator />
 
-              <div className="flex items-center gap-2 rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
-                Los parámetros de congelamiento, alertas de stock/vencimiento, TTL de reservas y baja rotación se
-                movieron a <span className="font-medium text-foreground">Config. Inventario</span> (menú lateral),
-                junto con la aprobación de ajustes.
+            <div>
+              <p className="mb-3 text-xs font-semibold tracking-wide text-zinc-500 uppercase dark:text-zinc-300">
+                Reabastecimiento
+              </p>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <SettingField
+                  label="Factor prioridad alta"
+                  description="Si stock < minStock × factor → prioridad alta. Ej. 0.5 = por debajo del 50% del mínimo."
+                  value={localSettings.replenishmentHighFactor}
+                  min={0.1}
+                  max={0.9}
+                  step={0.1}
+                  onChange={(v) => handleSettingChange('replenishmentHighFactor', v)}
+                />
               </div>
-            </CardContent>
-          </Card>
+            </div>
+
+            <Separator />
+
+            <div className="text-muted-foreground flex items-center gap-2 rounded-lg border border-dashed p-4 text-sm">
+              Los parámetros de congelamiento, alertas de stock/vencimiento, TTL de reservas y baja
+              rotación se movieron a{' '}
+              <span className="text-foreground font-medium">Config. Inventario</span> (menú
+              lateral), junto con la aprobación de ajustes.
+            </div>
+          </CardContent>
+        </Card>
       )}
 
       {activeTab === 'almacenes' && (
@@ -778,16 +911,16 @@ const AdminPage = () => {
                           wh.type === 'distribution_center'
                             ? 'default'
                             : wh.type === 'transit'
-                            ? 'outline'
-                            : 'secondary'
+                              ? 'outline'
+                              : 'secondary'
                         }
                         className={cn(wh.type === 'transit' && 'border-amber-400 text-amber-700')}
                       >
                         {wh.type === 'distribution_center'
                           ? 'CD'
                           : wh.type === 'transit'
-                          ? 'Transitoria'
-                          : 'Tienda'}
+                            ? 'Transitoria'
+                            : 'Tienda'}
                       </Badge>
                     </TableCell>
                     <TableCell>
@@ -825,12 +958,19 @@ const AdminPage = () => {
           </DialogHeader>
           <div className="space-y-3 py-2">
             {windowsForm.map((win, idx) => (
-              <div key={`${win.dayOfWeek}-${win.openTime}-${idx}`} className="flex items-center gap-2">
+              <div
+                key={`${win.dayOfWeek}-${win.openTime}-${idx}`}
+                className="flex items-center gap-2"
+              >
                 <Select
                   value={String(win.dayOfWeek)}
                   onValueChange={(v) =>
                     setWindowsForm((prev) =>
-                      prev.map((w, i) => (i === idx ? { ...w, dayOfWeek: Number(v) as DeliveryWindow['dayOfWeek'] } : w))
+                      prev.map((w, i) =>
+                        i === idx
+                          ? { ...w, dayOfWeek: Number(v) as DeliveryWindow['dayOfWeek'] }
+                          : w
+                      )
                     )
                   }
                 >
@@ -839,7 +979,9 @@ const AdminPage = () => {
                   </SelectTrigger>
                   <SelectContent>
                     {DAY_LABELS.map((d, i) => (
-                      <SelectItem key={i} value={String(i)}>{d}</SelectItem>
+                      <SelectItem key={i} value={String(i)}>
+                        {d}
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -880,7 +1022,9 @@ const AdminPage = () => {
             </Button>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setEditingWarehouseId(null)}>Cancelar</Button>
+            <Button variant="outline" onClick={() => setEditingWarehouseId(null)}>
+              Cancelar
+            </Button>
             <Button onClick={handleSaveWindows}>Guardar</Button>
           </DialogFooter>
         </DialogContent>
@@ -894,12 +1038,17 @@ const AdminPage = () => {
               <RotateCcw className="size-5 text-red-500" /> Resetear datos de demostración
             </DialogTitle>
             <DialogDescription>
-              Esta acción borrará todo el estado guardado en IndexedDB y recargará el sistema con los datos de demo originales. Todos los cambios realizados en esta sesión se perderán.
+              Esta acción borrará todo el estado guardado en IndexedDB y recargará el sistema con
+              los datos de demo originales. Todos los cambios realizados en esta sesión se perderán.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setResetDialogOpen(false)}>Cancelar</Button>
-            <Button variant="destructive" onClick={resetStore}>Sí, resetear demo</Button>
+            <Button variant="outline" onClick={() => setResetDialogOpen(false)}>
+              Cancelar
+            </Button>
+            <Button variant="destructive" onClick={resetStore}>
+              Sí, resetear demo
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

@@ -16,7 +16,7 @@ import { WorkerQtyEntry } from '@/components/worker/worker-qty-entry'
 import { PickModeSelect, type PickMode } from '@/components/worker/pick-mode-select'
 import { formatDate } from '@/lib/formatters'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
@@ -49,7 +49,8 @@ export default function WorkerPickingTaskPage() {
   const [stepHistory, setStepHistory] = useState<Step[]>([])
   const [pickMode, setPickMode] = useState<PickMode | null>(null)
   const [qty, setQty] = useState(task?.requestedQuantity ?? 0)
-  const [serial, setSerial] = useState('')
+  const [serialsRaw, setSerialsRaw] = useState('')
+  const [partialReasonId, setPartialReasonId] = useState('')
   const [showPartialDialog, setShowPartialDialog] = useState(false)
   const [pickError, setPickError] = useState<string | null>(null)
   const [confirmed, setConfirmed] = useState(false)
@@ -67,7 +68,15 @@ export default function WorkerPickingTaskPage() {
   }
 
   const stepIndex = { mode: 1, location: 2, product: 3, quantity: 4, done: 5 }
-  const effectiveMode: PickMode = pickMode ?? lastMode ?? 'visible'
+  // Gobierno del conteo a ciegas: la política puede forzar o deshabilitar el modo,
+  // quitándole al operario la posibilidad de evadir el control anti-sesgo.
+  const blindPolicy = settings.pickingBlindMode ?? 'operator_choice'
+  const effectiveMode: PickMode =
+    blindPolicy === 'forced'
+      ? 'blind'
+      : blindPolicy === 'disabled'
+        ? 'visible'
+        : (pickMode ?? lastMode ?? 'visible')
   const blind = effectiveMode === 'blind'
 
   // Avanza registrando el paso actual; goBack retrocede (o sale al listado).
@@ -111,21 +120,44 @@ export default function WorkerPickingTaskPage() {
   }
 
   const requiresSerial = product.trackBy === 'serial'
+  const parsedSerials = serialsRaw
+    .split(/[\n,]+/)
+    .map((s) => s.trim())
+    .filter(Boolean)
+
+  // Reconciliación por tolerancia: en un pick a ciegas, si la varianza contra lo
+  // solicitado supera la tolerancia configurada, se exige un motivo antes de confirmar.
+  const tolerancePct = settings.pickingBlindVarianceTolerancePct ?? 10
+  const variancePct =
+    task.requestedQuantity > 0
+      ? (Math.abs(task.requestedQuantity - qty) / task.requestedQuantity) * 100
+      : 0
+  const needsReason = blind && qty > 0 && variancePct > tolerancePct
+  const partialReasons = reasons.filter((r) => r.context === 'partial_picking' && r.active)
 
   const handleConfirmQty = () => {
     setPickError(null)
-    if (requiresSerial && qty > 0 && !serial.trim()) {
-      setPickError('Este producto requiere captura de serial.')
+    if (requiresSerial && qty > 0 && parsedSerials.length !== qty) {
+      setPickError(`Captura ${qty} número(s) de serie, uno por unidad (van ${parsedSerials.length}).`)
       return
     }
     try {
       if (task.status === 'assigned' || task.status === 'pending') {
         startPicking(task.id, operator?.name ?? 'Operador')
       }
-      if (qty < task.requestedQuantity) {
+      // Abre la reconciliación ante un faltante o ante cualquier varianza ciega
+      // que supere la tolerancia (incluye sobre-conteo).
+      if (qty < task.requestedQuantity || needsReason) {
         setShowPartialDialog(true)
       } else {
-        completePick(task.id, qty, undefined, serial.trim() || undefined)
+        completePick(
+          task.id,
+          qty,
+          undefined,
+          requiresSerial ? parsedSerials : undefined,
+          undefined,
+          blind ? 'blind' : 'visible'
+        )
         setConfirmed(true)
         setTimeout(() => {
           setConfirmed(false)
@@ -139,9 +171,20 @@ export default function WorkerPickingTaskPage() {
 
   const handleConfirmPartial = () => {
     setPickError(null)
+    if (needsReason && !partialReasonId) {
+      setPickError('Selecciona un motivo para la diferencia.')
+      return
+    }
     try {
-      completePick(task.id, qty, undefined, serial.trim() || undefined)
-      approvePart(task.id)
+      completePick(
+        task.id,
+        qty,
+        needsReason ? partialReasonId : undefined,
+        requiresSerial ? parsedSerials : undefined,
+        undefined,
+        blind ? 'blind' : 'visible'
+      )
+      if (qty < task.requestedQuantity) approvePart(task.id)
       setShowPartialDialog(false)
       goStep('done')
     } catch (e: unknown) {
@@ -230,12 +273,26 @@ export default function WorkerPickingTaskPage() {
       {step === 'mode' && (
         <div className="animate-in fade-in-0 flex flex-col gap-4 duration-300">
           <div>
-            <p className="text-lg font-bold">¿Cómo quieres contar esta tarea?</p>
+            <p className="text-lg font-bold">
+              {blindPolicy === 'operator_choice' ? '¿Cómo quieres contar esta tarea?' : 'Modo de conteo'}
+            </p>
             <p className="text-muted-foreground font-mono text-xs tracking-wide uppercase">
               Tarea {task.code}
             </p>
           </div>
-          <PickModeSelect value={pickMode ?? lastMode ?? 'visible'} onChange={setPickMode} />
+          {blindPolicy === 'operator_choice' ? (
+            <PickModeSelect value={pickMode ?? lastMode ?? 'visible'} onChange={setPickMode} />
+          ) : (
+            <div className="border-border bg-card flex items-center gap-4 rounded-xl border p-5 shadow-sm">
+              <EyeOff className={cn('size-6', blind ? 'text-primary' : 'text-muted-foreground')} />
+              <div>
+                <p className="font-semibold">{blind ? 'A ciegas' : 'Cantidad visible'}</p>
+                <p className="text-muted-foreground text-sm">
+                  Definido por la configuración del almacén ({blind ? 'siempre a ciegas' : 'siempre visible'}).
+                </p>
+              </div>
+            </div>
+          )}
           <WorkerActionBar>
             <Button className="h-14 text-base" onClick={handleContinueFromMode}>
               Continuar
@@ -355,17 +412,28 @@ export default function WorkerPickingTaskPage() {
           </div>
           {requiresSerial && (
             <div className="w-full space-y-1">
-              <Label htmlFor="worker-pick-serial" className="flex items-center gap-1">
-                <Hash className="size-3" /> Serial del producto
+              <Label htmlFor="worker-pick-serials" className="flex items-center gap-1">
+                <Hash className="size-3" /> Números de serie (uno por unidad)
                 <span className="text-destructive ml-0.5">*</span>
               </Label>
-              <Input
-                id="worker-pick-serial"
-                placeholder="Escanear o ingresar serial…"
-                value={serial}
-                onChange={(e) => setSerial(e.target.value)}
-                className="h-12 font-mono text-base"
+              <Textarea
+                id="worker-pick-serials"
+                placeholder={`Escanea ${qty || ''} número(s) de serie, uno por línea…`}
+                value={serialsRaw}
+                onChange={(e) => setSerialsRaw(e.target.value)}
+                className="min-h-24 font-mono text-base"
+                rows={Math.min(Math.max(qty, 2), 6)}
               />
+              <p
+                className={cn(
+                  'text-sm',
+                  parsedSerials.length === qty && qty > 0
+                    ? 'text-emerald-600'
+                    : 'text-muted-foreground'
+                )}
+              >
+                Series capturadas: {parsedSerials.length} / {qty}
+              </p>
             </div>
           )}
           {pickError && <WorkerErrorBanner message={pickError} />}
@@ -390,7 +458,9 @@ export default function WorkerPickingTaskPage() {
       <Dialog open={showPartialDialog} onOpenChange={setShowPartialDialog}>
         <DialogContent showCloseButton={false} data-worker-theme="">
           <DialogHeader>
-            <DialogTitle className="text-center">¿Confirmar cantidad parcial?</DialogTitle>
+            <DialogTitle className="text-center">
+              {needsReason ? 'Confirmar diferencia' : '¿Confirmar cantidad parcial?'}
+            </DialogTitle>
             <DialogDescription className="text-center">
               {blind ? (
                 <>
@@ -398,8 +468,9 @@ export default function WorkerPickingTaskPage() {
                   unidades para este ítem.
                   <br />
                   <span className="text-sm">
-                    Es menos de lo que se esperaba — se marcará como parcial y verás la diferencia después de
-                    confirmar.
+                    {needsReason
+                      ? 'La diferencia frente a lo esperado supera la tolerancia — indica el motivo.'
+                      : 'Se marcará como parcial y verás la diferencia después de confirmar.'}
                   </span>
                 </>
               ) : (
@@ -416,9 +487,33 @@ export default function WorkerPickingTaskPage() {
               )}
             </DialogDescription>
           </DialogHeader>
+          {needsReason && (
+            <div className="space-y-1.5">
+              <Label htmlFor="worker-partial-reason">
+                Motivo de la diferencia <span className="text-destructive">*</span>
+              </Label>
+              <select
+                id="worker-partial-reason"
+                value={partialReasonId}
+                onChange={(e) => setPartialReasonId(e.target.value)}
+                className="h-12 w-full rounded-md border bg-background px-3 text-base"
+              >
+                <option value="">Seleccionar…</option>
+                {partialReasons.map((r) => (
+                  <option key={r.id} value={r.id}>
+                    {r.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
           <DialogFooter className="flex-col gap-2 sm:flex-col">
-            <Button className="h-14 w-full text-base font-bold" onClick={handleConfirmPartial}>
-              Confirmar {qty} uds (parcial)
+            <Button
+              className="h-14 w-full text-base font-bold"
+              disabled={needsReason && !partialReasonId}
+              onClick={handleConfirmPartial}
+            >
+              Confirmar {qty} uds
             </Button>
             <Button variant="outline" className="h-12 w-full" onClick={() => setShowPartialDialog(false)}>
               Cancelar — seguir picando
