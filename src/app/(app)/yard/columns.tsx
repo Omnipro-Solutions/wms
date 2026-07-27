@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { StatusBadge } from '@/components/shared/status-badge'
 import { DataTableColumnHeader } from '@/components/data-table'
 import { formatDateTime } from '@/lib/formatters'
-import { APPOINTMENT_TYPE_LABELS } from '@/lib/rules/yard'
+import { APPOINTMENT_TYPE_LABELS, appointmentActionFlags } from '@/lib/rules/yard'
 import type { DockAppointmentStatus, DockAppointmentType } from '@/types/wms'
 
 export interface AppointmentRow {
@@ -44,18 +44,17 @@ const ActionsCell = ({ row, handlers }: { row: AppointmentRow; handlers: Appoint
     fn()
   }
 
-  const canAssignDock = row.status === 'scheduled' || row.status === 'arrived'
-  const canCancel = row.status === 'scheduled' || row.status === 'arrived'
+  const flags = appointmentActionFlags(row.status)
 
   return (
     <div className="flex items-center justify-end gap-1.5">
-      {canAssignDock && (
+      {flags.canAssignDock && (
         <Button size="sm" variant="outline" onClick={stop(() => handlers.onAssignDock(row))}>
           <WarehouseIcon className="mr-1 size-3.5" />
           {row.dockId ? 'Reasignar' : 'Asignar muelle'}
         </Button>
       )}
-      {row.status === 'scheduled' && (
+      {flags.canCheckIn && (
         <>
           <Button size="sm" variant="outline" onClick={stop(() => handlers.onCheckIn(row.id))}>
             <LogIn className="mr-1 size-3.5" />
@@ -72,7 +71,7 @@ const ActionsCell = ({ row, handlers }: { row: AppointmentRow; handlers: Appoint
           </Button>
         </>
       )}
-      {row.status === 'arrived' && (
+      {flags.canStart && (
         <Button
           size="sm"
           onClick={stop(() => handlers.onStart(row.id))}
@@ -83,13 +82,13 @@ const ActionsCell = ({ row, handlers }: { row: AppointmentRow; handlers: Appoint
           Iniciar
         </Button>
       )}
-      {row.status === 'in_progress' && (
+      {flags.canComplete && (
         <Button size="sm" onClick={stop(() => handlers.onComplete(row.id))}>
           <Check className="mr-1 size-3.5" />
           Completar
         </Button>
       )}
-      {canCancel && (
+      {flags.canCancel && (
         <Button
           size="icon"
           variant="ghost"
