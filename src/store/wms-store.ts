@@ -2952,9 +2952,12 @@ export const useWmsStore = create<WmsState>()(
           id: `lb-new-${packingOrderId}`,
           code: labelCode,
           type: 'shipping',
-          reference: order.orderId,
+          // Referencia legible (número de pedido, p. ej. PED-DEMO-STOCK) en vez del id interno,
+          // para reconocer la etiqueta de un vistazo en /labels.
+          reference: order.orderNumber ?? order.orderId,
           status: 'completed',
-          createdAt: seed.seedTimestamp,
+          // Fecha real de generación (no la fija de seed): la etiqueta refleja cuándo se empacó.
+          createdAt: new Date().toISOString(),
           createdBy: order.packerName ?? 'Sistema',
         }
         const updated: PackingOrder = {

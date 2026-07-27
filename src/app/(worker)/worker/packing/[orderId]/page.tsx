@@ -1,8 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { AlertTriangle, CheckCircle2, Package, Printer } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, Package, Pencil, Printer } from 'lucide-react'
 import { useWmsStore } from '@/store/wms-store'
 import { useCurrentOperator } from '@/hooks/use-current-operator'
 import { WorkerWizardHeader } from '@/components/worker/worker-wizard-header'
@@ -36,6 +36,12 @@ export default function WorkerPackingOrderPage() {
   const [scanError, setScanError] = useState<string | null>(null)
   const [labelError, setLabelError] = useState<string | null>(null)
 
+  // Al (re)entrar al paso de caja, colapsa la lista completa para volver a mostrar la
+  // caja sugerida (banner azul). Sin esto, "Elegir otra caja" quedaba abierto al regresar.
+  useEffect(() => {
+    if (step === 'box') setShowBoxList(false)
+  }, [step])
+
   if (!order) {
     return (
       <div className="flex min-h-[60vh] items-center justify-center">
@@ -62,6 +68,15 @@ export default function WorkerPackingOrderPage() {
     setStepHistory((h) => h.slice(0, -1))
     setStepRaw(prev)
   }
+  // Corregir la caja desde el paso de etiqueta: salta al paso de caja rearmando el
+  // historial a su prefijo lineal (reglas → ítems), en vez de apilar. Así "atrás" no
+  // rebota etiqueta↔caja y al re-seleccionar la ruta sigue siendo lineal.
+  const changeBox = () => {
+    setScanError(null)
+    setLabelError(null)
+    setStepHistory(hasRules ? ['rules', 'items'] : ['items'])
+    setStepRaw('box')
+  }
 
   const pendingLine = order.items?.find((i) => i.scannedQuantity < i.requestedQuantity)
   const pendingProduct = products.find((p) => p.id === pendingLine?.productId)
@@ -81,6 +96,8 @@ export default function WorkerPackingOrderPage() {
   const suggested = settings.packingAutoBoxSuggestion
     ? suggestBox(order.weightKg, order.volumeM3, packingBoxTypes, settings.packingBoxSafetyMargin)
     : undefined
+  // Caja ya elegida (para poder corregirla desde el paso de etiqueta antes de postear).
+  const selectedBox = packingBoxTypes.find((b) => b.id === order.boxTypeId)
 
   const handleStartItems = () => {
     startPacking(order.id, operator?.name ?? 'Empacador')
@@ -309,6 +326,33 @@ export default function WorkerPackingOrderPage() {
               Cliente
             </p>
             <p className="font-semibold">{order.customerName}</p>
+          </div>
+          {/* Caja elegida + corrección: mientras no se genere la etiqueta (posteo), el
+              empacador puede volver a elegir la caja si se equivocó. Después ya salió a
+              despacho y cambiarla sería re-empaque/anulación (fuera del happy path). */}
+          <div className="border-border bg-card flex items-center justify-between gap-2 rounded-xl border p-4 shadow-sm">
+            <div className="min-w-0">
+              <p className="text-muted-foreground font-mono text-xs font-semibold tracking-wider uppercase">
+                Caja
+              </p>
+              <p className="flex items-center gap-1.5 font-semibold">
+                <Package className="text-primary size-4 shrink-0" />
+                {selectedBox?.name ?? order.suggestedBox ?? 'Sin caja'}
+              </p>
+              {selectedBox && (
+                <p className="text-muted-foreground font-mono text-xs tracking-wide">
+                  {selectedBox.dimensionsCm} · máx {selectedBox.maxWeightKg}kg
+                </p>
+              )}
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-primary h-8 shrink-0 gap-1.5"
+              onClick={changeBox}
+            >
+              <Pencil className="size-3.5" /> Cambiar caja
+            </Button>
           </div>
           {labelError && <WorkerErrorBanner message={labelError} />}
           <WorkerActionBar>
