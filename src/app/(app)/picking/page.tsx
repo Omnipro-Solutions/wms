@@ -34,6 +34,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import {
   Select,
@@ -156,7 +157,7 @@ const PickingPage = () => {
   // ── Task dialog ────────────────────────────────────────────────────────────
   const [pickedQty, setPickedQty] = useState('')
   const [reasonId, setReasonId] = useState('')
-  const [capturedSerial, setCapturedSerial] = useState('')
+  const [serialsRaw, setSerialsRaw] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const pickDialog = useDialogState<PickDialogData>()
   const issueDialog = useDialogState<IssueDialogData>()
@@ -189,7 +190,7 @@ const PickingPage = () => {
       })
       setPickedQty(String(task.requestedQuantity))
       setReasonId('')
-      setCapturedSerial('')
+      setSerialsRaw('')
     },
     [state.products, helpers, pickDialog]
   )
@@ -310,8 +311,12 @@ const PickingPage = () => {
       pickDialog.setError('Selecciona un motivo de picking parcial.')
       return
     }
-    if (pickDialog.data.requiresSerial && n > 0 && !capturedSerial.trim()) {
-      pickDialog.setError('Este producto requiere captura de serial.')
+    const parsedSerials = serialsRaw
+      .split(/[\n,]+/)
+      .map((s) => s.trim())
+      .filter(Boolean)
+    if (pickDialog.data.requiresSerial && n > 0 && parsedSerials.length !== n) {
+      pickDialog.setError(`Captura ${n} número(s) de serie, uno por unidad (van ${parsedSerials.length}).`)
       return
     }
     try {
@@ -319,16 +324,18 @@ const PickingPage = () => {
         pickDialog.data.taskId,
         n,
         isPartial ? reasonId : undefined,
-        capturedSerial.trim() || undefined
+        pickDialog.data.requiresSerial ? parsedSerials : undefined,
+        undefined,
+        'visible'
       )
       pickDialog.close()
       setPickedQty('')
       setReasonId('')
-      setCapturedSerial('')
+      setSerialsRaw('')
     } catch (e: unknown) {
       pickDialog.setError(e instanceof Error ? e.message : 'Error al registrar picking')
     }
-  }, [pickDialog, pickedQty, reasonId, capturedSerial, completePick])
+  }, [pickDialog, pickedQty, reasonId, serialsRaw, completePick])
 
   // ── KPI counts for tasks ───────────────────────────────────────────────────
   const pendingTaskCount = useMemo(
@@ -974,21 +981,41 @@ const PickingPage = () => {
                   onChange={(e) => setPickedQty(e.target.value)}
                 />
               </div>
-              {pickDialog.data.requiresSerial && (
-                <div className="space-y-1">
-                  <Label htmlFor="pick-serial" className="flex items-center gap-1">
-                    <Hash className="size-3" /> Serial del producto
-                    <span className="text-destructive ml-0.5">*</span>
-                  </Label>
-                  <Input
-                    id="pick-serial"
-                    placeholder="Escanear o ingresar serial…"
-                    value={capturedSerial}
-                    onChange={(e) => setCapturedSerial(e.target.value)}
-                    className="font-mono"
-                  />
-                </div>
-              )}
+              {pickDialog.data.requiresSerial &&
+                (() => {
+                  const n = parseInt(pickedQty, 10)
+                  const target = isNaN(n) ? 0 : n
+                  const count = serialsRaw
+                    .split(/[\n,]+/)
+                    .map((s) => s.trim())
+                    .filter(Boolean).length
+                  return (
+                    <div className="space-y-1">
+                      <Label htmlFor="pick-serials" className="flex items-center gap-1">
+                        <Hash className="size-3" /> Números de serie (uno por unidad)
+                        <span className="text-destructive ml-0.5">*</span>
+                      </Label>
+                      <Textarea
+                        id="pick-serials"
+                        placeholder={`Escanea o pega ${target || ''} número(s) de serie, uno por línea…`}
+                        value={serialsRaw}
+                        onChange={(e) => setSerialsRaw(e.target.value)}
+                        className="font-mono"
+                        rows={Math.min(Math.max(target, 2), 6)}
+                      />
+                      <p
+                        className={cn(
+                          'text-xs',
+                          count === target && target > 0
+                            ? 'text-emerald-600'
+                            : 'text-muted-foreground'
+                        )}
+                      >
+                        Series capturadas: {count} / {target}
+                      </p>
+                    </div>
+                  )
+                })()}
               {parseInt(pickedQty, 10) < (pickDialog.data?.requestedQuantity ?? 0) &&
                 pickedQty !== '' && (
                   <div className="space-y-1">

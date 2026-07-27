@@ -3919,6 +3919,8 @@ export const settings: WmsSettings = {
   pickingClusterMaxContainers: 8,
   pickingRequireIssuePhoto: false,
   pickingAllowSubstitution: true,
+  pickingBlindMode: 'operator_choice',
+  pickingBlindVarianceTolerancePct: 10,
   pickingZones: [
     { id: 'pz-1', name: 'Zona A — Picking rápido', sequenceOrder: 1, active: true },
     { id: 'pz-2', name: 'Zona B — Reserva', sequenceOrder: 2, active: true },
@@ -4359,8 +4361,46 @@ export const demoAsn2: Asn = {
   sourceType: 'purchase',
 }
 
+// ─── Escenario de demo: Cross-docking ─────────────────────────────────────────
+// ASN recién recibido, elegible para cross-dock (crossDocking + sin QC), con
+// mercancía que un pedido pendiente (demo-co-crossdock) está esperando. El CD
+// solo tiene 1 lavaplatos disponible frente a 4 que necesita el pedido, así que
+// la oportunidad aparece marcada como BACKORDER en la alerta proactiva de /receiving.
+export const demoAsnCrossDock: Asn = {
+  id: 'demo-asn-crossdock',
+  code: 'ASN-DEMO-XDOCK',
+  supplierName: 'Distribuidora LG Andina',
+  appointmentDate: '2026-07-24',
+  expectedQuantity: 6,
+  receivedQuantity: 6,
+  damagedQuantity: 0,
+  status: 'in_progress',
+  requiresQualityControl: false,
+  crossDocking: true,
+  productId: 'p-lavaplatos',
+  suggestedPutawayLocationId: 'loc-a0101',
+  deliveryCount: 1,
+  purchaseOrderId: 'po-3',
+  sourceType: 'purchase',
+}
+
 // Flujo 2: Outbound — órdenes listas para wave demo
 export const demoCommerceOrders: CommerceOrder[] = [
+  // Pedido en espera de cross-docking: necesita 4 lavaplatos y el CD solo tiene 1.
+  // La mercancía del ASN demo-asn-crossdock lo desbloquea (aparece como Backorder).
+  {
+    id: 'demo-co-crossdock',
+    orderNumber: 'PED-XDOCK-001',
+    channel: 'ecommerce',
+    customerName: 'Homecenter Calle 80',
+    status: 'pending',
+    createdAt: '2026-07-24T07:30:00.000Z',
+    promisedDeliveryDate: '2026-07-25',
+    fulfillmentType: 'cross_docking',
+    items: [
+      { id: 'demo-col-xd-1', productId: 'p-lavaplatos', requestedQuantity: 4, pickedQuantity: 0 },
+    ],
+  },
   {
     id: 'demo-co-1',
     orderNumber: 'PED-DEMO-001',

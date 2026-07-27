@@ -5,6 +5,7 @@ import {
   AlertTriangle,
   Boxes,
   ClipboardList,
+  EyeOff,
   Pencil,
   Route,
   ShieldAlert,
@@ -355,6 +356,51 @@ export default function PickingSettingsPage() {
                 <Switch
                   checked={localSettings.pickingAllowSubstitution}
                   onCheckedChange={(v) => handleSettingChange('pickingAllowSubstitution', v)}
+                />
+              </SettingRow>
+            </div>
+          </section>
+
+          <section className="pt-5">
+            <SectionHeading
+              icon={EyeOff}
+              title="Conteo a ciegas (anti-sesgo)"
+              description="Oculta la cantidad solicitada al operario para que cuente lo que realmente encuentra. La política decide si es opcional, obligatorio o está deshabilitado."
+            />
+            <div className="mt-2 divide-y divide-zinc-100 dark:divide-zinc-800/60">
+              <SettingRow
+                label="Política de conteo a ciegas"
+                description="Obligatorio convierte el modo en un control real: el operario no puede evadirlo."
+              >
+                <select
+                  value={localSettings.pickingBlindMode}
+                  onChange={(e) => {
+                    setLocalSettings((prev) => ({
+                      ...prev,
+                      pickingBlindMode: e.target.value as
+                        | 'operator_choice'
+                        | 'forced'
+                        | 'disabled',
+                    }))
+                    setSettingsChanged(true)
+                  }}
+                  className="h-9 w-56 rounded-md border bg-background px-3 text-sm"
+                >
+                  <option value="operator_choice">El operario elige</option>
+                  <option value="forced">Obligatorio (siempre a ciegas)</option>
+                  <option value="disabled">Deshabilitado (siempre visible)</option>
+                </select>
+              </SettingRow>
+              <SettingRow
+                label="Tolerancia de varianza (%)"
+                description="Si el conteo a ciegas difiere de lo solicitado por encima de este %, se exige un motivo de reconciliación."
+              >
+                <InlineSlider
+                  value={localSettings.pickingBlindVarianceTolerancePct}
+                  min={0}
+                  max={50}
+                  step={1}
+                  onChange={(v) => handleSettingChange('pickingBlindVarianceTolerancePct', v)}
                 />
               </SettingRow>
             </div>

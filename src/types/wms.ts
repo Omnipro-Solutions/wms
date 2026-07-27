@@ -672,6 +672,8 @@ export interface PickingTask {
   issueReasonId?: string // references a Reason (context: "picking_issue")
   issuePhotoUrl?: string // dataURL captured via <input type="file" capture="environment">
   substituteProductId?: string // product suggested as replacement when out of stock
+  // Cómo se contó al completar el pick — auditoría del control a ciegas (módulo #5).
+  countMode?: 'blind' | 'visible'
 }
 
 export interface PickingWave {
@@ -1372,6 +1374,12 @@ export interface WmsSettings {
   // Gobierna el dialog de reporte de incidencia.
   pickingRequireIssuePhoto: boolean
   pickingAllowSubstitution: boolean
+  // Conteo a ciegas (anti-sesgo) en la app del operario. 'operator_choice': el operario
+  // elige; 'forced': siempre a ciegas (control obligatorio); 'disabled': siempre visible.
+  pickingBlindMode: 'operator_choice' | 'forced' | 'disabled'
+  // Tolerancia de varianza (%) de un pick a ciegas antes de exigir un motivo de
+  // reconciliación (|solicitado − contado| / solicitado × 100 > tolerancia → motivo).
+  pickingBlindVarianceTolerancePct: number
   // Catálogo independiente de zonas de picking (pick-and-pass), desacoplado de
   // StorageLocation.zone para permitir renombrar/reordenar sin tocar ubicaciones.
   pickingZones: PickingZoneConfig[]

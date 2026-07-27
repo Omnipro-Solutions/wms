@@ -360,8 +360,9 @@ export interface WmsState {
     taskId: string,
     pickedQty: number,
     reasonId?: string,
-    capturedSerial?: string,
-    uomId?: string
+    capturedSerials?: string[],
+    uomId?: string,
+    countMode?: 'blind' | 'visible'
   ) => PickingTask
   approvePart: (taskId: string) => PickingTask
   rejectPart: (taskId: string) => PickingTask
@@ -716,7 +717,9 @@ const buildSeedState = () => ({
   purchaseOrders: seed.purchaseOrders,
   // ensureAsnLines hidrata lines[] desde los campos legacy — así el código nuevo
   // siempre puede leer lines[] sin comprobar si el ASN es anterior al multi-SKU.
-  asnRecords: [...seed.asnRecords, seed.demoAsnInbound, seed.demoAsn2].map(ensureAsnLines),
+  asnRecords: [...seed.asnRecords, seed.demoAsnInbound, seed.demoAsn2, seed.demoAsnCrossDock].map(
+    ensureAsnLines
+  ),
   transfers: seed.transfers,
   returnOrders: [...seed.returnOrders, seed.demoReturnOrder, seed.demoReturnOrder2],
   returnInspections: seed.returnInspections,
@@ -2168,7 +2171,7 @@ export const useWmsStore = create<WmsState>()(
         return updated
       },
 
-      completePick: (taskId, pickedQty, reasonId, capturedSerial, uomId) => {
+      completePick: (taskId, pickedQty, reasonId, capturedSerials, uomId, countMode) => {
         const state = get()
         if (state.settings.pickingFreezeActive) throw new Error(PICKING_FROZEN_MSG)
         const task = state.pickingTasks.find((t) => t.id === taskId)
@@ -2180,19 +2183,9 @@ export const useWmsStore = create<WmsState>()(
           throw new Error(`No se puede completar tarea desde el estado ${task.status}`)
         }
 
-        // Validate serial capture when the product requires it
         const product = state.products.find((p) => p.id === task.productId)
-        if (product?.trackBy === 'serial' && pickedQty > 0 && !capturedSerial?.trim()) {
-          throw new Error('Este producto requiere captura de serial')
-        }
-
-        // Validate captured serial matches inventory when provided
-        if (capturedSerial?.trim()) {
-          const serialItem = state.inventoryItems.find(
-            (i) => i.productId === task.productId && i.serial === capturedSerial.trim()
-          )
-          if (!serialItem) throw new Error(`Serial "${capturedSerial}" no encontrado en inventario`)
-        }
+        const isSerialTracked = product?.trackBy === 'serial'
+        const serials = (capturedSerials ?? []).map((s) => s.trim()).filter(Boolean)
 
         // UoM conversion: convert picked qty to base units before deducting stock
         const baseUomId = product?.baseUomId
@@ -2202,6 +2195,31 @@ export const useWmsStore = create<WmsState>()(
             : pickedQty
 
         const clamped = Math.min(effectivePickedQty, task.requestedQuantity)
+
+        // Captura de serie: un número por unidad pickeada (trazabilidad unidad por unidad).
+        // Cada serie debe existir físicamente en la ubicación de picking y no repetirse.
+        if (isSerialTracked && clamped > 0) {
+          if (serials.length !== clamped) {
+            throw new Error(
+              `Captura ${clamped} número(s) de serie, uno por unidad (recibidos ${serials.length}).`
+            )
+          }
+          if (new Set(serials).size !== serials.length) {
+            throw new Error('Hay números de serie duplicados en la captura.')
+          }
+          for (const s of serials) {
+            const serialItem = state.inventoryItems.find(
+              (i) =>
+                i.productId === task.productId &&
+                i.locationId === task.locationId &&
+                i.serial === s &&
+                i.onHandQuantity > 0
+            )
+            if (!serialItem)
+              throw new Error(`Serial "${s}" no está disponible en la ubicación de picking.`)
+          }
+        }
+
         const isPartial = clamped < task.requestedQuantity
         const nextStatus: PickingTask['status'] = isPartial
           ? clamped === 0
@@ -2215,44 +2233,77 @@ export const useWmsStore = create<WmsState>()(
           pendingQuantity: task.requestedQuantity - clamped,
           status: nextStatus,
           ...(isPartial && reasonId ? { partialReasonId: reasonId } : {}),
+          ...(countMode ? { countMode } : {}),
         }
 
-        // Deduct reserved inventory when picking completes
-        const inventoryItem = state.inventoryItems.find(
-          (i) =>
+        let updatedItems: InventoryItem[]
+        let newMovements: StockMovement[]
+
+        if (isSerialTracked && clamped > 0) {
+          // Descuenta una unidad por cada serie capturada y registra un movimiento de
+          // pick por serie, para que cada unidad quede rastreable por su N/S.
+          const serialSet = new Set(serials)
+          updatedItems = state.inventoryItems.map((i) =>
             i.productId === task.productId &&
             i.locationId === task.locationId &&
-            (!capturedSerial?.trim() || i.serial === capturedSerial.trim())
-        )
-        const updatedItems = inventoryItem
-          ? state.inventoryItems.map((i) =>
-              i.id === inventoryItem.id
-                ? {
-                    ...i,
-                    onHandQuantity: Math.max(0, i.onHandQuantity - clamped),
-                    reservedQuantity: Math.max(0, i.reservedQuantity - clamped),
-                  }
-                : i
-            )
-          : state.inventoryItems
-
-        const movement = recordMovement({
-          productId: task.productId,
-          warehouseId: 'wh-bog',
-          fromLocationId: task.locationId,
-          type: 'pick',
-          quantity: clamped,
-          serial: capturedSerial?.trim() || undefined,
-          uomId: baseUomId,
-          referenceType: 'commerce_order',
-          referenceId: task.orderId,
-          operatorName: task.operatorName ?? 'Operador',
-        })
+            i.serial &&
+            serialSet.has(i.serial)
+              ? {
+                  ...i,
+                  onHandQuantity: Math.max(0, i.onHandQuantity - 1),
+                  reservedQuantity: Math.max(0, i.reservedQuantity - 1),
+                }
+              : i
+          )
+          newMovements = serials.map((s) =>
+            recordMovement({
+              productId: task.productId,
+              warehouseId: 'wh-bog',
+              fromLocationId: task.locationId,
+              type: 'pick',
+              quantity: 1,
+              serial: s,
+              uomId: baseUomId,
+              referenceType: 'commerce_order',
+              referenceId: task.orderId,
+              operatorName: task.operatorName ?? 'Operador',
+            })
+          )
+        } else {
+          // No serializado (o cero unidades): deducción agregada + un solo movimiento.
+          const inventoryItem = state.inventoryItems.find(
+            (i) => i.productId === task.productId && i.locationId === task.locationId
+          )
+          updatedItems = inventoryItem
+            ? state.inventoryItems.map((i) =>
+                i.id === inventoryItem.id
+                  ? {
+                      ...i,
+                      onHandQuantity: Math.max(0, i.onHandQuantity - clamped),
+                      reservedQuantity: Math.max(0, i.reservedQuantity - clamped),
+                    }
+                  : i
+              )
+            : state.inventoryItems
+          newMovements = [
+            recordMovement({
+              productId: task.productId,
+              warehouseId: 'wh-bog',
+              fromLocationId: task.locationId,
+              type: 'pick',
+              quantity: clamped,
+              uomId: baseUomId,
+              referenceType: 'commerce_order',
+              referenceId: task.orderId,
+              operatorName: task.operatorName ?? 'Operador',
+            }),
+          ]
+        }
 
         set({
           pickingTasks: state.pickingTasks.map((t) => (t.id === taskId ? updated : t)),
           inventoryItems: updatedItems,
-          stockMovements: [...state.stockMovements, movement],
+          stockMovements: [...state.stockMovements, ...newMovements],
         })
         return updated
       },

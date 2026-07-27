@@ -34,6 +34,7 @@ import { EmptyState } from './_components/empty-state'
 import { TabPanel } from './_components/tab-panel'
 import { CrossDockDialog } from './_components/cross-dock-dialog'
 import { CrossDockAlert } from './_components/cross-dock-alert'
+import { CrossDockTasks } from './_components/cross-dock-tasks'
 import { AppointmentDialog } from './_components/appointment-dialog'
 import { useDialogState } from '@/hooks/use-dialog-state'
 import type { Asn } from '@/types/wms'
@@ -360,6 +361,8 @@ const ReceivingPage = () => {
           setCrossDockOpen(true)
         }}
       />
+
+      <CrossDockTasks />
 
       <SubNav items={RECEIVING_TABS} defaultValue="ordenes" />
 
