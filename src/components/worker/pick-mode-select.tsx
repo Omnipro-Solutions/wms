@@ -36,18 +36,18 @@ export const PickModeSelect = ({ value, onChange, className }: Props) => (
           type="button"
           onClick={() => onChange(mode)}
           className={cn(
-            'flex items-center gap-4 rounded-2xl border-2 p-5 text-left transition-colors',
+            'flex items-center gap-4 rounded-lg border p-5 text-left transition-colors',
             selected
-              ? 'border-transparent bg-linear-to-br from-(--worker-gradient-soft-from) to-(--worker-gradient-soft-to) ring-2 ring-primary'
+              ? 'border-primary bg-[var(--worker-info-surface)]'
               : 'border-border bg-card'
           )}
         >
           <span
             className={cn(
-              'flex size-12 shrink-0 items-center justify-center rounded-full',
+              'flex size-12 shrink-0 items-center justify-center rounded-md',
               selected
-                ? 'bg-linear-to-br from-(--worker-gradient-from) to-(--worker-gradient-to) text-(--worker-on-gradient)'
-                : 'bg-primary/10 text-primary'
+                ? 'bg-primary text-primary-foreground'
+                : 'bg-[var(--worker-info-surface)] text-[var(--worker-info)]'
             )}
           >
             <Icon className="size-6" />

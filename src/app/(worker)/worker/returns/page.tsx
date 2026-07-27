@@ -1,12 +1,13 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { useWmsStore } from '@/store/wms-store'
 import { useCurrentOperator } from '@/hooks/use-current-operator'
 import { useStoreHelpers } from '@/hooks/use-store-helpers'
-import { RotateCcw } from 'lucide-react'
+import { ArrowLeft, RotateCcw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { cn } from '@/lib/utils'
+import { WorkerPageHeader } from '@/components/worker/worker-page-header'
 import type { ItemCondition, ReturnItemInspection, ReturnOrder } from '@/types/wms'
 
 const CONDITIONS: { value: ItemCondition; label: string }[] = [
@@ -147,27 +148,57 @@ const ReturnInspectionCard = ({ ret }: { ret: ReturnOrder }) => {
 }
 
 export default function WorkerReturnsPage() {
+  const router = useRouter()
   const returnOrders = useWmsStore((s) => s.returnOrders)
 
   const pending = returnOrders.filter((r) =>
     ['received_at_store', 'received_at_dc', 'under_validation'].includes(r.status)
   )
 
+  // Se llega a devoluciones desde la lista de recepciones; sin esto el operario
+  // quedaba sin salida (el header global no tiene "atrás").
+  const backToReceiving = (
+    <button
+      type="button"
+      onClick={() => router.push('/worker/receiving')}
+      className="text-muted-foreground flex w-fit items-center gap-1.5 text-sm font-medium"
+    >
+      <ArrowLeft className="size-4" /> Recepciones
+    </button>
+  )
+
   if (!pending.length) {
     return (
-      <div className="flex min-h-[60vh] flex-col items-center justify-center gap-3 text-center">
-        <RotateCcw className={cn('size-12 text-muted-foreground')} />
-        <p className="font-semibold">Sin devoluciones pendientes</p>
+      <div className="flex flex-col gap-4">
+        {backToReceiving}
+        <div className="flex min-h-[50vh] flex-col items-center justify-center gap-3 text-center">
+          <RotateCcw className="text-muted-foreground size-12" />
+          <p className="font-semibold">Sin devoluciones pendientes</p>
+          <Button variant="outline" className="h-11" onClick={() => router.push('/worker/receiving')}>
+            ← Volver a recepciones
+          </Button>
+        </div>
       </div>
     )
   }
 
   return (
     <div className="flex flex-col gap-4">
-      <h1 className="text-xl font-bold">Devoluciones pendientes</h1>
+      {backToReceiving}
+      <WorkerPageHeader
+        title="Devoluciones pendientes"
+        subtitle={`${pending.length} por inspeccionar`}
+        icon={RotateCcw}
+      />
       <div className="flex flex-col gap-3">
-        {pending.map((ret) => (
-          <ReturnInspectionCard key={ret.id} ret={ret} />
+        {pending.map((ret, i) => (
+          <div
+            key={ret.id}
+            className="animate-in fade-in-0 slide-in-from-bottom-2 duration-500 [animation-fill-mode:both]"
+            style={{ animationDelay: `${i * 60}ms` }}
+          >
+            <ReturnInspectionCard ret={ret} />
+          </div>
         ))}
       </div>
     </div>

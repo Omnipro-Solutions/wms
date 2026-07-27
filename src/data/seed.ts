@@ -894,6 +894,26 @@ export const products: Product[] = [
     minStockUnits: 2,
     maxStockUnits: 20,
   },
+  {
+    // Producto de demostración: arranca SIN inventario (no aparece en ninguna
+    // entrada de inventario). Sirve para mostrar el flujo causal recepción→picking:
+    // sin stock su pedido queda en backorder; al recibir su ASN se vuelve pickeable.
+    id: 'p-demo-cafetera',
+    sku: 'DEMO-CAF-001',
+    name: 'Cafetera Demo (sin stock inicial)',
+    category: 'Línea Blanca',
+    barcode: '7700000009001',
+    unitWeightKg: 5,
+    unitVolumeM3: 0.02,
+    trackBy: 'none',
+    baseUomId: 'uom-und',
+    uomConversions: [],
+    imageUrl:
+      'https://images.unsplash.com/photo-1517668808822-9ebb02f2a0e6?w=80&h=80&fit=crop&auto=format',
+    rotationStrategy: 'fifo',
+    minStockUnits: 2,
+    maxStockUnits: 20,
+  },
   // ─── Línea Cocina ─────────────────────────────────────────────────────────────
   {
     id: 'p-estufa',
@@ -1978,6 +1998,24 @@ export const asnRecords: Asn[] = [
     purchaseOrderId: 'po-4',
     sourceType: 'purchase',
   },
+  {
+    // ASN de demo del producto sin stock. Recibirlo es lo que habilita su picking.
+    id: 'asn-demo',
+    code: 'ASN-DEMO-CAF',
+    supplierName: 'Proveedor Cafetera Demo',
+    appointmentDate: '2026-07-01',
+    expectedQuantity: 5,
+    receivedQuantity: 0,
+    damagedQuantity: 0,
+    status: 'pending',
+    requiresQualityControl: false,
+    crossDocking: false,
+    productId: 'p-demo-cafetera',
+    suggestedPutawayLocationId: 'loc-reserve',
+    deliveryCount: 0,
+    purchaseOrderId: 'po-4',
+    sourceType: 'purchase',
+  },
 ]
 
 export const transfers: TransferOrder[] = [
@@ -2274,6 +2312,26 @@ export const returnInspections: ReturnInspection[] = [
 ]
 
 export const commerceOrders: CommerceOrder[] = [
+  {
+    // Pedido de demo del producto sin stock. Al liberarlo a picking sin haber
+    // recibido, la línea queda en backorder; tras recibir su ASN, se vuelve pickeable.
+    id: 'co-demo',
+    orderNumber: 'PED-DEMO-STOCK',
+    channel: 'b2b',
+    customerName: 'Cliente Demo',
+    status: 'pending',
+    createdAt: '2026-07-20T09:00:00.000Z',
+    promisedDeliveryDate: '2026-07-30',
+    fulfillmentType: 'ship_from_dc',
+    items: [
+      {
+        id: 'col-demo-1',
+        productId: 'p-demo-cafetera',
+        requestedQuantity: 2,
+        pickedQuantity: 0,
+      },
+    ],
+  },
   // ─── Flujo A: B2B / Mayorista ─────────────────────────────────────────────────
   {
     id: 'co-b2b-1',

@@ -338,8 +338,9 @@ export const InventoryDetailSheet = ({ item, movements, onClose }: InventoryDeta
                 </p>
               ) : (
                 <div className="mt-2">
-                  {itemMovements.map((mv) => (
-                    <MovementItem key={mv.id} mv={mv} />
+                  {itemMovements.map((mv, i) => (
+                    // key compuesta con el índice para tolerar ids repetidos residuales
+                    <MovementItem key={`${mv.id}-${i}`} mv={mv} />
                   ))}
                 </div>
               )}

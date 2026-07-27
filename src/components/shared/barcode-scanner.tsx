@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
+import { scanFeedback } from '@/lib/scan-feedback'
 
 interface BarcodeScannerProps {
   onScan: (value: string) => void
@@ -23,27 +24,6 @@ interface BarcodeScannerProps {
   autoStart?: boolean
   /** Freeze the camera loop (e.g. goal reached) without unmounting */
   paused?: boolean
-}
-
-// Short haptic + audio cue so the operator gets feedback without watching the screen.
-const scanFeedback = (ok: boolean) => {
-  if (typeof window === 'undefined') return
-  navigator.vibrate?.(ok ? 60 : [40, 40, 40])
-  try {
-    const Ctx = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
-    if (!Ctx) return
-    const ctx = new Ctx()
-    const osc = ctx.createOscillator()
-    const gain = ctx.createGain()
-    osc.frequency.value = ok ? 880 : 220
-    gain.gain.value = 0.08
-    osc.connect(gain).connect(ctx.destination)
-    osc.start()
-    osc.stop(ctx.currentTime + 0.12)
-    osc.onended = () => ctx.close()
-  } catch {
-    // audio is best-effort; vibration still fired
-  }
 }
 
 type ScanMode = 'idle' | 'camera' | 'manual'

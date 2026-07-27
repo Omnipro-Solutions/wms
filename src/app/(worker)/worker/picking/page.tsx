@@ -44,7 +44,11 @@ export default function WorkerPickingPage() {
     <div className="flex flex-col gap-4">
       <WorkerPageHeader
         title="Mis tareas"
-        subtitle={`${myTasks.length} pendientes`}
+        subtitle={`${myTasks.length} pendientes${
+          myTasks.filter((t) => t.priority === 'high').length
+            ? ` · ${myTasks.filter((t) => t.priority === 'high').length} urgentes`
+            : ''
+        }`}
         icon={ClipboardList}
       />
 
@@ -56,19 +60,24 @@ export default function WorkerPickingPage() {
       </Button>
 
       <div className="flex flex-col gap-2">
-        {myTasks.map((task) => {
+        {myTasks.map((task, i) => {
           const product = getProduct(task.productId)
           const location = getLocation(task.locationId)
           return (
-            <WorkerCard
+            <div
               key={task.id}
-              icon={Package}
-              title={product?.name ?? task.productId}
-              subtitle={`${location?.zone ?? '—'} · ${location?.code ?? '—'} · ×${task.requestedQuantity}`}
-              badge={task.code}
-              urgent={task.priority === 'high'}
-              onClick={() => router.push(`/worker/picking/task/${task.id}`)}
-            />
+              className="animate-in fade-in-0 slide-in-from-bottom-2 duration-500 [animation-fill-mode:both]"
+              style={{ animationDelay: `${i * 60}ms` }}
+            >
+              <WorkerCard
+                icon={Package}
+                title={product?.name ?? task.productId}
+                subtitle={`${location?.zone ?? '—'} · ${location?.code ?? '—'} · ×${task.requestedQuantity}`}
+                badge={task.code}
+                priority={task.priority}
+                onClick={() => router.push(`/worker/picking/task/${task.id}`)}
+              />
+            </div>
           )
         })}
       </div>

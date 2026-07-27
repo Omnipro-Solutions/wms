@@ -36,6 +36,7 @@ import {
   isWorkingDay,
   suggestDock,
 } from '@/lib/rules/yard'
+import { applicableRules, calcPackingDimensions } from '@/lib/rules/packing'
 import {
   abcByProduct,
   selectCycleCountSchedule,
@@ -302,7 +303,14 @@ export interface WmsState {
   ) => Asn
   printReceiptLabel: (labelId: string) => WmsLabel
   closeAsnWithDiscrepancy: (asnId: string, closeReason: string, operatorName: string) => Asn
-  putawayItem: (asnId: string, locationId: string, operatorName: string) => void
+  // moveStock=false: el stock ya lo movió el LPN (moveLpn); este putaway solo cierra
+  // el ASN (FSM → putaway_done) y publica el stock, sin registrar un 2º movimiento.
+  putawayItem: (
+    asnId: string,
+    locationId: string,
+    operatorName: string,
+    moveStock?: boolean
+  ) => void
   // Labor module (#9) — stamps the operator assigned to a putaway before putawayItem() executes it.
   assignPutaway: (asnId: string, operatorName: string, operatorId?: string) => void
   // Labor module (#9) — Fase 2: reparto automático por balanceo de carga sobre la cola de /labor.
@@ -390,6 +398,21 @@ export interface WmsState {
   // Waveless
   createWavelessOrder: (orderId: string, priority: WavelessOrder['priority']) => WavelessOrder
   startWavelessOrder: (wavelessId: string, operatorName: string) => WavelessOrder
+  // Libera un pedido a picking y lo asigna a un picker en un solo paso. Es
+  // stock-aware: solo crea tareas para las líneas con inventario disponible; las
+  // que no tienen stock quedan en backorder (esperando recepción). Puente real
+  // recepción→picking.
+  releaseOrderToPicker: (
+    orderId: string,
+    operatorId: string,
+    priority?: WavelessOrder['priority']
+  ) => {
+    released: { productId: string; quantity: number }[]
+    backordered: { productId: string; requested: number; available: number }[]
+  }
+  // Puente picking→packing: si todas las tareas del pedido están pickeadas y aún no
+  // existe orden de packing, la crea (con lo realmente pickeado). Devuelve null si no aplica.
+  syncPackingForOrder: (orderId: string) => PackingOrder | null
   // Packing
   startPacking: (packingOrderId: string, packerName: string) => PackingOrder
   scanItem: (packingOrderId: string, productId: string, qty: number) => PackingOrder
@@ -1395,7 +1418,10 @@ export const useWmsStore = create<WmsState>()(
         const state = get()
         const label = state.labels.find((l) => l.id === labelId)
         if (!label) throw new Error('Label no encontrada')
-        if (label.type !== 'receipt') throw new Error('Solo se pueden imprimir receipt labels aquí')
+        // Se imprimen en recepción tanto las etiquetas de recibo como las de LPN
+        // (unidad de carga) que arma el operario en el mismo flujo.
+        if (label.type !== 'receipt' && label.type !== 'lpn')
+          throw new Error('Este tipo de etiqueta no se imprime en recepción')
 
         const updated: WmsLabel = { ...label, status: 'completed' }
         const updatedLabels = state.labels.map((l) => (l.id === labelId ? updated : l))
@@ -1428,13 +1454,42 @@ export const useWmsStore = create<WmsState>()(
         return updatedAsn
       },
 
-      putawayItem: (asnId, locationId, operatorName) => {
+      putawayItem: (asnId, locationId, operatorName, moveStock = true) => {
         const state = get()
         if (state.settings.putawayFreezeActive) throw new Error(PUTAWAY_FROZEN_MSG)
         const asn = state.asnRecords.find((a) => a.id === asnId)
         if (!asn) throw new Error('ASN not found')
-        if (!canTransition(asnTransitions, asn.status, 'putaway_done'))
+        // Un ASN totalmente recibido está listo para putaway aunque su estado siga en
+        // 'in_progress'/'partial' (p. ej. al retomar una recepción ya saldada). El FSM
+        // solo permite putaway_done desde completed/short_received, así que admitimos
+        // explícitamente el caso "recibido completo". Sigue bloqueado en pending/cancelled.
+        const fullyReceived = asn.expectedQuantity > 0 && asn.receivedQuantity >= asn.expectedQuantity
+        const canPutaway =
+          canTransition(asnTransitions, asn.status, 'putaway_done') ||
+          // Sin QC pendiente: un ASN recibido completo puede ubicarse aunque siga
+          // en 'in_progress'/'partial'. Los ASN con QC deben pasar por aprobación
+          // (no se saltan calidad por esta vía).
+          (fullyReceived &&
+            !asn.requiresQualityControl &&
+            (asn.status === 'in_progress' || asn.status === 'partial'))
+        if (!canPutaway)
           throw new Error(`No se puede hacer putaway desde el estado ${asn.status}`)
+
+        // El LPN ya movió y registró el stock (moveLpn). Aquí solo cerramos el ASN y
+        // publicamos — así hay un único movimiento de ubicación (el del LPN), como en
+        // un WMS real, y no queda un registro de staging vacío duplicado.
+        if (!moveStock) {
+          set({
+            asnRecords: state.asnRecords.map((a) =>
+              a.id === asnId ? { ...a, status: 'putaway_done' } : a
+            ),
+          })
+          const storedIds = state.inventoryItems
+            .filter((i) => i.locationId === locationId && i.productId === asn.productId)
+            .map((i) => i.id)
+          get().publishStockSync(storedIds, 'putaway')
+          return
+        }
 
         const product = state.products.find((p) => p.id === asn.productId)
         if (!product) throw new Error('Producto no encontrado')
@@ -2217,13 +2272,17 @@ export const useWmsStore = create<WmsState>()(
           ...(isPartial && reasonId ? { partialReasonId: reasonId } : {}),
         }
 
-        // Deduct reserved inventory when picking completes
-        const inventoryItem = state.inventoryItems.find(
+        // Deduct reserved inventory when picking completes. Puede haber más de un
+        // registro del mismo producto en la ubicación (p. ej. el remanente de staging
+        // que quedó en 0 tras el putaway del LPN); se prefiere uno con existencias
+        // para no "restar" de un registro vacío y dejar el stock real sin descontar.
+        const candidates = state.inventoryItems.filter(
           (i) =>
             i.productId === task.productId &&
             i.locationId === task.locationId &&
             (!capturedSerial?.trim() || i.serial === capturedSerial.trim())
         )
+        const inventoryItem = candidates.find((i) => i.onHandQuantity > 0) ?? candidates[0]
         const updatedItems = inventoryItem
           ? state.inventoryItems.map((i) =>
               i.id === inventoryItem.id
@@ -2254,6 +2313,9 @@ export const useWmsStore = create<WmsState>()(
           inventoryItems: updatedItems,
           stockMovements: [...state.stockMovements, movement],
         })
+        // Puente picking→packing: si con este pick el pedido quedó completo, crea su
+        // orden de packing para que aparezca en la cola del empacador.
+        if (nextStatus === 'completed') get().syncPackingForOrder(task.orderId)
         return updated
       },
 
@@ -2267,6 +2329,9 @@ export const useWmsStore = create<WmsState>()(
         }
         const updated: PickingTask = { ...task, status: 'partial_approved' }
         set({ pickingTasks: state.pickingTasks.map((t) => (t.id === taskId ? updated : t)) })
+        // Puente picking→packing: un parcial aprobado también cierra la tarea; si con
+        // esto el pedido queda listo, crea su orden de packing.
+        get().syncPackingForOrder(task.orderId)
         return updated
       },
 
@@ -2584,6 +2649,147 @@ export const useWmsStore = create<WmsState>()(
         return updated
       },
 
+      releaseOrderToPicker: (orderId, operatorId, priority = 'medium') => {
+        const state = get()
+        if (state.settings.pickingFreezeActive) throw new Error(PICKING_FROZEN_MSG)
+        const operator = state.operators.find((o) => o.id === operatorId)
+        if (!operator) throw new Error('Operario no encontrado')
+        if (!operator.active) throw new Error('El operario no está activo')
+        const order = state.commerceOrders.find((o) => o.id === orderId)
+        if (!order) throw new Error('commerce order not found')
+
+        const warehouseId = 'wh-bog'
+        // Disponible = onHand − reservado − retenido, sumado sobre el stock 'available'.
+        const availableFor = (productId: string) =>
+          state.inventoryItems
+            .filter(
+              (i) =>
+                i.productId === productId &&
+                i.warehouseId === warehouseId &&
+                i.status === 'available'
+            )
+            .reduce((sum, i) => sum + Math.max(0, i.onHandQuantity - i.reservedQuantity - i.holdQuantity), 0)
+
+        // No re-crear tarea para una línea que ya tiene una activa (re-liberar es idempotente).
+        const hasActiveTask = (productId: string) =>
+          state.pickingTasks.some(
+            (t) =>
+              t.orderId === orderId &&
+              t.productId === productId &&
+              !['completed', 'partial_approved', 'partial_rejected'].includes(t.status)
+          )
+
+        const released: { productId: string; quantity: number }[] = []
+        const backordered: { productId: string; requested: number; available: number }[] = []
+        const newTasks: PickingTask[] = []
+        const baseIdx = state.pickingTasks.length
+
+        order.items.forEach((line, i) => {
+          if (hasActiveTask(line.productId)) {
+            released.push({ productId: line.productId, quantity: line.requestedQuantity })
+            return
+          }
+          const avail = availableFor(line.productId)
+          if (avail >= line.requestedQuantity) {
+            const invItem = state.inventoryItems.find(
+              (inv) =>
+                inv.productId === line.productId &&
+                inv.warehouseId === warehouseId &&
+                inv.status === 'available' &&
+                inv.onHandQuantity - inv.reservedQuantity - inv.holdQuantity > 0
+            )
+            newTasks.push({
+              id: `pt-rel-${orderId}-${i}`,
+              code: `PICK-${String(baseIdx + newTasks.length + 1).padStart(3, '0')}`,
+              orderId,
+              productId: line.productId,
+              locationId: invItem?.locationId ?? 'loc-stageout',
+              requestedQuantity: line.requestedQuantity,
+              pickedQuantity: 0,
+              pendingQuantity: line.requestedQuantity,
+              status: 'assigned',
+              priority,
+              assignedOperatorId: operator.id,
+              operatorName: operator.name,
+            })
+            released.push({ productId: line.productId, quantity: line.requestedQuantity })
+          } else {
+            backordered.push({ productId: line.productId, requested: line.requestedQuantity, available: avail })
+          }
+        })
+
+        if (newTasks.length > 0) {
+          const waveless: WavelessOrder = {
+            id: `wl-rel-${state.wavelessOrders.length + 1}`,
+            orderId,
+            orderNumber: order.orderNumber,
+            customerName: order.customerName,
+            channel: order.channel,
+            fulfillmentType: order.fulfillmentType,
+            pickingTaskIds: newTasks.map((t) => t.id),
+            status: 'in_progress',
+            priority,
+            createdAt: seed.seedTimestamp,
+          }
+          set({
+            pickingTasks: [...state.pickingTasks, ...newTasks],
+            wavelessOrders: [...state.wavelessOrders, waveless],
+          })
+        }
+        return { released, backordered }
+      },
+
+      syncPackingForOrder: (orderId) => {
+        const state = get()
+        // Ya existe una orden de packing para este pedido → no duplicar.
+        if (state.packingOrders.some((p) => p.orderId === orderId)) return null
+        const order = state.commerceOrders.find((o) => o.id === orderId)
+        if (!order) return null
+        const tasks = state.pickingTasks.filter((t) => t.orderId === orderId)
+        if (tasks.length === 0) return null
+        // El pedido está listo para empacar solo si TODAS sus tareas quedaron pickeadas.
+        const DONE: PickingTask['status'][] = ['completed', 'partial_approved']
+        if (!tasks.every((t) => DONE.includes(t.status))) return null
+
+        // Se empaca lo realmente pickeado (no lo pedido).
+        const items = tasks
+          .filter((t) => t.pickedQuantity > 0)
+          .map((t) => ({
+            productId: t.productId,
+            productName: state.products.find((p) => p.id === t.productId)?.name ?? t.productId,
+            requestedQuantity: t.pickedQuantity,
+            scannedQuantity: 0,
+          }))
+        if (items.length === 0) return null
+
+        const dims = calcPackingDimensions(items, state.products)
+        const orderProducts = items
+          .map((it) => state.products.find((p) => p.id === it.productId))
+          .filter((p): p is (typeof state.products)[number] => !!p)
+        const rules = applicableRules(orderProducts, state.packingRules)
+
+        const packing: PackingOrder = {
+          id: `pk-${orderId}`,
+          orderId,
+          orderNumber: order.orderNumber,
+          customerName: order.customerName,
+          channel: order.channel,
+          status: 'pending',
+          expectedItems: items.reduce((s, it) => s + it.requestedQuantity, 0),
+          scannedItems: 0,
+          verificationStatus: 'pending',
+          suggestedBox: '',
+          weightKg: dims.weightKg,
+          volumeM3: dims.volumeM3,
+          appliedRuleIds: rules.map((r) => r.id),
+          labelGenerated: false,
+          createdAt: seed.seedTimestamp,
+          items,
+        }
+        set({ packingOrders: [...state.packingOrders, packing] })
+        return packing
+      },
+
       // ─── Packing ──────────────────────────────────────────────────────────────
 
       startPacking: (packingOrderId, packerName) => {
@@ -2591,6 +2797,9 @@ export const useWmsStore = create<WmsState>()(
         if (state.settings.packingFreezeActive) throw new Error(PACKING_FROZEN_MSG)
         const order = state.packingOrders.find((p) => p.id === packingOrderId)
         if (!order) throw new Error('packing order not found')
+        // Idempotente: si ya está en progreso, no es un error (p. ej. doble toque en
+        // "Confirmar" o re-entrar al wizard) — se devuelve tal cual.
+        if (order.status === 'in_progress') return order
         if (order.status !== 'pending')
           throw new Error(`No se puede iniciar desde el estado ${order.status}`)
         const updated: PackingOrder = { ...order, status: 'in_progress', packerName }
@@ -5576,8 +5785,22 @@ export const useWmsStore = create<WmsState>()(
       // v9: putaway module (#3) — putawayRules slice, hazard/cold-chain/lot-mixing
       // fields on Product/StorageLocation, and putawayFreezeActive governance added
       // to the seed.
-      version: 9,
+      // v10: demo flow recepción→picking→packing — producto sin stock (p-demo-cafetera),
+      // su ASN (asn-demo) y su pedido (co-demo) agregados al seed para la cadena causal.
+      version: 10,
       migrate: () => buildSeedState() as Partial<WmsState>,
+      // Tras rehidratar desde IndexedDB, el estado persistido puede tener más
+      // movimientos que el seed. `movementCounter` arranca en seed.length, así que hay
+      // que reajustarlo al id más alto ya existente — si no, los movimientos nuevos
+      // reutilizarían ids (mv-7 repetido) y React se queja por keys duplicadas.
+      onRehydrateStorage: () => (state) => {
+        if (!state?.stockMovements?.length) return
+        const highest = state.stockMovements.reduce((max, m) => {
+          const n = Number.parseInt(String(m.id).replace(/^mv-/, ''), 10)
+          return Number.isFinite(n) && n > max ? n : max
+        }, movementCounter)
+        movementCounter = highest
+      },
     }
   )
 )

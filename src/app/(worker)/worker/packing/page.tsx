@@ -12,9 +12,17 @@ export default function WorkerPackingPage() {
   const packingOrders = useWmsStore((s) => s.packingOrders)
   const packingRules = useWmsStore((s) => s.packingRules)
 
+  // Órdenes que el empacador aún tiene que trabajar: sin empezar y en progreso.
+  // 'in_progress' debe seguir visible — antes desaparecía al iniciar el empaque y no
+  // se podía retomar desde la cola (no se elimina: solo cambió de estado).
   const queue = packingOrders
-    .filter((o) => o.status === 'pending')
-    .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
+    .filter((o) => o.status === 'pending' || o.status === 'in_progress')
+    .sort((a, b) => {
+      // En progreso primero (para retomar), luego por antigüedad.
+      const rank = (s: string) => (s === 'in_progress' ? 0 : 1)
+      const r = rank(a.status) - rank(b.status)
+      return r !== 0 ? r : new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+    })
 
   if (!queue.length) {
     return (
@@ -35,7 +43,7 @@ export default function WorkerPackingPage() {
       </Button>
 
       <div className="flex flex-col gap-2">
-        {queue.map((order) => {
+        {queue.map((order, i) => {
           const ruleIds = order.appliedRuleIds ?? []
           // ruleLabels se pasa como `badge` — es una etiqueta de manejo (frágil, pesado…), no un
           // estado de ciclo de vida; StatusBadge la muestra como pill neutro cuando no matchea STATUS_MAP.
@@ -45,14 +53,19 @@ export default function WorkerPackingPage() {
             .join(', ')
 
           return (
-            <WorkerCard
+            <div
               key={order.id}
-              icon={Package}
-              title={order.orderNumber ?? order.id}
-              subtitle={`${order.expectedItems} ítems · ${order.customerName}`}
-              badge={ruleLabels || undefined}
-              onClick={() => router.push(`/worker/packing/${order.id}`)}
-            />
+              className="animate-in fade-in-0 slide-in-from-bottom-2 duration-500 [animation-fill-mode:both]"
+              style={{ animationDelay: `${i * 60}ms` }}
+            >
+              <WorkerCard
+                icon={Package}
+                title={order.orderNumber ?? order.id}
+                subtitle={`${order.expectedItems} ítems · ${order.customerName}`}
+                badge={order.status === 'in_progress' ? 'EN PROGRESO' : ruleLabels || undefined}
+                onClick={() => router.push(`/worker/packing/${order.id}`)}
+              />
+            </div>
           )
         })}
       </div>
