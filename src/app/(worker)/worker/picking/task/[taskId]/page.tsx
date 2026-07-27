@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { CheckCircle2, Hash, EyeOff, AlertTriangle, MapPin } from 'lucide-react'
+import { Hash, EyeOff, AlertTriangle, MapPin } from 'lucide-react'
 import { useWmsStore } from '@/store/wms-store'
 import { useCurrentOperator } from '@/hooks/use-current-operator'
 import { useLastPickMode } from '@/hooks/use-last-pick-mode'
@@ -53,7 +53,6 @@ export default function WorkerPickingTaskPage() {
   const [partialReasonId, setPartialReasonId] = useState('')
   const [showPartialDialog, setShowPartialDialog] = useState(false)
   const [pickError, setPickError] = useState<string | null>(null)
-  const [confirmed, setConfirmed] = useState(false)
   const [showIssueDialog, setShowIssueDialog] = useState(false)
   const [issueReasonId, setIssueReasonId] = useState('')
   const [issuePhotoUrl, setIssuePhotoUrl] = useState<string | undefined>(undefined)
@@ -158,11 +157,7 @@ export default function WorkerPickingTaskPage() {
           undefined,
           blind ? 'blind' : 'visible'
         )
-        setConfirmed(true)
-        setTimeout(() => {
-          setConfirmed(false)
-          goStep('done')
-        }, 1500)
+        goStep('done')
       }
     } catch (e: unknown) {
       setPickError(e instanceof Error ? e.message : 'Error al confirmar cantidad')
@@ -378,14 +373,6 @@ export default function WorkerPickingTaskPage() {
 
       {step === 'quantity' && (
         <div className="animate-in fade-in-0 relative flex flex-col gap-6 duration-300">
-          {confirmed && (
-            <div className="animate-in fade-in-0 fixed inset-0 z-30 flex flex-col items-center justify-center gap-3 bg-[var(--worker-ok)] duration-200">
-              <CheckCircle2 className="animate-in zoom-in-50 size-20 text-white duration-300" strokeWidth={2.5} />
-              <p className="animate-in fade-in-0 slide-in-from-bottom-2 text-xl font-bold text-white delay-100 duration-300 [animation-fill-mode:both]">
-                Confirmado
-              </p>
-            </div>
-          )}
           {blind ? (
             <div className="border-border bg-card flex w-full flex-col items-center gap-2 rounded-xl border shadow-sm p-4 text-center">
               <Badge variant="outline" className="text-muted-foreground gap-1 font-mono text-xs uppercase">
