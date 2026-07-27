@@ -13,9 +13,11 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
+import { useWmsStore } from '@/store/wms-store'
 import { buildZpl, printZpl } from '@/lib/rules/zpl'
+import { labelFieldValues, resolveLabelTemplate } from '@/lib/rules/label-templates'
 import { cn } from '@/lib/utils'
-import type { WmsLabel } from '@/types/wms'
+import type { LabelFieldKey, LabelTemplate, WmsLabel } from '@/types/wms'
 
 const TYPE_ES: Record<WmsLabel['type'], string> = {
   product: 'Producto',
@@ -28,6 +30,25 @@ const TYPE_ES: Record<WmsLabel['type'], string> = {
   lpn: 'LPN',
 }
 
+const FIELD_ES: Record<LabelFieldKey, string> = {
+  reference: 'Ref',
+  lot: 'Lote',
+  expirationDate: 'Vence',
+  quantity: 'Cant',
+  poNumber: 'OC',
+  operator: 'Operario',
+  date: 'Fecha',
+  warehouse: 'Bodega',
+  logo: 'Logo',
+}
+
+const SYMBOLOGY_ES: Record<LabelTemplate['symbology'], string> = {
+  code128: 'Code 128',
+  'gs1-128': 'GS1-128',
+  qr: 'QR',
+  datamatrix: 'DataMatrix',
+}
+
 interface ZplPreviewDialogProps {
   label: WmsLabel | null
   open: boolean
@@ -35,6 +56,7 @@ interface ZplPreviewDialogProps {
 }
 
 export const ZplPreviewDialog = ({ label, open, onClose }: ZplPreviewDialogProps) => {
+  const labelTemplates = useWmsStore((s) => s.labelTemplates)
   const [printerIp, setPrinterIp] = useState('')
   const [copied, setCopied] = useState(false)
   const [showZpl, setShowZpl] = useState(false)
@@ -49,13 +71,9 @@ export const ZplPreviewDialog = ({ label, open, onClose }: ZplPreviewDialogProps
 
   if (!label) return null
 
-  const zpl = buildZpl({
-    code: label.code,
-    type: label.type,
-    reference: label.reference,
-    createdAt: label.createdAt,
-    createdBy: label.createdBy,
-  })
+  const template = resolveLabelTemplate(labelTemplates, label.type)
+  const values = labelFieldValues(label)
+  const zpl = buildZpl({ code: label.code, type: label.type, values }, template)
 
   const handleCopy = async () => {
     await navigator.clipboard.writeText(zpl)
@@ -82,7 +100,15 @@ export const ZplPreviewDialog = ({ label, open, onClose }: ZplPreviewDialogProps
 
         <div className="space-y-4">
           {/* Visual label preview */}
-          <LabelPreview label={label} />
+          <LabelPreview label={label} template={template} values={values} />
+
+          {/* Template caption */}
+          {template && (
+            <p className="text-muted-foreground text-center text-xs">
+              Plantilla: <span className="font-medium">{template.name}</span> · {template.sizePreset}{' '}
+              · {template.dpi} dpi · {SYMBOLOGY_ES[template.symbology]}
+            </p>
+          )}
 
           {/* Printer IP */}
           <div className="space-y-1">
@@ -165,21 +191,45 @@ const TYPE_COLORS: Record<WmsLabel['type'], string> = {
   lpn: 'bg-indigo-700',
 }
 
-const LabelPreview = ({ label }: { label: WmsLabel }) => {
-  const headerBg = TYPE_COLORS[label.type] ?? 'bg-slate-800'
-  const date = label.createdAt?.substring(0, 10) ?? ''
+interface LabelPreviewProps {
+  label: WmsLabel
+  template?: LabelTemplate
+  values: Partial<Record<LabelFieldKey, string>>
+}
 
-  // Simulated barcode SVG (interleaved pattern — visual only, not scannable)
+export const LabelPreview = ({ label, template, values }: LabelPreviewProps) => {
+  const headerBg = TYPE_COLORS[label.type] ?? 'bg-slate-800'
+  const symbology = template?.symbology ?? 'code128'
+  const is2d = symbology === 'qr' || symbology === 'datamatrix'
+  const showLogo = template ? template.fields.some((f) => f.key === 'logo' && f.enabled) : true
+
+  // Aspect ratio from the size preset drives the preview height.
+  const [wIn, hIn] = (template?.sizePreset ?? '4x2').split('x').map(Number)
+  const width = 320
+  const height = Math.round((width * hIn) / wIn)
+
+  // Which field lines to render, in template order (logo excluded — it's branding).
+  const fieldLines = (template?.fields ?? [{ key: 'reference', enabled: true, order: 0 }])
+    .filter((f) => f.enabled && f.key !== 'logo' && values[f.key])
+    .sort((a, b) => a.order - b.order)
+
   const bars = Array.from({ length: 40 }, (_, i) => ({
     x: i * 7 + 4,
     w: i % 3 === 0 ? 5 : i % 5 === 0 ? 3 : 2,
   }))
 
+  // Deterministic 2D matrix pattern (visual only, not scannable).
+  const matrixCells = Array.from({ length: 12 * 12 }, (_, i) => {
+    const row = Math.floor(i / 12)
+    const col = i % 12
+    return (row * 7 + col * 13 + label.code.length) % 3 === 0
+  })
+
   return (
     <div className="flex justify-center">
       <div
         className="relative overflow-hidden rounded-lg border-2 border-gray-300 dark:border-zinc-600 bg-white shadow-sm"
-        style={{ width: 320, height: 160, fontFamily: 'monospace' }}
+        style={{ width, height, fontFamily: 'monospace' }}
         aria-label={`Vista previa etiqueta ${label.code}`}
       >
         {/* Header bar */}
@@ -187,36 +237,49 @@ const LabelPreview = ({ label }: { label: WmsLabel }) => {
           <span className="text-xs font-bold tracking-widest text-white">
             {TYPE_ES[label.type].toUpperCase()}
           </span>
-          <span className="text-xs font-semibold text-white/70">WMS</span>
+          {showLogo && <span className="text-xs font-semibold text-white/70">WMS</span>}
         </div>
 
         {/* Barcode area */}
         <div className="flex flex-col items-center py-1">
-          <svg width={288} height={52} aria-hidden="true">
-            {bars.map((b, i) => (
-              <rect
-                key={i}
-                x={b.x}
-                y={2}
-                width={b.w}
-                height={48}
-                fill={i % 2 === 0 ? '#111' : '#fff'}
-              />
-            ))}
-          </svg>
+          {is2d ? (
+            <svg width={64} height={64} aria-hidden="true">
+              {matrixCells.map((on, i) => (
+                <rect
+                  key={i}
+                  x={(i % 12) * 5 + 2}
+                  y={Math.floor(i / 12) * 5 + 2}
+                  width={5}
+                  height={5}
+                  fill={on ? '#111' : '#fff'}
+                />
+              ))}
+            </svg>
+          ) : (
+            <svg width={288} height={44} aria-hidden="true">
+              {bars.map((b, i) => (
+                <rect
+                  key={i}
+                  x={b.x}
+                  y={2}
+                  width={b.w}
+                  height={40}
+                  fill={i % 2 === 0 ? '#111' : '#fff'}
+                />
+              ))}
+            </svg>
+          )}
           <span className="font-mono text-[10px] tracking-widest text-gray-800">{label.code}</span>
         </div>
 
-        {/* Reference */}
-        <div className="px-3">
-          <span className="text-[10px] text-gray-500">Ref: </span>
-          <span className="font-mono text-[10px] text-gray-800">{label.reference}</span>
-        </div>
-
-        {/* Footer */}
-        <div className="absolute bottom-0 left-0 right-0 flex items-center justify-between border-t border-gray-200 bg-gray-50 px-3 py-0.5">
-          <span className="text-[9px] text-gray-500">{label.createdBy}</span>
-          <span className="text-[9px] text-gray-500">{date}</span>
+        {/* Field lines */}
+        <div className="space-y-0.5 px-3">
+          {fieldLines.map((f) => (
+            <div key={f.key} className="truncate">
+              <span className="text-[10px] text-gray-500">{FIELD_ES[f.key]}: </span>
+              <span className="font-mono text-[10px] text-gray-800">{values[f.key]}</span>
+            </div>
+          ))}
         </div>
       </div>
     </div>

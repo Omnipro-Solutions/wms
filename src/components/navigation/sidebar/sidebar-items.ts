@@ -279,6 +279,7 @@ export const sidebarItems: NavGroup[] = [
           { id: 'config-returns', title: 'Devoluciones', url: '/returns-settings', icon: Undo2 },
           { id: 'config-yard', title: 'Patio y muelles', url: '/yard-settings', icon: DoorOpen },
           { id: 'config-packing', title: 'Packing', url: '/packing-settings', icon: PackageCheck },
+          { id: 'config-labels', title: 'Etiquetas', url: '/labels-settings', icon: Tags },
           { id: 'config-shipping', title: 'Despacho', url: '/shipping-settings', icon: Truck },
         ],
       },

@@ -117,6 +117,7 @@ import type {
   UnitOfMeasure,
   Warehouse,
   WmsLabel,
+  LabelTemplate,
   WmsSettings,
   WavelessOrder,
 } from '@/types/wms'
@@ -241,6 +242,7 @@ export interface WmsState {
   loadManifests: LoadManifest[]
   sapRoutes: SapRoute[]
   labels: WmsLabel[]
+  labelTemplates: LabelTemplate[]
   integrations: IntegrationConnection[]
   replenishmentTasks: ReplenishmentTask[]
   storeReplenishmentPolicies: StoreReplenishmentPolicy[]
@@ -400,6 +402,15 @@ export interface WmsState {
   selectBox: (packingOrderId: string, boxTypeId: string) => PackingOrder
   generateLabel: (packingOrderId: string) => PackingOrder
   sendToShipping: (packingOrderId: string) => PackingOrder
+  // Label templates admin
+  createLabelTemplate: (
+    data: Omit<LabelTemplate, 'id' | 'createdAt' | 'updatedAt'>
+  ) => LabelTemplate
+  updateLabelTemplate: (
+    id: string,
+    data: Partial<Omit<LabelTemplate, 'id' | 'createdAt' | 'updatedAt'>>
+  ) => LabelTemplate
+  deleteLabelTemplate: (id: string) => void
   // Packing rules admin
   createPackingRule: (data: Omit<PackingRule, 'id'>) => PackingRule
   updatePackingRule: (id: string, data: Partial<Omit<PackingRule, 'id'>>) => PackingRule
@@ -740,6 +751,7 @@ const buildSeedState = () => ({
   loadManifests: seed.loadManifests,
   sapRoutes: seed.sapRoutes,
   labels: seed.labels,
+  labelTemplates: seed.labelTemplates,
   integrations: seed.integrations,
   replenishmentTasks: seed.replenishmentTasks,
   storeReplenishmentPolicies: seed.storeReplenishmentPolicies,
@@ -2823,6 +2835,47 @@ export const useWmsStore = create<WmsState>()(
           packingOrders: state.packingOrders.map((p) => (p.id === packingOrderId ? updated : p)),
         })
         return updated
+      },
+
+      createLabelTemplate: (data) => {
+        const state = get()
+        if (data.warehouseId) {
+          if (
+            state.labelTemplates.some(
+              (t) => t.type === data.type && t.warehouseId === data.warehouseId
+            )
+          )
+            throw new Error('Ya existe una plantilla para este tipo en la bodega seleccionada')
+        } else if (state.labelTemplates.some((t) => t.type === data.type && !t.warehouseId)) {
+          throw new Error(`Ya existe una plantilla global para el tipo "${data.type}"`)
+        }
+        const now = new Date().toISOString()
+        const created: LabelTemplate = {
+          ...data,
+          id: `lt-${Date.now()}`,
+          createdAt: now,
+          updatedAt: now,
+        }
+        set({ labelTemplates: [...state.labelTemplates, created] })
+        return created
+      },
+
+      updateLabelTemplate: (id, data) => {
+        const state = get()
+        const tpl = state.labelTemplates.find((t) => t.id === id)
+        if (!tpl) throw new Error('label template not found')
+        const updated: LabelTemplate = { ...tpl, ...data, updatedAt: new Date().toISOString() }
+        set({ labelTemplates: state.labelTemplates.map((t) => (t.id === id ? updated : t)) })
+        return updated
+      },
+
+      deleteLabelTemplate: (id) => {
+        const state = get()
+        const tpl = state.labelTemplates.find((t) => t.id === id)
+        if (!tpl) throw new Error('label template not found')
+        if (tpl.isDefault)
+          throw new Error('No se puede eliminar la plantilla global por defecto')
+        set({ labelTemplates: state.labelTemplates.filter((t) => t.id !== id) })
       },
 
       createPackingRule: (data) => {
