@@ -16,7 +16,6 @@ import { selectYardKpis } from '@/store/selectors'
 import { useDialogState } from '@/hooks/use-dialog-state'
 import { PageHeader } from '@/components/shared/page-header'
 import { KpiCard } from '@/components/shared/kpi-card'
-import { StatusBadge } from '@/components/shared/status-badge'
 import { DataTable } from '@/components/data-table'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -25,7 +24,7 @@ import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { formatNumber } from '@/lib/formatters'
-import { DOCK_TYPE_LABELS, WEEKDAY_LABELS, minutesOfDay } from '@/lib/rules/yard'
+import { WEEKDAY_LABELS, minutesOfDay } from '@/lib/rules/yard'
 import type { Asn, DockAppointment, LoadManifest } from '@/types/wms'
 import { buildAppointmentColumns, type AppointmentRow } from './columns'
 import { CreateAppointmentDialog, type CreateAppointmentInitial } from './_components/create-appointment-dialog'
@@ -132,6 +131,7 @@ const YardPage = () => {
   })
 
   const hoyTimelines = buildTimelines(today, 'all')
+  const calendarTimelines = buildTimelines(calendarDate, calendarWarehouseId)
 
   const toRow = (a: DockAppointment): AppointmentRow => {
     const dock = a.dockId ? docks.find((d) => d.id === a.dockId) : undefined
@@ -198,19 +198,6 @@ const YardPage = () => {
 
   const calendarDayOfWeek = new Date(`${calendarDate}T00:00:00.000Z`).getUTCDay()
   const isNonWorkingDay = !settings.yardWorkingDays.includes(calendarDayOfWeek)
-
-  const calendarAppointments = useMemo(
-    () =>
-      dockAppointments
-        .filter((a) => a.scheduledStart.slice(0, 10) === calendarDate)
-        .filter((a) => calendarWarehouseId === 'all' || a.warehouseId === calendarWarehouseId)
-        .sort((a, b) => a.scheduledStart.localeCompare(b.scheduledStart)),
-    [dockAppointments, calendarDate, calendarWarehouseId]
-  )
-  const calendarDocks = docks.filter(
-    (d) => calendarWarehouseId === 'all' || d.warehouseId === calendarWarehouseId
-  )
-  const unassignedCalendarAppointments = calendarAppointments.filter((a) => !a.dockId)
 
   return (
     <div className="flex flex-col gap-6">
@@ -362,68 +349,32 @@ const YardPage = () => {
                 )}
               </div>
 
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                {calendarDocks.map((dock) => {
-                  const dockAppointmentsForDay = calendarAppointments.filter((a) => a.dockId === dock.id)
-                  return (
-                    <div key={dock.id} className="rounded-md border p-3">
-                      <div className="mb-2 flex items-center justify-between">
-                        <div>
-                          <p className="text-sm font-medium">
-                            {dock.code} — {dock.name}
-                          </p>
-                          {calendarWarehouseId === 'all' && (
-                            <p className="text-muted-foreground text-xs">
-                              {warehouses.find((w) => w.id === dock.warehouseId)?.name ?? dock.warehouseId}
-                            </p>
-                          )}
-                        </div>
-                        <Badge variant="outline" className="text-xs">
-                          {DOCK_TYPE_LABELS[dock.type]}
-                        </Badge>
-                      </div>
-                      {dockAppointmentsForDay.length === 0 ? (
-                        <p className="text-muted-foreground text-xs">Sin citas ese día.</p>
-                      ) : (
-                        <ul className="space-y-1.5">
-                          {dockAppointmentsForDay.map((a) => (
-                            <li key={a.id} className="flex items-center justify-between gap-2 text-xs">
-                              <span className="tabular-nums">
-                                {a.scheduledStart.slice(11, 16)}–{a.scheduledEnd.slice(11, 16)}
-                              </span>
-                              <span className="text-muted-foreground truncate">{a.code}</span>
-                              <StatusBadge status={a.status} />
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-                    </div>
-                  )
-                })}
+              <div className="flex flex-col gap-6">
+                {calendarTimelines.map((group) => (
+                  <div key={group.warehouseId} className="flex flex-col gap-2">
+                    {calendarWarehouseId === 'all' && (
+                      <h3 className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+                        {group.warehouseName}
+                      </h3>
+                    )}
+                    <DockTimeline
+                      lanes={group.lanes}
+                      unassigned={group.unassigned}
+                      openMinutes={openMinutes}
+                      closeMinutes={closeMinutes}
+                      nowMs={calendarDate === today ? now : null}
+                      lateThresholdMinutes={settings.yardLateThresholdMinutes}
+                      resolveReference={resolveRef}
+                      actions={calendarDate < today ? undefined : makeActions(calendarDate)}
+                    />
+                  </div>
+                ))}
+                {calendarTimelines.length === 0 && (
+                  <p className="text-muted-foreground py-6 text-center text-sm">
+                    No hay muelles configurados para esta bodega.
+                  </p>
+                )}
               </div>
-
-              {unassignedCalendarAppointments.length > 0 && (
-                <div className="rounded-md border border-dashed p-3">
-                  <p className="mb-2 text-sm font-medium">Sin muelle asignado</p>
-                  <ul className="space-y-1.5">
-                    {unassignedCalendarAppointments.map((a) => (
-                      <li key={a.id} className="flex items-center justify-between gap-2 text-xs">
-                        <span className="tabular-nums">
-                          {a.scheduledStart.slice(11, 16)}–{a.scheduledEnd.slice(11, 16)}
-                        </span>
-                        <span className="text-muted-foreground truncate">{a.code}</span>
-                        <StatusBadge status={a.status} />
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-
-              {calendarAppointments.length === 0 && (
-                <p className="text-muted-foreground py-6 text-center text-sm">
-                  No hay citas agendadas para esta fecha.
-                </p>
-              )}
             </CardContent>
           </Card>
         </TabsContent>
