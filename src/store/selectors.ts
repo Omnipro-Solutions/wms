@@ -26,7 +26,6 @@ import { statusLabel } from '@/lib/status'
 import type { WmsState } from './wms-store'
 import type {
   AbcClass,
-  Dock,
   DockAppointment,
   InternalMoveTask,
   ProductivityRow,
@@ -1293,28 +1292,6 @@ export function selectMisplacedStock(state: WmsState): MisplacedStockRow[] {
 // ── Yard / Dock management (#8) ───────────────────────────────────────────────
 
 const OCCUPYING_APPOINTMENT_STATUSES = new Set<DockAppointment['status']>(['arrived', 'in_progress'])
-
-export interface DockBoardRow {
-  dock: Dock
-  // The appointment currently holding the dock (arrived or in progress), if any.
-  currentAppointment: DockAppointment | null
-  // The next still-scheduled appointment for this dock, earliest first.
-  nextAppointment: DockAppointment | null
-}
-
-// One row per dock with what's happening on it right now — powers the live
-// board in /yard (Tab "Hoy").
-export const selectDockBoard = (state: WmsState): DockBoardRow[] =>
-  state.docks.map((dock) => {
-    const onThisDock = state.dockAppointments
-      .filter((a) => a.dockId === dock.id)
-      .sort((a, b) => a.scheduledStart.localeCompare(b.scheduledStart))
-    return {
-      dock,
-      currentAppointment: onThisDock.find((a) => OCCUPYING_APPOINTMENT_STATUSES.has(a.status)) ?? null,
-      nextAppointment: onThisDock.find((a) => a.status === 'scheduled') ?? null,
-    }
-  })
 
 export interface YardKpis {
   appointmentsToday: number

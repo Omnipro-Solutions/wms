@@ -99,7 +99,7 @@ const AppointmentBlock = ({
   actions?: DockTimelineActions
 }) => {
   const flags = appointmentActionFlags(appointment.status)
-  const showActions = !!actions && (flags.canAssignDock || flags.canStart || flags.canComplete)
+  const showActions = !!actions && Object.values(flags).some(Boolean)
 
   return (
     <Popover>
@@ -349,17 +349,20 @@ export const DockTimeline = ({
   const totalMinutes = Math.max(1, closeMinutes - openMinutes)
   const trackWidth = (totalMinutes / 60) * HOUR_PX
 
-  const nowMinutes = nowMs === null ? null : new Date(nowMs).getHours() * 60 + new Date(nowMs).getMinutes()
+  const activeNow = nowMs !== null && nowMs > 0 ? nowMs : null
+
+  const nowMinutes =
+    activeNow === null ? null : new Date(activeNow).getHours() * 60 + new Date(activeNow).getMinutes()
   const nowLeftPct =
     nowMinutes === null || nowMinutes < openMinutes || nowMinutes > closeMinutes
       ? null
       : ((nowMinutes - openMinutes) / totalMinutes) * 100
 
   const atRiskIds = new Set(
-    nowMs === null
+    activeNow === null
       ? []
       : [...lanes.flatMap((l) => l.appointments), ...unassigned]
-          .filter((a) => isAppointmentAtRisk(a, nowMs, lateThresholdMinutes))
+          .filter((a) => isAppointmentAtRisk(a, activeNow, lateThresholdMinutes))
           .map((a) => a.id)
   )
 
