@@ -2,14 +2,19 @@
 
 import { useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { CheckCircle2, Hash, EyeOff } from 'lucide-react'
+import { Hash, EyeOff, AlertTriangle, MapPin } from 'lucide-react'
 import { useWmsStore } from '@/store/wms-store'
 import { useCurrentOperator } from '@/hooks/use-current-operator'
 import { useLastPickMode } from '@/hooks/use-last-pick-mode'
-import { WorkerStepper } from '@/components/worker/worker-stepper'
+import { WorkerWizardHeader } from '@/components/worker/worker-wizard-header'
+import { WorkerActionBar } from '@/components/worker/worker-action-bar'
+import { WorkerErrorBanner } from '@/components/worker/worker-error-banner'
+import { WorkerTaskContext } from '@/components/worker/worker-task-context'
+import { WorkerSuccess } from '@/components/worker/worker-success'
 import { ScanInput } from '@/components/worker/scan-input'
-import { QuantityStepper } from '@/components/worker/quantity-stepper'
+import { WorkerQtyEntry } from '@/components/worker/worker-qty-entry'
 import { PickModeSelect, type PickMode } from '@/components/worker/pick-mode-select'
+import { formatDate } from '@/lib/formatters'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
@@ -26,33 +31,28 @@ import {
 
 type Step = 'mode' | 'location' | 'product' | 'quantity' | 'done'
 
-const ErrorBanner = ({ message }: { message: string }) => (
-  <div className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-    <span className="mt-0.5 shrink-0">⚠️</span>
-    <span>{message}</span>
-  </div>
-)
-
 export default function WorkerPickingTaskPage() {
   const { taskId } = useParams<{ taskId: string }>()
   const router = useRouter()
   const { operator } = useCurrentOperator()
-  const { pickingTasks, products, locations, settings, reasons, startPicking, completePick, approvePart, reportIssue } =
+  const { pickingTasks, products, locations, commerceOrders, settings, reasons, startPicking, completePick, approvePart, reportIssue } =
     useWmsStore()
 
   const task = pickingTasks.find((t) => t.id === taskId)
   const location = locations.find((l) => l.id === task?.locationId)
   const product = products.find((p) => p.id === task?.productId)
+  const order = commerceOrders.find((o) => o.id === task?.orderId)
 
   const { lastMode, remember } = useLastPickMode()
-  const [step, setStep] = useState<Step>('mode')
+  const [step, setStepRaw] = useState<Step>('mode')
+  // Historial de pasos para el botón "atrás" (retrocede por la ruta recorrida).
+  const [stepHistory, setStepHistory] = useState<Step[]>([])
   const [pickMode, setPickMode] = useState<PickMode | null>(null)
   const [qty, setQty] = useState(task?.requestedQuantity ?? 0)
   const [serialsRaw, setSerialsRaw] = useState('')
   const [partialReasonId, setPartialReasonId] = useState('')
   const [showPartialDialog, setShowPartialDialog] = useState(false)
   const [pickError, setPickError] = useState<string | null>(null)
-  const [confirmed, setConfirmed] = useState(false)
   const [showIssueDialog, setShowIssueDialog] = useState(false)
   const [issueReasonId, setIssueReasonId] = useState('')
   const [issuePhotoUrl, setIssuePhotoUrl] = useState<string | undefined>(undefined)
@@ -78,10 +78,27 @@ export default function WorkerPickingTaskPage() {
         : (pickMode ?? lastMode ?? 'visible')
   const blind = effectiveMode === 'blind'
 
+  // Avanza registrando el paso actual; goBack retrocede (o sale al listado).
+  const goStep = (next: Step) => {
+    setPickError(null)
+    setStepHistory((h) => [...h, step])
+    setStepRaw(next)
+  }
+  const goBack = () => {
+    setPickError(null)
+    if (stepHistory.length === 0) {
+      router.push('/worker/picking')
+      return
+    }
+    const prev = stepHistory[stepHistory.length - 1]
+    setStepHistory((h) => h.slice(0, -1))
+    setStepRaw(prev)
+  }
+
   const handleContinueFromMode = () => {
     remember(effectiveMode)
     setPickMode(effectiveMode)
-    setStep('location')
+    goStep('location')
   }
 
   const handleLocationMatch = () => {
@@ -90,7 +107,7 @@ export default function WorkerPickingTaskPage() {
       if (task.status === 'assigned' || task.status === 'pending') {
         startPicking(task.id, operator?.name ?? 'Operador')
       }
-      setStep('product')
+      goStep('product')
     } catch (e: unknown) {
       setPickError(e instanceof Error ? e.message : 'Error al iniciar tarea')
     }
@@ -98,7 +115,7 @@ export default function WorkerPickingTaskPage() {
 
   const handleProductMatch = () => {
     setQty(blind ? 0 : task.requestedQuantity)
-    setStep('quantity')
+    goStep('quantity')
   }
 
   const requiresSerial = product.trackBy === 'serial'
@@ -140,11 +157,7 @@ export default function WorkerPickingTaskPage() {
           undefined,
           blind ? 'blind' : 'visible'
         )
-        setConfirmed(true)
-        setTimeout(() => {
-          setConfirmed(false)
-          setStep('done')
-        }, 1500)
+        goStep('done')
       }
     } catch (e: unknown) {
       setPickError(e instanceof Error ? e.message : 'Error al confirmar cantidad')
@@ -168,7 +181,7 @@ export default function WorkerPickingTaskPage() {
       )
       if (qty < task.requestedQuantity) approvePart(task.id)
       setShowPartialDialog(false)
-      setStep('done')
+      goStep('done')
     } catch (e: unknown) {
       setShowPartialDialog(false)
       setPickError(e instanceof Error ? e.message : 'Error al registrar pick parcial')
@@ -209,56 +222,63 @@ export default function WorkerPickingTaskPage() {
   if (step === 'done') {
     const variance = qty - task.requestedQuantity
     return (
-      <div className="flex min-h-[60vh] flex-col items-center justify-center gap-6 text-center">
-        <CheckCircle2 className="size-16 text-emerald-500" />
-        <div>
-          <p className="text-2xl font-bold">¡Pick completado!</p>
-          <p className="text-sm text-muted-foreground mt-1">{task.code}</p>
-        </div>
+      <WorkerSuccess title="Pick completado" code={task.code}>
         {blind && (
           <div
             className={cn(
-              'w-full rounded-2xl border p-4 text-center',
-              variance === 0 && 'border-emerald-200 bg-emerald-50 text-emerald-700',
-              variance > 0 && 'border-blue-200 bg-blue-50 text-blue-700',
-              variance < 0 && 'border-red-200 bg-red-50 text-red-700'
+              'w-full rounded-xl border shadow-sm border-l-4 p-4 text-center',
+              variance === 0 && 'border-l-[var(--worker-ok)] bg-[var(--worker-ok-surface)] text-[var(--worker-ok)]',
+              variance > 0 && 'border-l-[var(--worker-info)] bg-[var(--worker-info-surface)] text-[var(--worker-info)]',
+              variance < 0 && 'border-l-[var(--worker-danger)] bg-[var(--worker-danger-surface)] text-[var(--worker-danger)]'
             )}
           >
-            <p className="text-xs uppercase tracking-wide opacity-70">Diferencia vs. lo solicitado</p>
-            <p className="text-4xl font-black tabular-nums">
+            <p className="font-mono text-xs tracking-widest uppercase opacity-80">Diferencia vs. solicitado</p>
+            <p className="font-mono text-4xl font-black tabular-nums">
               {variance > 0 ? '+' : ''}
               {variance}
             </p>
-            <p className="text-sm opacity-70">
+            <p className="text-sm opacity-80">
               Solicitado: {task.requestedQuantity} · Contado: {qty}
             </p>
           </div>
         )}
-        <div className="flex w-full flex-col gap-2">
-          <Button variant="outline" className="h-12" onClick={() => router.push('/worker/picking')}>
-            ← Ver mis tareas
-          </Button>
-        </div>
-      </div>
+        <Button variant="outline" className="h-12 w-full" onClick={() => router.push('/worker/picking')}>
+          ← Ver mis tareas
+        </Button>
+      </WorkerSuccess>
     )
   }
 
   return (
     <div className="flex flex-col gap-6">
-      <WorkerStepper current={stepIndex[step]} total={4} />
+      <WorkerWizardHeader backHref="/worker/picking" current={stepIndex[step]} total={4} onBack={goBack} />
+
+      <WorkerTaskContext
+        code={task.code}
+        meta={product.name}
+        priority={task.priority}
+        due={order ? `Entrega ${formatDate(order.promisedDeliveryDate)}` : undefined}
+        progress={
+          step === 'quantity' && !blind
+            ? { current: qty, total: task.requestedQuantity, label: 'Cantidad', unit: 'uds' }
+            : undefined
+        }
+      />
 
       {step === 'mode' && (
-        <div className="flex flex-col gap-4">
+        <div className="animate-in fade-in-0 flex flex-col gap-4 duration-300">
           <div>
             <p className="text-lg font-bold">
               {blindPolicy === 'operator_choice' ? '¿Cómo quieres contar esta tarea?' : 'Modo de conteo'}
             </p>
-            <p className="text-sm text-muted-foreground">Tarea {task.code}</p>
+            <p className="text-muted-foreground font-mono text-xs tracking-wide uppercase">
+              Tarea {task.code}
+            </p>
           </div>
           {blindPolicy === 'operator_choice' ? (
             <PickModeSelect value={pickMode ?? lastMode ?? 'visible'} onChange={setPickMode} />
           ) : (
-            <div className="flex items-center gap-4 rounded-2xl border-2 border-border bg-card p-5">
+            <div className="border-border bg-card flex items-center gap-4 rounded-xl border p-5 shadow-sm">
               <EyeOff className={cn('size-6', blind ? 'text-primary' : 'text-muted-foreground')} />
               <div>
                 <p className="font-semibold">{blind ? 'A ciegas' : 'Cantidad visible'}</p>
@@ -268,94 +288,114 @@ export default function WorkerPickingTaskPage() {
               </div>
             </div>
           )}
-          <Button className="h-14 text-base" onClick={handleContinueFromMode}>
-            Continuar
-          </Button>
+          <WorkerActionBar>
+            <Button className="h-14 text-base" onClick={handleContinueFromMode}>
+              Continuar
+            </Button>
+          </WorkerActionBar>
         </div>
       )}
 
       {step === 'location' && (
-        <div className="flex flex-col gap-4">
-          <div className="rounded-2xl bg-linear-to-br from-(--worker-gradient-soft-from) to-(--worker-gradient-soft-to) p-4 text-center">
-            <p className="text-xs uppercase tracking-wide text-muted-foreground">Zona</p>
-            <p className="text-5xl font-black">{location.zone}</p>
-            <p className="text-3xl font-bold text-muted-foreground">{location.code}</p>
+        <div className="animate-in fade-in-0 flex flex-col gap-4 duration-300">
+          <div className="border-border bg-card rounded-xl border p-5 text-center shadow-sm">
+            <p className="text-primary flex items-center justify-center gap-1.5 font-mono text-xs font-semibold tracking-widest uppercase">
+              <MapPin className="size-3.5" /> Ir a
+            </p>
+            <p className="mt-2 font-mono text-5xl leading-none font-black tracking-tight">
+              {location.code}
+            </p>
+            <p className="text-muted-foreground mt-3 font-mono text-sm tracking-wider uppercase">
+              Zona {location.zone}
+            </p>
           </div>
           {product.imageUrl && (
-            <div className="flex items-center gap-3 rounded-xl border bg-card px-4 py-3">
+            <div className="border-border bg-card flex items-center gap-3 rounded-xl border shadow-sm px-4 py-3">
               <img
                 src={product.imageUrl}
                 alt={product.name}
-                className="h-12 w-12 rounded-lg object-contain"
+                className="h-12 w-12 rounded-md object-contain"
               />
-              <div>
-                <p className="text-sm font-semibold">{product.name}</p>
-                <p className="text-xs text-muted-foreground">× {task.requestedQuantity} uds</p>
+              <div className="min-w-0">
+                <p className="truncate text-sm font-semibold">{product.name}</p>
+                <p className="text-muted-foreground font-mono text-xs tracking-wide uppercase">
+                  ×{task.requestedQuantity} uds
+                </p>
               </div>
             </div>
           )}
-          {pickError && <ErrorBanner message={pickError} />}
+          {pickError && <WorkerErrorBanner message={pickError} />}
           <ScanInput
             label="Escanea la ubicación"
             expectedValue={location.barcode ?? location.code}
             onMatch={handleLocationMatch}
           />
-          <Button variant="outline" className="h-11 w-full text-amber-700" onClick={() => setShowIssueDialog(true)}>
-            ⚠️ Reportar incidencia
+          <Button
+            variant="outline"
+            className="h-11 w-full gap-2 border-[var(--worker-warn)]/40 text-[var(--worker-warn)]"
+            onClick={() => setShowIssueDialog(true)}
+          >
+            <AlertTriangle className="size-4" /> Reportar incidencia
           </Button>
         </div>
       )}
 
       {step === 'product' && (
-        <div className="flex flex-col gap-4">
-          <div className="rounded-xl bg-muted p-4">
+        <div className="animate-in fade-in-0 flex flex-col gap-4 duration-300">
+          <div className="border-border bg-card rounded-xl border shadow-sm p-4">
             {product.imageUrl && (
               <img
                 src={product.imageUrl}
                 alt={product.name}
-                className="mx-auto mb-3 h-24 w-24 rounded-xl object-contain"
+                className="mx-auto mb-3 h-24 w-24 rounded-md object-contain"
               />
             )}
             <p className="text-center text-lg font-bold">{product.name}</p>
-            <p className="text-center text-sm text-muted-foreground">SKU: {product.sku}</p>
+            <p className="text-muted-foreground mt-1 text-center font-mono text-sm tracking-wide uppercase">
+              SKU {product.sku}
+            </p>
           </div>
-          {pickError && <ErrorBanner message={pickError} />}
+          {pickError && <WorkerErrorBanner message={pickError} />}
           <ScanInput
             label="Escanea el producto"
             expectedValue={product.barcode ?? product.sku}
             onMatch={handleProductMatch}
           />
-          <Button variant="outline" className="h-11 w-full text-amber-700" onClick={() => setShowIssueDialog(true)}>
-            ⚠️ Reportar incidencia
+          <Button
+            variant="outline"
+            className="h-11 w-full gap-2 border-[var(--worker-warn)]/40 text-[var(--worker-warn)]"
+            onClick={() => setShowIssueDialog(true)}
+          >
+            <AlertTriangle className="size-4" /> Reportar incidencia
           </Button>
         </div>
       )}
 
       {step === 'quantity' && (
-        <div className="relative flex flex-col items-center gap-6">
-          {confirmed && (
-            <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 rounded-2xl bg-emerald-500/90">
-              <CheckCircle2 className="size-20 text-white" />
-              <p className="text-xl font-bold text-white">¡Confirmado!</p>
-            </div>
-          )}
+        <div className="animate-in fade-in-0 relative flex flex-col gap-6 duration-300">
           {blind ? (
-            <div className="flex w-full flex-col items-center gap-2 rounded-2xl bg-muted p-4 text-center">
-              <Badge variant="outline" className="text-muted-foreground">
-                <EyeOff className="mr-1 size-3" /> Modo ciego — cuenta lo que encuentres
+            <div className="border-border bg-card flex w-full flex-col items-center gap-2 rounded-xl border shadow-sm p-4 text-center">
+              <Badge variant="outline" className="text-muted-foreground gap-1 font-mono text-xs uppercase">
+                <EyeOff className="size-3" /> Modo ciego
               </Badge>
-              <p className="text-sm text-muted-foreground">{product.name}</p>
+              <p className="text-muted-foreground text-sm">Cuenta lo que encuentres · {product.name}</p>
             </div>
           ) : (
-            <div className="w-full rounded-2xl bg-muted p-4 text-center">
-              <p className="text-sm text-muted-foreground">Solicitado</p>
-              <p className="text-6xl font-black tabular-nums">{task.requestedQuantity}</p>
-              <p className="mt-1 text-sm text-muted-foreground">{product.name}</p>
+            <div className="border-border bg-card w-full rounded-xl border shadow-sm p-4 text-center">
+              <p className="text-muted-foreground font-mono text-xs font-semibold tracking-widest uppercase">
+                Solicitado
+              </p>
+              <p className="mt-2 font-mono text-6xl leading-none font-black tabular-nums">
+                {task.requestedQuantity}
+              </p>
+              <p className="text-muted-foreground mt-2 text-sm">{product.name}</p>
             </div>
           )}
           <div className="w-full">
-            <p className="mb-2 text-center text-sm font-medium text-muted-foreground">Cantidad a picar</p>
-            <QuantityStepper value={qty} onChange={setQty} min={0} max={blind ? undefined : task.requestedQuantity} />
+            <p className="text-muted-foreground mb-2 text-center font-mono text-xs font-semibold tracking-wider uppercase">
+              Cantidad a pickear
+            </p>
+            <WorkerQtyEntry value={qty} onChange={setQty} min={0} max={blind ? undefined : task.requestedQuantity} />
           </div>
           {requiresSerial && (
             <div className="w-full space-y-1">
@@ -383,24 +423,27 @@ export default function WorkerPickingTaskPage() {
               </p>
             </div>
           )}
-          {pickError && <ErrorBanner message={pickError} />}
-          <Button
-            className="h-16 w-full text-lg font-bold"
-            onClick={handleConfirmQty}
-            disabled={qty === 0}
-          >
-            CONFIRMAR {qty} UDS
-          </Button>
+          {pickError && <WorkerErrorBanner message={pickError} />}
           {!blind && qty < task.requestedQuantity && qty > 0 && (
-            <p className="text-sm text-amber-600">
-              ⚠️ Registrarás {task.requestedQuantity - qty} unidades menos que lo solicitado
+            <p className="flex items-center justify-center gap-1.5 text-center text-sm text-[var(--worker-warn)]">
+              <AlertTriangle className="size-4 shrink-0" /> Registrarás {task.requestedQuantity - qty} unidades
+              menos que lo solicitado
             </p>
           )}
+          <WorkerActionBar>
+            <Button
+              className="h-16 w-full text-lg font-bold"
+              onClick={handleConfirmQty}
+              disabled={qty === 0}
+            >
+              CONFIRMAR {qty} UDS
+            </Button>
+          </WorkerActionBar>
         </div>
       )}
 
       <Dialog open={showPartialDialog} onOpenChange={setShowPartialDialog}>
-        <DialogContent showCloseButton={false}>
+        <DialogContent showCloseButton={false} data-worker-theme="">
           <DialogHeader>
             <DialogTitle className="text-center">
               {needsReason ? 'Confirmar diferencia' : '¿Confirmar cantidad parcial?'}
@@ -467,7 +510,7 @@ export default function WorkerPickingTaskPage() {
       </Dialog>
 
       <Dialog open={showIssueDialog} onOpenChange={setShowIssueDialog}>
-        <DialogContent showCloseButton={false}>
+        <DialogContent showCloseButton={false} data-worker-theme="">
           <DialogHeader>
             <DialogTitle className="text-center">Reportar incidencia</DialogTitle>
           </DialogHeader>
@@ -502,7 +545,7 @@ export default function WorkerPickingTaskPage() {
                 <img src={issuePhotoUrl} alt="Foto de incidencia" className="mt-2 h-20 w-20 rounded-lg object-cover" />
               )}
             </div>
-            {issueError && <ErrorBanner message={issueError} />}
+            {issueError && <WorkerErrorBanner message={issueError} />}
           </div>
           <DialogFooter className="flex-col gap-2 sm:flex-col">
             <Button className="h-14 w-full text-base font-bold" onClick={handleSubmitIssue}>

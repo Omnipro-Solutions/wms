@@ -44,6 +44,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { SubNav, type SubNavItem } from '@/components/shared/sub-nav'
+import { ROLE_LABELS } from '@/components/shared/operator-switcher'
 import { type ColumnDef } from '@tanstack/react-table'
 import { DataTableColumnHeader } from '@/components/data-table'
 import { StatusBadge } from '@/components/shared/status-badge'
@@ -124,6 +125,12 @@ const PackingPage = () => {
   const [packerName, setPackerName] = useState('')
   const [startDialog, setStartDialog] = useState<PackingOrder | null>(null)
   const [startError, setStartError] = useState('')
+
+  // Empacadores asignables: operarios activos con rol packer (o supervisor, que puede
+  // cubrir la estación). Mismo criterio que "Liberar a picking" en Commerce.
+  const eligiblePackers = state.operators.filter(
+    (o) => o.active && (o.role === 'packer' || o.role === 'supervisor')
+  )
 
   // ─── KPIs ─────────────────────────────────────────────────────────────────
 
@@ -826,13 +833,27 @@ const PackingPage = () => {
                 </div>
               )}
               <div className="space-y-1.5">
-                <Label htmlFor="packer-name">Nombre del empacador</Label>
-                <Input
-                  id="packer-name"
-                  placeholder="Ej. Paula Vega"
-                  value={packerName}
-                  onChange={(e) => setPackerName(e.target.value)}
-                />
+                <Label htmlFor="packer-select">Empacador</Label>
+                <Select value={packerName} onValueChange={setPackerName}>
+                  <SelectTrigger id="packer-select" className="w-full">
+                    <SelectValue placeholder="Selecciona un empacador" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {eligiblePackers.map((o) => (
+                      <SelectItem key={o.id} value={o.name}>
+                        {o.name}
+                        <span className="text-muted-foreground ml-1.5 text-xs">
+                          · {ROLE_LABELS[o.role]}
+                        </span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {eligiblePackers.length === 0 && (
+                  <p className="text-muted-foreground text-xs">
+                    No hay empacadores activos. Créalos en Administración.
+                  </p>
+                )}
               </div>
               {startError && (
                 <p className="text-destructive flex items-center gap-1 text-sm">

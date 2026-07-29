@@ -9,6 +9,7 @@ import {
   ChevronUp,
   Clock,
   PackageCheck,
+  Send,
   ShoppingBag,
   ShoppingCart,
   TriangleAlert,
@@ -20,6 +21,7 @@ import { useCurrentOperator } from '@/hooks/use-current-operator'
 import { PageHeader } from '@/components/shared/page-header'
 import { KpiCard } from '@/components/shared/kpi-card'
 import { StatusBadge } from '@/components/shared/status-badge'
+import { AssignOperatorDialog } from '@/components/shared/assign-operator-dialog'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -93,7 +95,7 @@ const isUrgent = (promisedDeliveryDate: string) =>
 
 export default function CommercePage() {
   const state = useWmsStore()
-  const { reserveInventory, markReadyForPickup, confirmPickup } = useWmsStore()
+  const { reserveInventory, markReadyForPickup, confirmPickup, releaseOrderToPicker } = useWmsStore()
   const { productName } = useStoreHelpers()
   const { operator } = useCurrentOperator()
 
@@ -102,6 +104,9 @@ export default function CommercePage() {
   const [channelFilter, setChannelFilter] = useState('all')
   const [statusFilter, setStatusFilter] = useState('all')
   const reserveDialog = useDialogState<ReserveDialogData>()
+  // Pedido seleccionado para "Liberar a picking" (abre el diálogo de asignar picker).
+  const [releaseOrderId, setReleaseOrderId] = useState<string | null>(null)
+  const [releaseMsg, setReleaseMsg] = useState<string | null>(null)
 
   const filtered = state.commerceOrders.filter((o) => {
     if (channelFilter !== 'all' && o.channel !== channelFilter) return false
@@ -321,6 +326,18 @@ export default function CommercePage() {
                             <PackageCheck className="mr-1 size-3" /> Reservar
                           </Button>
                         )}
+                        {!['completed', 'cancelled', 'ready_for_pickup'].includes(order.status) && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              setReleaseMsg(null)
+                              setReleaseOrderId(order.id)
+                            }}
+                          >
+                            <Send className="mr-1 size-3" /> Liberar a picking
+                          </Button>
+                        )}
                         {order.status === 'in_progress' &&
                           order.fulfillmentType === 'pickup_in_store' && (
                             <Button
@@ -421,6 +438,45 @@ export default function CommercePage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AssignOperatorDialog
+        open={releaseOrderId !== null}
+        onOpenChange={(open) => {
+          if (!open) setReleaseOrderId(null)
+        }}
+        roles={['picker', 'supervisor']}
+        entityLabel="Genera las tareas de picking del pedido y las asigna al operario."
+        onConfirm={(op) => {
+          if (!releaseOrderId) return
+          try {
+            const { released, backordered } = releaseOrderToPicker(releaseOrderId, op.id)
+            const parts: string[] = []
+            if (released.length > 0) parts.push(`${released.length} línea(s) liberada(s) a ${op.name}`)
+            if (backordered.length > 0) {
+              const names = backordered.map((b) => productName(b.productId)).join(', ')
+              parts.push(`sin stock (backorder): ${names} — recibe primero`)
+            }
+            if (parts.length === 0) parts.push('El pedido no tiene líneas por liberar')
+            setReleaseMsg(parts.join(' · '))
+          } catch (e) {
+            setReleaseMsg(e instanceof Error ? e.message : 'Error al liberar a picking')
+          }
+          setReleaseOrderId(null)
+        }}
+      />
+
+      {releaseMsg && (
+        <div className="fixed inset-x-0 bottom-4 z-50 mx-auto flex w-fit max-w-[90vw] items-center gap-2 rounded-full border bg-card px-4 py-2 text-sm shadow-lg">
+          <CheckCircle2 className="size-4 text-emerald-500" />
+          <span>{releaseMsg}</span>
+          <button
+            onClick={() => setReleaseMsg(null)}
+            className="text-muted-foreground hover:text-foreground ml-2"
+          >
+            ✕
+          </button>
+        </div>
+      )}
     </div>
   )
 }

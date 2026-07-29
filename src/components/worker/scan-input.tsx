@@ -5,6 +5,7 @@ import { ScanLine, CheckCircle2, XCircle, Keyboard } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
+import { scanFeedback } from '@/lib/scan-feedback'
 
 interface Props {
   label: string
@@ -22,9 +23,11 @@ export const ScanInput = ({ label, expectedValue, onMatch, onError }: Props) => 
 
   const handleSubmit = () => {
     if (value.trim() === expectedValue) {
+      scanFeedback(true)
       setStatus('ok')
       setTimeout(onMatch, 400)
     } else {
+      scanFeedback(false)
       setStatus('error')
       onError?.(value.trim())
       setValue('')
@@ -33,30 +36,43 @@ export const ScanInput = ({ label, expectedValue, onMatch, onError }: Props) => 
   }
 
   return (
-    <div className="flex flex-col gap-3 rounded-2xl border bg-card p-4">
-      <p className="text-sm font-medium text-muted-foreground">{label}</p>
+    <div className="border-border bg-card flex flex-col gap-3 rounded-xl border p-4 shadow-sm">
       <div className="flex items-center gap-2">
-        <span className="bg-primary/10 text-primary flex size-10 shrink-0 items-center justify-center rounded-full">
+        <span
+          className={cn(
+            'flex size-9 shrink-0 items-center justify-center rounded-md transition-colors',
+            status === 'idle' && 'bg-[var(--worker-info-surface)] text-[var(--worker-info)]',
+            status === 'ok' && 'bg-[var(--worker-ok-surface)] text-[var(--worker-ok)]',
+            status === 'error' && 'bg-[var(--worker-danger-surface)] text-[var(--worker-danger)]'
+          )}
+        >
           <ScanLine className="size-4" />
         </span>
-        <div className="relative flex-1">
-          <Input
-            ref={inputRef}
-            value={value}
-            onChange={(e) => setValue(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
-            placeholder="Escanear o escribir..."
-            className={cn(
-              'h-14 text-base',
-              status === 'ok' && 'border-emerald-500 bg-emerald-50',
-              status === 'error' && 'border-red-500 bg-red-50'
-            )}
-          />
-          {status === 'ok' && <CheckCircle2 className="absolute right-3 top-1/2 -translate-y-1/2 text-emerald-500 size-5" />}
-          {status === 'error' && <XCircle className="absolute right-3 top-1/2 -translate-y-1/2 text-red-500 size-5" />}
-        </div>
+        <p className="text-muted-foreground font-mono text-xs font-semibold tracking-wider uppercase">
+          {label}
+        </p>
       </div>
-      <Button className="h-12 text-base" onClick={handleSubmit} disabled={!value.trim()}>
+      <div className="relative">
+        <Input
+          ref={inputRef}
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
+          placeholder="Escanear o escribir…"
+          className={cn(
+            'h-14 pr-10 font-mono text-base tracking-wide',
+            status === 'ok' && 'border-[var(--worker-ok)] bg-[var(--worker-ok-surface)]',
+            status === 'error' && 'border-[var(--worker-danger)] bg-[var(--worker-danger-surface)]'
+          )}
+        />
+        {status === 'ok' && (
+          <CheckCircle2 className="absolute top-1/2 right-3 size-5 -translate-y-1/2 text-[var(--worker-ok)]" />
+        )}
+        {status === 'error' && (
+          <XCircle className="absolute top-1/2 right-3 size-5 -translate-y-1/2 text-[var(--worker-danger)]" />
+        )}
+      </div>
+      <Button className="h-12 text-base font-semibold" onClick={handleSubmit} disabled={!value.trim()}>
         Confirmar
       </Button>
       <Button variant="ghost" size="sm" onClick={onMatch} className="text-muted-foreground gap-1.5">

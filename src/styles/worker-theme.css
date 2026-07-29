@@ -1,37 +1,106 @@
 /*
-label: Worker mobile brand accent
-scope: solo elementos bajo [data-worker-theme] — nunca toca :root/.dark globalmente
+label: Worker mobile — tema claro estilo "Manhattan Active"
+scope: solo elementos bajo [data-worker-theme] — nunca toca :root/.dark globalmente.
+
+Piel clara, limpia y premium inspirada en la app móvil de Manhattan Active WM:
+fondo muy claro, tarjetas blancas con sombra suave, acento verde-teal de marca,
+mucho espacio en blanco y jerarquía de datos (etiqueta pequeña → valor grande).
+Se aplica IGUAL en modo claro y oscuro de la app para mantener la vista worker
+consistente en el piso.
 */
-[data-worker-theme] {
-  --primary: oklch(0.546 0.245 262.9); /* ≈ Tailwind blue-600 */
-  --primary-foreground: oklch(0.98 0.014 259);
-  --ring: oklch(0.546 0.245 262.9 / 55%);
-  --accent: oklch(0.93 0.03 262.9);
-  --accent-foreground: oklch(0.32 0.14 262.9);
+[data-worker-theme],
+.dark [data-worker-theme] {
+  /* Neutros claros y fríos */
+  --background: oklch(0.985 0.005 200);
+  --foreground: oklch(0.24 0.02 220);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.24 0.02 220);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.24 0.02 220);
+  --muted: oklch(0.965 0.008 200);
+  --muted-foreground: oklch(0.5 0.02 220);
+  --secondary: oklch(0.965 0.008 200);
+  --secondary-foreground: oklch(0.24 0.02 220);
+  --border: oklch(0.905 0.01 210);
+  --input: oklch(0.905 0.01 210);
 
-  --background: oklch(0.984 0.006 259);
-  --border: oklch(0.906 0.014 259);
-  --radius: 1.125rem;
+  /* Acento primario — azul de marca (el nuestro) */
+  --primary: oklch(0.55 0.22 263);
+  --primary-foreground: oklch(0.99 0.01 263);
+  --accent: oklch(0.95 0.04 263);
+  --accent-foreground: oklch(0.4 0.14 263);
+  --ring: oklch(0.55 0.22 263 / 45%);
 
-  --worker-gradient-from: oklch(0.546 0.245 262.9);
-  --worker-gradient-to: oklch(0.511 0.262 276.9);
-  --worker-gradient-soft-from: oklch(0.94 0.03 262.9);
-  --worker-gradient-soft-to: oklch(0.94 0.035 276.9);
-  --worker-on-gradient: oklch(0.98 0.01 262.9);
+  /* Peligro / destructivo */
+  --destructive: oklch(0.585 0.2 25);
+  --destructive-foreground: oklch(0.99 0.01 25);
+
+  /* Radios amables pero no "burbuja" */
+  --radius: 0.75rem;
+
+  /* Colores de estado del piso (consistentes en toda la vista worker) */
+  --worker-ok: oklch(0.58 0.13 160);
+  --worker-ok-surface: oklch(0.58 0.13 160 / 12%);
+  --worker-warn: oklch(0.66 0.15 65);
+  --worker-warn-surface: oklch(0.66 0.15 65 / 14%);
+  --worker-danger: oklch(0.585 0.2 25);
+  --worker-danger-surface: oklch(0.585 0.2 25 / 11%);
+  --worker-info: oklch(0.55 0.2 263);
+  --worker-info-surface: oklch(0.55 0.2 263 / 12%);
+
+  /* Header con identidad de marca (azul), usado por WorkerPageHeader */
+  --worker-gradient-from: oklch(0.55 0.22 263);
+  --worker-gradient-to: oklch(0.5 0.24 275);
+  --worker-gradient-soft-from: oklch(0.96 0.03 263);
+  --worker-gradient-soft-to: oklch(0.96 0.035 275);
+  --worker-on-gradient: oklch(0.99 0.01 263);
 }
 
-.dark [data-worker-theme] {
-  --primary: oklch(0.72 0.16 262.9);
-  --primary-foreground: oklch(0.18 0.04 262.9);
-  --ring: oklch(0.72 0.16 262.9 / 50%);
-  --accent: oklch(0.28 0.05 262.9);
-  --accent-foreground: oklch(0.92 0.03 262.9);
-  --background: oklch(0.16 0.01 262.9);
-  --border: oklch(1 0 0 / 12%);
+/* ── Micro-interacciones "wow" (solo vista worker) ───────────────────────────
+   Anillos que expanden detrás del check de éxito: dan sensación de confirmación
+   celebratoria, como un terminal RF premium. Se respeta prefers-reduced-motion. */
+[data-worker-theme] .worker-success-ring {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  height: 6rem;
+  width: 6rem;
+  border-radius: 9999px;
+  background: var(--worker-ok);
+  opacity: 0;
+  animation: worker-ring 1.9s cubic-bezier(0.16, 1, 0.3, 1) infinite;
+  pointer-events: none;
+}
 
-  --worker-gradient-from: oklch(0.42 0.17 262.9);
-  --worker-gradient-to: oklch(0.4 0.2 276.9);
-  --worker-gradient-soft-from: oklch(0.25 0.05 262.9);
-  --worker-gradient-soft-to: oklch(0.25 0.055 276.9);
-  --worker-on-gradient: oklch(0.98 0.01 262.9);
+@keyframes worker-ring {
+  0% {
+    transform: scale(0.75);
+    opacity: 0.28;
+  }
+  70% {
+    opacity: 0;
+  }
+  100% {
+    transform: scale(2.4);
+    opacity: 0;
+  }
+}
+
+/* Brillo diagonal sutil sobre superficies de marca (header). */
+[data-worker-theme] .worker-sheen::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgb(255 255 255 / 18%) 0%, transparent 42%);
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-worker-theme] .worker-success-ring {
+    animation: none;
+    display: none;
+  }
+  [data-worker-theme] .animate-in {
+    animation: none !important;
+  }
 }

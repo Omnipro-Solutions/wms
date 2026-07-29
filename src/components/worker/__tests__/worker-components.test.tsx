@@ -8,14 +8,14 @@ describe('QuantityStepper', () => {
   it('renders value and calls onChange on + click', () => {
     const onChange = vi.fn()
     render(<QuantityStepper value={3} onChange={onChange} />)
-    fireEvent.click(screen.getByRole('button', { name: '+' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Más' }))
     expect(onChange).toHaveBeenCalledWith(4)
   })
 
   it('does not go below min', () => {
     const onChange = vi.fn()
     render(<QuantityStepper value={1} onChange={onChange} min={1} />)
-    fireEvent.click(screen.getByRole('button', { name: '−' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Menos' }))
     expect(onChange).not.toHaveBeenCalled()
   })
 })
@@ -23,7 +23,7 @@ describe('QuantityStepper', () => {
 describe('WorkerStepper', () => {
   it('shows current and total', () => {
     render(<WorkerStepper current={2} total={4} />)
-    expect(screen.getByText('Paso 2 de 4')).toBeInTheDocument()
+    expect(screen.getByText('Paso 2/4')).toBeInTheDocument()
   })
 })
 
@@ -35,8 +35,8 @@ describe('WorkerCard', () => {
     expect(onClick).toHaveBeenCalled()
   })
 
-  it('shows urgent badge when urgent=true', () => {
-    render(<WorkerCard title="Task" subtitle="sub" urgent onClick={vi.fn()} />)
-    expect(screen.getByText('URGENTE')).toBeInTheDocument()
+  it('shows priority chip when priority=high', () => {
+    render(<WorkerCard title="Task" subtitle="sub" priority="high" onClick={vi.fn()} />)
+    expect(screen.getByText('Alta')).toBeInTheDocument()
   })
 })
